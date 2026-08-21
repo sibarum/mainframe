@@ -85,6 +85,7 @@ public final class Help {
         return switch (s.effect()) {
             case PURE -> "nothing outside this pipeline";
             case READS -> "reads from disk, changes nothing";
+            case SESSION -> "changes this session only -- your files are untouched";
             case WRITES -> "creates or updates files (supports --dry-run)";
             case DESTRUCTIVE -> "can lose data, so it always asks first (supports --dry-run and --yes)";
         };
@@ -94,6 +95,7 @@ public final class Help {
         return switch (s.effect()) {
             case DESTRUCTIVE -> " " + out.yellow("(asks first)");
             case WRITES -> " " + out.dim("(changes files)");
+            case SESSION -> " " + out.dim("(changes this session)");
             default -> "";
         };
     }

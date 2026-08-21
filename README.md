@@ -168,6 +168,58 @@ from-index home | count-by ext | first 10
 `find` works without an index too (it walks the disk), so the index is an
 optimisation, never a separate world.
 
+## The environment is live
+
+A running Java process cannot change its own environment, so MainFrame keeps its
+own: seeded from the process at startup, edited between commands, and handed to
+every program it starts. There is nothing to reload and nothing to restart.
+
+```
+~/code/site > env-set EDITOR "code --wait"
+~/code/site > path-add ./node_modules/.bin --front
+~/code/site > which eslint
+name         eslint
+kind         external program
+path         ~/code/site/node_modules/.bin/eslint.cmd
+run-it-with  ^eslint
+~/code/site > ^eslint --version
+```
+
+`path` shows where programs are looked for, in order, and flags entries that
+aren't there — a broken PATH is visible instead of mysterious:
+
+```
+~ > path | where missing == true
+order  directory                 missing
+1      C:\Users\User\bin         true
+7      C:\Tools\old-sdk\bin      true
+```
+
+Because MainFrame resolves external programs against *its own* PATH rather than
+letting the OS use the one this process inherited, `path-add` takes effect on the
+next command — and "not found" becomes an error that says where it looked.
+
+The guardrails carry over: `path-add` refuses a directory that doesn't exist
+(`--force` if you're about to create it), adding the same entry twice does
+nothing and says so, and `env-remove` won't unset something like `PATH` or
+`HOME` without `--force`.
+
+The environment is a table like everything else, and readable as a live record:
+
+```
+env | where name =~ "proxy"
+echo $env.HOME
+env | where value =~ "node" | get name
+```
+
+Commands marked *changes this session* — `cd`, `env-set`, `env-remove`,
+`path-add`, `path-remove` — touch nothing on disk, which is why they have no
+`--dry-run` to offer.
+
+Two things are read once at startup and not from this environment:
+`MAINFRAME_HOME` (moving the trash or the indexes mid-session would be worse than
+useless) and `NO_COLOR`.
+
 ## The language
 
 ```
@@ -205,6 +257,7 @@ does what you meant.
 | **shaping data** | `where` `select` `reject` `sort-by` `first` `last` `reverse` `length` `get` `each` `uniq` `count-by` `sum` |
 | **converting** | `to-json` `from-json` `lines` `to-text` |
 | **searching** | `index-build` `index-sync` `index-list` `index-drop` `from-index` `find` |
+| **environment** | `env` `env-set` `env-remove` `path` `path-add` `path-remove` |
 
 `cp` and `mv` take their destination as `--to=<path>`, never as a trailing
 argument, so the last thing you typed is never mistaken for a target.
@@ -229,5 +282,6 @@ Set `MAINFRAME_HOME` to put it somewhere else.
 - External programs are captured, not streamed, unless the caret command is the
   last stage of an interactive line — so a pager or an editor works, but
   `^top | where ...` does not.
-- No functions or user-defined commands, no environment-variable syntax, no
-  background jobs.
+- Environment changes last for the session only. There is no startup profile yet,
+  so nothing carries over to the next run.
+- No functions or user-defined commands, and no background jobs.

@@ -108,7 +108,7 @@ public final class CoreBuiltins {
                 .summary("go to another directory")
                 .optional("directory", ValueType.PATH, "where to go; your home directory by default")
                 .output(ValueType.PATH)
-                .effect(Effect.READS)
+                .effect(Effect.SESSION)
                 .example("cd ./src")
                 .example("cd ..")
                 .example("cd")
@@ -180,7 +180,8 @@ public final class CoreBuiltins {
                         "summary", new Value.Str(found.summary()),
                         "usage", new Value.Str(found.usage()));
             }
-            Path onPath = findOnPath(name);
+            // Looked up on MainFrame's PATH, so which agrees with what ^name will run.
+            Path onPath = args.session().env().findProgram(name);
             if (onPath != null) {
                 return Value.Rec.of(
                         "name", new Value.Str(name),
@@ -191,30 +192,9 @@ public final class CoreBuiltins {
             var error = args.fail("E504", "nothing called " + name + " is a command or on your PATH");
             String closest = Suggest.closest(name, registry.names());
             if (closest != null) error.hint("did you mean the builtin " + closest + "?");
+            error.hint("run path to see where MainFrame looks for programs");
             return error.raise();
         });
-    }
-
-    /** Looks up an executable the way the operating system would. */
-    private static Path findOnPath(String name) {
-        String path = System.getenv("PATH");
-        if (path == null) return null;
-        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
-        List<String> candidates = new ArrayList<>();
-        candidates.add(name);
-        if (windows) {
-            String pathext = System.getenv("PATHEXT");
-            String[] extensions = pathext == null ? new String[]{".EXE", ".CMD", ".BAT"} : pathext.split(";");
-            for (String extension : extensions) candidates.add(name + extension.toLowerCase());
-        }
-        for (String directory : path.split(java.io.File.pathSeparator)) {
-            if (directory.isBlank()) continue;
-            for (String candidate : candidates) {
-                Path full = Path.of(directory).resolve(candidate);
-                if (Files.isRegularFile(full)) return full;
-            }
-        }
-        return null;
     }
 
     private static dev.mainframe.eval.Builtin version() {

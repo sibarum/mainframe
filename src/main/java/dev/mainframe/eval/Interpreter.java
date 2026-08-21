@@ -399,12 +399,26 @@ public final class Interpreter {
     private Value variable(Ast.Var var, Scope scope) {
         Value value = scope.get(var.name());
         if (value != null) return value;
+        // $env is built fresh each time, so it always shows the current state.
+        if (var.name().equals("env")) return environmentRecord();
         MfError.Builder error = MfError.of("E312", "there is no variable called " + var.name())
                 .at(var.span());
         String closest = Suggest.closest(var.name(), scope.names());
         if (closest != null) error.hint("did you mean $" + closest + "?");
         error.hint("make one with: let " + var.name() + " = ...");
+        if (session.env().has(var.name())) {
+            error.hint("the environment variable of that name is $env." + var.name());
+        }
         return error.raise();
+    }
+
+    /** The live environment as a record, so $env.HOME reads the current value. */
+    private Value.Rec environmentRecord() {
+        var fields = new LinkedHashMap<String, Value>();
+        for (String name : session.env().sortedNames()) {
+            fields.put(name, new Value.Str(session.env().get(name)));
+        }
+        return new Value.Rec(fields);
     }
 
     /**
@@ -586,7 +600,7 @@ public final class Interpreter {
      */
     private Value external(Ast.External call, Value input, Scope scope, boolean last) {
         List<String> command = new ArrayList<>();
-        command.add(call.name());
+        command.add(resolveProgram(call));
         for (Ast.Arg arg : call.args()) {
             if (arg instanceof Ast.FlagArg flag) {
                 String dashes = flag.shortForm() ? "-" : "--";
@@ -602,6 +616,10 @@ public final class Interpreter {
 
         boolean handOver = last && input instanceof Value.Nothing && session.interactive();
         ProcessBuilder builder = new ProcessBuilder(command).directory(session.cwd().toFile());
+        // The child gets the environment as it stands right now, not the one this
+        // process was started with, so env-set and path-add take effect at once.
+        builder.environment().clear();
+        builder.environment().putAll(session.env().all());
         try {
             if (handOver) {
                 builder.inheritIO();
@@ -640,6 +658,30 @@ public final class Interpreter {
             Thread.currentThread().interrupt();
             throw MfError.of("E324", call.name() + " was interrupted").at(call.span()).build();
         }
+    }
+
+    /**
+     * Finds the program to run using MainFrame's own PATH.
+     *
+     * <p>The operating system would search the PATH this process was started
+     * with, which would quietly ignore anything {@code path-add} did. Resolving
+     * it here is what makes an edited PATH real, and it turns "not found" into an
+     * error that says where MainFrame looked.
+     */
+    private String resolveProgram(Ast.External call) {
+        String name = call.name();
+        boolean spelledOut = name.contains("/") || name.contains("\\")
+                || (name.length() > 1 && name.charAt(1) == ':');
+        if (spelledOut) return session.resolve(name).toString();
+        java.nio.file.Path found = session.env().findProgram(name);
+        if (found != null) return found.toString();
+        throw MfError.of("E325", "there is no program called " + name + " on your PATH")
+                .at(call.span())
+                .hint("check the spelling, or run path to see the " + session.env().pathEntries().size()
+                        + " place(s) MainFrame looked")
+                .hint("add somewhere to look with: path-add <directory>")
+                .hint("if it is a MainFrame command, drop the ^")
+                .build();
     }
 
     /** The text a value becomes when it is handed to an external program. */

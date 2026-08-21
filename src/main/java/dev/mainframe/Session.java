@@ -17,6 +17,7 @@ public final class Session {
     private final IndexStore indexes;
     private final Scope globals = new Scope(null);
     private final BufferedReader input;
+    private final Environment environment = Environment.fromProcess();
 
     private Path cwd;
     private boolean dryRun;
@@ -35,6 +36,13 @@ public final class Session {
     public IndexStore indexes() { return indexes; }
     public Scope globals() { return globals; }
     public Path cwd() { return cwd; }
+
+    /**
+     * The environment handed to external programs, editable between commands.
+     * MAINFRAME_HOME is the one exception: it is read once at startup, because
+     * moving the trash or the indexes mid-session would be worse than useless.
+     */
+    public Environment env() { return environment; }
 
     public void cd(Path directory) { this.cwd = directory; }
 

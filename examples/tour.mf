@@ -29,3 +29,8 @@ ls | where kind == "file" | first 1 | rm --dry-run
 
 echo "8. and JSON goes out and comes back as real values"
 ls | first 2 | select name size | to-json | from-json | length
+
+echo "9. the environment can change between commands, with no restart"
+env-set TOUR_VAR "set while running"
+env TOUR_VAR
+path | where missing == true | length

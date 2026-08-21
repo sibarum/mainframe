@@ -8,6 +8,7 @@ import java.util.SequencedMap;
 import java.util.SequencedSet;
 
 import dev.mainframe.builtins.ConvertBuiltins;
+import dev.mainframe.builtins.EnvBuiltins;
 import dev.mainframe.builtins.CoreBuiltins;
 import dev.mainframe.builtins.FsBuiltins;
 import dev.mainframe.builtins.IndexBuiltins;
@@ -26,6 +27,7 @@ public final class Registry {
         TableBuiltins.register(r);
         ConvertBuiltins.register(r);
         IndexBuiltins.register(r);
+        EnvBuiltins.register(r);
         return r;
     }
 

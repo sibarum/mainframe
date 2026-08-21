@@ -30,6 +30,8 @@ public record Signature(
         PURE,
         /** Reads from disk or the environment. */
         READS,
+        /** Changes this session -- the directory, a variable, the PATH -- and nothing on disk. */
+        SESSION,
         /** Creates or updates things, but never loses data. */
         WRITES,
         /** Can lose data. Never runs without confirmation. */
