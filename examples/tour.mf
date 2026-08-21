@@ -1,0 +1,31 @@
+# A tour of MainFrame. Run it with:  mainframe examples/tour.mf
+# Nothing here changes a file; the parts that would are shown with --dry-run.
+
+echo "1. values keep their types"
+ls | first 3 | select name size mime
+
+echo "2. filtering talks about columns, not text"
+ls --recurse --max-depth=2
+  | where kind == "file" and size > 1kb
+  | sort-by size --reverse
+  | first 5
+  | select name size
+
+echo "3. media types come from the bytes, not the file name"
+ls | where kind == "file" | mime | select name mime detected-by misleading-name
+
+echo "4. what is in here, by extension"
+ls --recurse | where kind == "file" | count-by ext | first 8
+
+echo "5. how much of it there is"
+ls --recurse | where kind == "file" | sum size
+
+echo "6. sizes and maths"
+let budget = 10mb
+echo ( - (ls --recurse | where kind == "file" | sum size))
+
+echo "7. anything destructive tells you first"
+ls | where kind == "file" | first 1 | rm --dry-run
+
+echo "8. and JSON goes out and comes back as real values"
+ls | first 2 | select name size | to-json | from-json | length
