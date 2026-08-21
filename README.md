@@ -338,19 +338,79 @@ ls
 ^curl -s https://example.com/x.json | from-json | get items
 ```
 
-Types: `nothing`, `bool`, `int`, `float`, `string`, `size` (`10mb`), `time`,
-`path`, `mime`, `list`, `record`, `table` (a list of records), `block`.
+Types: `nothing`, `bool`, `int`, `float`, `string`, `size` (`10mb`), `time`
+(`2026-08-21T14:30`), `duration` (`7d`), `path`, `mime`, `list`, `record`,
+`table` (a list of records), `block`. `now` is a value, not a command, so it
+composes: `where modified > (now - 7d)`.
 
-**Times are always shown in your local zone.** What MainFrame stores and compares
-is an instant, because that is the only form that survives daylight saving, a
-machine changing zones, and an index built on one computer being read on another
-— but every timestamp you *see* is the wall clock you can look up at. That is
-enforced rather than intended: [`Times`](src/main/java/dev/mainframe/value/Times.java)
-is the only place allowed to turn a moment into text, and a test fails the build
-if a second formatter appears anywhere in `src/main/java`. Where a machine will
-read the value back — `to-json` — it is still local time, but carries its offset
-(`2026-08-21T12:33:17.804-04:00`), because local time without an offset manages
-to be both friendly and useless.
+## The written form is the read form
+
+Every value has one canonical text, that text is valid MainFrame source, and
+reading it back gives you the identical value — same value, same type. This is
+the rule the rest of the design hangs off, because the consequence is what people
+actually do:
+
+```
+fetch | filter | save results.csv        # ...come back tomorrow...
+open results.csv | aggregate
+```
+
+has to give the same answer as
+
+```
+fetch | filter | aggregate
+```
+
+Stopping at a file is a pause, not a lossy conversion. There is a test that runs
+both halves and compares them, and another that writes one value of every type,
+reads it back, and checks the type survived.
+
+```
+~/work > ls | first 2 | select name size modified | to-csv
+name:string,size:size,modified:time
+notes.md,4mb,2026-08-21T14:30:00.000-04:00
+hero.png,4194305b,2026-08-19T09:12:44.031-04:00
+```
+
+The header carries the column types, so `from-csv` hands back a size rather than
+a number that happens to look like one. The cells are written exactly the way the
+language writes those values — `4mb` is what you would type, and `4194305b` is
+what a size that isn't a round number looks like, because the form has to be
+exact before it can be pretty. `to-csv --plain` drops the types for programs that
+want an ordinary CSV.
+
+Nothing is ever guessed at on the way in. A CSV from somewhere else, with no types
+in its header, comes in as text — a column that merely *looks* like a date is not
+turned into one, because guessing is how a spreadsheet eats a phone number. Say
+what you meant and it will do it.
+
+`to-source` and `from-source` are the same idea without the table shape: they
+write MainFrame's own literals, so any value at all — a record, a list, a lone
+duration — can go to a file and come back.
+
+**JSON is the interoperable one, and it says so.** JSON has no size and no
+moment, so `to-json | from-json` gives you a number where you had a size. That is
+a property of JSON, not a bug to fix quietly, and there is a test asserting it so
+nobody mistakes it for the lossless path.
+
+**Times are local, in both directions.** A timestamp you see is the wall clock you
+can look up at; a time you *write* means your wall clock too. What travels
+between is an instant, since that is the only form that survives daylight saving,
+a machine moving zones, and an index built on one computer being read on another.
+An explicit offset is honoured; without one, `2026-08-21` means your midnight.
+That is enforced rather than intended:
+[`Times`](src/main/java/dev/mainframe/value/Times.java) is the only place allowed
+to turn a moment into text or text into a moment, and a test fails the build if a
+second formatter appears anywhere in `src/main/java`.
+
+Because moments and spans are their own types rather than numbers wearing a hat,
+the arithmetic means something and the mistakes are caught:
+
+```
+ls | where modified > (now - 7d)      # a week ago
+echo (now - 2026-01-01)               # 7h 3m
+ls | where modified > 5               # error: cannot compare a time with an int
+```
 
 Operators: `== != < <= > >=`, `=~` and `!~` (substring, or glob when the pattern
 holds `*`/`?`), `and`/`or`/`not`, `+ - * / %`. `+` also joins two strings, two
@@ -364,7 +424,7 @@ does what you meant.
 | **getting around** | `help` `describe` `pwd` `cd` `echo` `which` `version` `exit` |
 | **files** | `ls` `cat` `mime` `save` `mkdir` `cp` `mv` `rm` |
 | **shaping data** | `where` `select` `reject` `sort-by` `first` `last` `reverse` `length` `get` `each` `uniq` `count-by` `sum` |
-| **converting** | `to-json` `from-json` `lines` `to-text` |
+| **converting** | `to-csv` `from-csv` `to-source` `from-source` `to-json` `from-json` `lines` `to-text` |
 | **searching** | `index-build` `index-sync` `index-list` `index-drop` `from-index` `find` |
 | **environment** | `env` `env-set` `env-remove` `path` `path-add` `path-remove` |
 

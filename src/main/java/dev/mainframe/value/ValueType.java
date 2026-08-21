@@ -15,6 +15,7 @@ public enum ValueType {
     STRING("string"),
     SIZE("size"),
     TIME("time"),
+    DURATION("duration"),
     PATH("path"),
     MIME("mime"),
     LIST("list"),
@@ -43,6 +44,7 @@ public enum ValueType {
             case STRING -> v instanceof Value.Str || v instanceof Value.PathVal || v instanceof Value.Mime;
             case SIZE -> v instanceof Value.Size || v instanceof Value.Int;
             case TIME -> v instanceof Value.Time;
+            case DURATION -> v instanceof Value.Duration;
             case PATH -> v instanceof Value.PathVal || v instanceof Value.Str;
             case MIME -> v instanceof Value.Mime || v instanceof Value.Str;
             // One value counts as a list of one, and one record as a table of one
@@ -64,6 +66,7 @@ public enum ValueType {
             case Value.Str _ -> STRING;
             case Value.Size _ -> SIZE;
             case Value.Time _ -> TIME;
+            case Value.Duration _ -> DURATION;
             case Value.PathVal _ -> PATH;
             case Value.Mime _ -> MIME;
             case Value.Rec _ -> RECORD;

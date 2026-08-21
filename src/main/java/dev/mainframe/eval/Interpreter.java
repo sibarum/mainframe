@@ -82,6 +82,11 @@ public final class Interpreter {
         };
     }
 
+    /** Runs a program without printing anything, for commands that read source. */
+    public Value evalQuiet(Ast.Program program, Scope scope) {
+        return runNested(program, scope);
+    }
+
     private Value runNested(Ast.Program program, Scope scope) {
         depth++;
         try {
@@ -349,6 +354,7 @@ public final class Interpreter {
         return switch (expr) {
             case Ast.Lit lit -> lit.value();
             case Ast.Var var -> variable(var, scope);
+            case Ast.Now _ -> new Value.Time(System.currentTimeMillis());
             case Ast.Word word -> word(word, scope);
             case Ast.ListLit list -> {
                 List<Value> items = new ArrayList<>(list.items().size());
@@ -534,10 +540,78 @@ public final class Interpreter {
             case ">=" -> new Value.Bool(Values.compare(left, right, span) >= 0);
             case "=~" -> new Value.Bool(Values.matches(Values.asString(left, span), Values.asString(right, span)));
             case "!~" -> new Value.Bool(!Values.matches(Values.asString(left, span), Values.asString(right, span)));
-            case "+" -> add(left, right, span);
-            case "-", "*", "/", "%" -> arithmetic(op, left, right, span);
+            case "+", "-", "*", "/", "%" -> {
+                if (left instanceof Value.Time || right instanceof Value.Time
+                        || left instanceof Value.Duration || right instanceof Value.Duration) {
+                    yield moments(op, left, right, span);
+                }
+                yield op.equals("+") ? add(left, right, span) : arithmetic(op, left, right, span);
+            }
             default -> throw new IllegalStateException("unhandled operator " + op);
         };
+    }
+
+    /**
+     * Arithmetic on moments and spans, where the units have to make sense: the
+     * gap between two moments is a span, a moment plus a span is another moment,
+     * and a moment plus a moment is nothing at all.
+     */
+    private Value moments(String op, Value left, Value right, Span span) {
+        if (left instanceof Value.Time a && right instanceof Value.Time b) {
+            if (op.equals("-")) return new Value.Duration(a.epochMillis() - b.epochMillis());
+            throw badMoment(op, left, right, span, "two moments can only be subtracted, giving the span between them");
+        }
+        if (left instanceof Value.Time a && right instanceof Value.Duration b) {
+            if (op.equals("+")) return new Value.Time(a.epochMillis() + b.millis());
+            if (op.equals("-")) return new Value.Time(a.epochMillis() - b.millis());
+            throw badMoment(op, left, right, span, "a span can be added to or subtracted from a moment");
+        }
+        if (left instanceof Value.Duration a && right instanceof Value.Time b) {
+            if (op.equals("+")) return new Value.Time(a.millis() + b.epochMillis());
+            throw badMoment(op, left, right, span, "write it the other way round: a moment plus a span");
+        }
+        if (left instanceof Value.Duration a && right instanceof Value.Duration b) {
+            return switch (op) {
+                case "+" -> new Value.Duration(a.millis() + b.millis());
+                case "-" -> new Value.Duration(a.millis() - b.millis());
+                case "%" -> new Value.Duration(a.millis() % b.millis());
+                // How many of one span fit in the other: a plain number, not a span.
+                case "/" -> b.millis() == 0
+                        ? throwDivideByZero(span)
+                        : new Value.Float((double) a.millis() / b.millis());
+                default -> throw badMoment(op, left, right, span, "two spans cannot be multiplied together");
+            };
+        }
+        if (left instanceof Value.Duration a && Values.isNumeric(right)) {
+            double factor = Values.asDouble(right, span);
+            return switch (op) {
+                case "*" -> new Value.Duration((long) (a.millis() * factor));
+                case "/" -> factor == 0
+                        ? throwDivideByZero(span)
+                        : new Value.Duration((long) (a.millis() / factor));
+                default -> throw badMoment(op, left, right, span,
+                        "a span can be multiplied or divided by a number");
+            };
+        }
+        if (Values.isNumeric(left) && right instanceof Value.Duration b && op.equals("*")) {
+            return new Value.Duration((long) (Values.asDouble(left, span) * b.millis()));
+        }
+        throw badMoment(op, left, right, span, left instanceof Value.Time || right instanceof Value.Time
+                ? "spans of time are written with a unit: 7d, 2h, 90m"
+                : "check the units on both sides");
+    }
+
+    private Value throwDivideByZero(Span span) {
+        throw MfError.of("E321", "cannot divide by zero").at(span)
+                .hint("check the right-hand side before dividing").build();
+    }
+
+    private MfError badMoment(String op, Value left, Value right, Span span, String hint) {
+        return MfError.of("E326", "cannot work out a " + ValueType.of(left).display() + " " + op + " a "
+                        + ValueType.of(right).display())
+                .at(span)
+                .hint(hint)
+                .build();
     }
 
     private Value add(Value left, Value right, Span span) {

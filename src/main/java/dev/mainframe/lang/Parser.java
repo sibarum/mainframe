@@ -5,6 +5,7 @@ import java.util.List;
 
 import dev.mainframe.MfError;
 import dev.mainframe.Span;
+import dev.mainframe.value.Times;
 import dev.mainframe.value.Value;
 
 /**
@@ -273,10 +274,14 @@ public final class Parser {
             case INT -> { advance(); return new Ast.Lit(new Value.Int(Long.parseLong(t.text())), t.span()); }
             case FLOAT -> { advance(); return new Ast.Lit(new Value.Float(Double.parseDouble(t.text())), t.span()); }
             case SIZE -> { advance(); return new Ast.Lit(size(t), t.span()); }
+            case DURATION -> { advance(); return new Ast.Lit(duration(t), t.span()); }
+            case DATETIME -> { advance(); return new Ast.Lit(datetime(t), t.span()); }
+            case TAG -> { return tagged(); }
             case STRING -> { advance(); return new Ast.Lit(new Value.Str(t.text()), t.span()); }
             case TRUE -> { advance(); return new Ast.Lit(new Value.Bool(true), t.span()); }
             case FALSE -> { advance(); return new Ast.Lit(new Value.Bool(false), t.span()); }
             case NOTHING -> { advance(); return new Ast.Lit(Value.Nothing.INSTANCE, t.span()); }
+            case NOW -> { advance(); return new Ast.Now(t.span()); }
             case VAR -> { advance(); return new Ast.Var(t.text(), t.span()); }
             case IDENT, BAREWORD -> { advance(); return new Ast.Word(t.text(), t.span()); }
             case STAR -> { advance(); return new Ast.Word("*", t.span()); }
@@ -298,11 +303,76 @@ public final class Parser {
     }
 
     private Value size(Token t) {
-        int split = 0;
-        while (split < t.text().length() && !Character.isLetter(t.text().charAt(split))) split++;
+        int split = unitStart(t.text());
         double n = Double.parseDouble(t.text().substring(0, split));
         Long unit = Lexer.sizeUnit(t.text().substring(split));
         return new Value.Size((long) (n * unit));
+    }
+
+    private Value duration(Token t) {
+        int split = unitStart(t.text());
+        double n = Double.parseDouble(t.text().substring(0, split));
+        Long unit = Times.durationUnit(t.text().substring(split));
+        return new Value.Duration((long) (n * unit));
+    }
+
+    private static int unitStart(String text) {
+        int split = 0;
+        while (split < text.length() && !Character.isLetter(text.charAt(split))) split++;
+        return split;
+    }
+
+    private Value datetime(Token t) {
+        try {
+            return new Value.Time(Times.parse(t.text()));
+        } catch (IllegalArgumentException e) {
+            throw MfError.of("E112", e.getMessage())
+                    .at(t.span())
+                    .hint("times look like 2026-08-21, 2026-08-21T14:30, or 2026-08-21T14:30:00.000-04:00")
+                    .hint("without an offset it means your local time")
+                    .build();
+        }
+    }
+
+    /**
+     * A type-tagged text literal: {@code path"./src"}, {@code mime"text/plain"}.
+     * These exist so that every kind of value has a written form, which is what
+     * lets a table be saved to a file and read back as itself.
+     */
+    private Ast.Expr tagged() {
+        Token tag = advance();
+        if (!check(TokenType.STRING)) {
+            throw MfError.of("E113", tag.text() + " must be followed directly by quoted text")
+                    .at(tag.span())
+                    .hint("for example: " + tag.text() + "\"some value\"")
+                    .build();
+        }
+        Token text = advance();
+        Span span = tag.span().through(text.span());
+        Value value = switch (tag.text()) {
+            case "path" -> new Value.PathVal(java.nio.file.Path.of(text.text()));
+            case "mime" -> mime(text, span);
+            case "time" -> datetime(new Token(TokenType.DATETIME, text.text(), span));
+            case "size" -> new Value.Size(Long.parseLong(text.text()));
+            case "duration" -> new Value.Duration(Long.parseLong(text.text()));
+            default -> throw MfError.of("E114", "there is no \"" + tag.text() + "\" kind of value")
+                    .at(tag.span())
+                    .hint("the tagged forms are path, mime, time, size and duration")
+                    .hint("if you meant a command followed by text, put a space between them")
+                    .build();
+        };
+        return new Ast.Lit(value, span);
+    }
+
+    private Value mime(Token text, Span span) {
+        int slash = text.text().indexOf('/');
+        if (slash <= 0 || slash == text.text().length() - 1) {
+            throw MfError.of("E115", "\"" + text.text() + "\" is not a media type")
+                    .at(span)
+                    .hint("media types look like text/plain or image/png")
+                    .build();
+        }
+        return new Value.Mime(text.text().substring(0, slash), text.text().substring(slash + 1), "written");
     }
 
     private Ast.Expr listLiteral() {
@@ -361,8 +431,8 @@ public final class Parser {
 
     private boolean startsExpression() {
         return switch (peek().type()) {
-            case INT, FLOAT, SIZE, STRING, TRUE, FALSE, NOTHING, VAR, IDENT, BAREWORD,
-                 LPAREN, LBRACKET, LBRACE, STAR, MINUS, NOT -> true;
+            case INT, FLOAT, SIZE, DURATION, DATETIME, TAG, STRING, TRUE, FALSE, NOTHING, NOW, VAR,
+                 IDENT, BAREWORD, LPAREN, LBRACKET, LBRACE, STAR, MINUS, NOT -> true;
             default -> false;
         };
     }

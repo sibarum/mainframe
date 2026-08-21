@@ -172,6 +172,14 @@ public final class Args {
         return interpreter.runBlock(block, item, scope);
     }
 
+    /**
+     * Runs parsed MainFrame source and hands back its value, printing nothing.
+     * Used by the commands that read MainFrame's own written form.
+     */
+    public Value evalSource(dev.mainframe.lang.Ast.Program program) {
+        return interpreter.evalQuiet(program, scope.child());
+    }
+
     // ---- errors ----------------------------------------------------------------------
 
     /** Raises a well-formed error attributed to this command. */

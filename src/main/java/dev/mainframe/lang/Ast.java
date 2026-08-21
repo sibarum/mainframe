@@ -70,6 +70,9 @@ public sealed interface Ast {
 
     record Var(String name, Span span) implements Expr {}
 
+    /** The moment of evaluation. A value, which is why it is a literal and not a command. */
+    record Now(Span span) implements Expr {}
+
     record Field(Expr target, String name, Span span) implements Expr {}
 
     record At(Expr target, Expr index, Span span) implements Expr {}

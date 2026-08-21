@@ -30,6 +30,7 @@ public final class Lexer {
             Map.entry("true", TokenType.TRUE),
             Map.entry("false", TokenType.FALSE),
             Map.entry("nothing", TokenType.NOTHING),
+            Map.entry("now", TokenType.NOW),
             Map.entry("and", TokenType.AND),
             Map.entry("or", TokenType.OR),
             Map.entry("not", TokenType.NOT));
@@ -62,6 +63,7 @@ public final class Lexer {
             if (c == '#') { while (!eof() && peek() != '\n') advance(); continue; }
             if (c == '\n') { add(TokenType.NEWLINE, "\\n", mark(), 1); advance(); continue; }
             if (c == '"' || c == '\'') { string(c); continue; }
+            if (Character.isDigit(c) && datetimeAhead(pos)) { datetime(); continue; }
             if (Character.isDigit(c)) { number(false); continue; }
             if (isIdentStart(c)) { word(); continue; }
             if (c == '$') { variable(); continue; }
@@ -135,14 +137,76 @@ public final class Lexer {
             add(isFloat ? TokenType.FLOAT : TokenType.INT, sb.toString(), start, 0);
             return;
         }
-        if (sizeUnit(suffix.toString()) == null) {
-            throw MfError.of("E002", "\"" + suffix + "\" is not a unit I know")
-                    .at(start)
-                    .hint("units are b, kb, mb, gb and tb -- or put a space in if you meant two things")
-                    .build();
+        String unit = suffix.toString().toLowerCase();
+        if (sizeUnit(unit) != null) {
+            rejectGluedOperator(start);
+            add(TokenType.SIZE, sb + unit, start, 0);
+            return;
         }
-        rejectGluedOperator(start);
-        add(TokenType.SIZE, sb + suffix.toString().toLowerCase(), start, 0);
+        if (dev.mainframe.value.Times.durationUnit(unit) != null) {
+            rejectGluedOperator(start);
+            add(TokenType.DURATION, sb + unit, start, 0);
+            return;
+        }
+        throw MfError.of("E002", "\"" + suffix + "\" is not a unit I know")
+                .at(start)
+                .hint("sizes take b, kb, mb, gb and tb")
+                .hint("spans of time take " + dev.mainframe.value.Times.durationUnits())
+                .hint("or put a space in if you meant two things")
+                .build();
+    }
+
+    /**
+     * True when a written time starts here: four digits, a dash, two digits, a
+     * dash, two digits. That shape is otherwise an error -- the spacing rule
+     * rejects 2026-08-21 as glued arithmetic -- so reading it as a time takes
+     * nothing away.
+     */
+    private boolean datetimeAhead(int at) {
+        return digits(at, 4) && charAt(at + 4) == '-' && digits(at + 5, 2)
+                && charAt(at + 7) == '-' && digits(at + 8, 2);
+    }
+
+    private boolean digits(int at, int howMany) {
+        for (int i = 0; i < howMany; i++) {
+            if (!Character.isDigit(charAt(at + i))) return false;
+        }
+        return true;
+    }
+
+    private char charAt(int at) {
+        return at < src.length() ? src.charAt(at) : '\0';
+    }
+
+    /**
+     * A written time: a date, optionally a clock time, optionally an offset. The
+     * exact form {@link dev.mainframe.value.Times#machine} writes, so a time can
+     * be saved to a file and read back unchanged.
+     */
+    private void datetime() {
+        Span start = mark();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10; i++) { sb.append(peek()); advance(); }   // yyyy-MM-dd
+        if (!eof() && (peek() == 'T' || peek() == 't')) {
+            sb.append('T');
+            advance();
+            while (!eof() && (Character.isDigit(peek()) || peek() == ':' || peek() == '.')) {
+                sb.append(peek());
+                advance();
+            }
+            if (!eof() && (peek() == 'Z' || peek() == 'z')) {
+                sb.append('Z');
+                advance();
+            } else if (!eof() && (peek() == '+' || peek() == '-') && digits(pos + 1, 2)) {
+                sb.append(peek());
+                advance();
+                while (!eof() && (Character.isDigit(peek()) || peek() == ':')) {
+                    sb.append(peek());
+                    advance();
+                }
+            }
+        }
+        add(TokenType.DATETIME, sb.toString(), start, 0);
     }
 
     /** Catches 5-3 and 5+3, which look like arithmetic but read as one token. */
@@ -164,6 +228,13 @@ public final class Lexer {
             if (peek() == '-' && !(pos + 1 < src.length() && isIdentStart(src.charAt(pos + 1)))) break;
             sb.append(peek());
             advance();
+        }
+        // A name glued to a quote tags the text with a type: path"./src", mime"text/plain".
+        // That gives the types with no literal shape of their own a written form,
+        // so every value can be saved and read back as itself.
+        if (!eof() && peek() == '"') {
+            add(TokenType.TAG, sb.toString(), start, 0);
+            return;
         }
         // src/main or notes.txt: an identifier glued to a path character is a bareword.
         if (!eof() && startsBareword(peek()) && !(peek() == '*' && sb.isEmpty())) {
@@ -301,7 +372,8 @@ public final class Lexer {
     private boolean startsValue() {
         if (out.isEmpty()) return true;
         return switch (out.getLast().type()) {
-            case INT, FLOAT, SIZE, STRING, VAR, RPAREN, RBRACKET, RBRACE, BAREWORD -> false;
+            case INT, FLOAT, SIZE, DURATION, DATETIME, STRING, VAR, RPAREN, RBRACKET, RBRACE,
+                 BAREWORD -> false;
             default -> true;
         };
     }

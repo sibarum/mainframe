@@ -327,6 +327,7 @@ public final class TableBuiltins {
             String column = args.str(0, null);
             double total = 0;
             boolean sized = false;
+            boolean spans = false;
             boolean fractional = false;
             for (Value item : args.items()) {
                 Value value = item;
@@ -334,6 +335,11 @@ public final class TableBuiltins {
                     Value.Rec row = asRow(item);
                     requireColumn(args, row, column);
                     value = row.get(column);
+                }
+                if (value instanceof Value.Duration d) {
+                    spans = true;
+                    total += d.millis();
+                    continue;
                 }
                 if (!Values.isNumeric(value)) {
                     throw args.fail("E705", "cannot add up a " + ValueType.of(value).display())
@@ -346,6 +352,7 @@ public final class TableBuiltins {
                 fractional |= value instanceof Value.Float;
                 total += Values.asDouble(value, args.span());
             }
+            if (spans) return new Value.Duration((long) total);
             if (fractional) return new Value.Float(total);
             return sized ? new Value.Size((long) total) : new Value.Int((long) total);
         });

@@ -29,6 +29,8 @@ public enum DataType {
     SIZE,
     /** A moment in time. */
     TIME,
+    /** A span of time, written like 7d or 90m. */
+    DURATION,
     /** A filesystem path, resolved against the shell's directory. */
     PATH,
     /** A media type, such as text/markdown. */
@@ -50,6 +52,7 @@ public enum DataType {
             case TEXT -> ValueType.STRING;
             case SIZE -> ValueType.SIZE;
             case TIME -> ValueType.TIME;
+            case DURATION -> ValueType.DURATION;
             case PATH -> ValueType.PATH;
             case MIME -> ValueType.MIME;
             case LIST -> ValueType.LIST;
@@ -67,6 +70,7 @@ public enum DataType {
             case STRING -> TEXT;
             case SIZE -> SIZE;
             case TIME -> TIME;
+            case DURATION -> DURATION;
             case PATH -> PATH;
             case MIME -> MIME;
             case LIST -> LIST;

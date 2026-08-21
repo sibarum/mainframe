@@ -33,8 +33,11 @@ public sealed interface Value {
     /** A byte count. Distinct from Int so it can render as "1.4 MB" and compare with plain numbers. */
     record Size(long bytes) implements Value {}
 
-    /** A moment in time, epoch millis. */
+    /** A moment in time, epoch millis. Rendered and read as local time. */
     record Time(long epochMillis) implements Value {}
+
+    /** A span of time, in milliseconds. What you get from subtracting two moments. */
+    record Duration(long millis) implements Value {}
 
     /** A filesystem path. Always absolute by the time it reaches a builtin. */
     record PathVal(Path path) implements Value {}

@@ -1,5 +1,5 @@
 # A tour of MainFrame. Run it with:  mainframe examples/tour.mf
-# Nothing here changes a file; the parts that would are shown with --dry-run.
+# Nothing here changes a file for good; the parts that would are shown with --dry-run.
 
 echo "1. values keep their types"
 ls | first 3 | select name size mime
@@ -22,15 +22,21 @@ ls --recurse | where kind == "file" | sum size
 
 echo "6. sizes and maths"
 let budget = 10mb
-echo ( - (ls --recurse | where kind == "file" | sum size))
+echo ($budget - (ls --recurse | where kind == "file" | sum size))
 
-echo "7. anything destructive tells you first"
+echo "7. moments and spans are values, so they can be compared and subtracted"
+ls | where modified > (now - 7d) | length
+echo (now - 2026-01-01)
+
+echo "8. anything destructive tells you first"
 ls | where kind == "file" | first 1 | rm --dry-run
-
-echo "8. and JSON goes out and comes back as real values"
-ls | first 2 | select name size | to-json | from-json | length
 
 echo "9. the environment can change between commands, with no restart"
 env-set TOUR_VAR "set while running"
 env TOUR_VAR
-path | where missing == true | length
+
+echo "10. a value written to a file reads back as itself"
+ls | where kind == "file" | select name size modified | to-csv | save ./tour-listing.csv --force
+cat ./tour-listing.csv | from-csv | sum size
+ls | where kind == "file" | sum size
+rm ./tour-listing.csv --yes

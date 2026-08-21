@@ -32,6 +32,9 @@ public final class Help {
         }
         out.info(out.dim("run an external program with a caret, e.g. ") + out.cyan("^git status"));
         out.info(out.dim("add ") + out.cyan("--dry-run") + out.dim(" to any command that changes files"));
+        out.info(out.dim("write values out as they are read back: ")
+                + out.cyan("now") + out.dim(", ") + out.cyan("7d") + out.dim(", ") + out.cyan("4mb")
+                + out.dim(", ") + out.cyan("2026-08-21T14:30") + out.dim(", ") + out.cyan("path\"./x\""));
     }
 
     /** Everything about one command. */

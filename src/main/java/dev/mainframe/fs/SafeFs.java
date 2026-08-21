@@ -166,12 +166,13 @@ public final class SafeFs {
         String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
         boolean dir;
         long size = 0;
-        long modified = 0;
+        // A timestamp we could not read is unknown, not the first moment of 1970.
+        Value modified = Value.Nothing.INSTANCE;
         try {
             BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
             dir = attrs.isDirectory();
             size = attrs.isDirectory() ? 0 : attrs.size();
-            modified = attrs.lastModifiedTime().toMillis();
+            modified = new Value.Time(attrs.lastModifiedTime().toMillis());
         } catch (IOException e) {
             dir = Files.isDirectory(path);
         }
@@ -181,7 +182,7 @@ public final class SafeFs {
                 "name", new Value.Str(name),
                 "kind", new Value.Str(dir ? "dir" : "file"),
                 "size", new Value.Size(size),
-                "modified", new Value.Time(modified),
+                "modified", modified,
                 "ext", new Value.Str(dir ? "" : extensionOf(name)));
         if (mimeMode != MimeMode.NONE) {
             Value mime;

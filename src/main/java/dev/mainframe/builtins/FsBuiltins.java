@@ -243,7 +243,18 @@ public final class FsBuiltins {
                         .hint("or pick another name so nothing is lost")
                         .build();
             }
-            boolean asJson = args.flag("json") || file.getFileName().toString().toLowerCase().endsWith(".json");
+            // Text is written as it stands. Only structured values get converted,
+            // so `ls | to-json | save x.json` writes JSON rather than JSON wrapped
+            // in a JSON string -- the file is the same either way you build it.
+            boolean alreadyText = args.input() instanceof Value.Str;
+            boolean asJson = !alreadyText
+                    && (args.flag("json") || file.getFileName().toString().toLowerCase().endsWith(".json"));
+            if (alreadyText && args.flag("json")) {
+                throw args.fail("E618", "that is already text, so there is nothing to convert to JSON")
+                        .hint("drop --json to write the text as it is")
+                        .hint("or drop to-json from the pipeline and let save do the converting")
+                        .build();
+            }
             byte[] bytes = (asJson
                     ? Values.toJson(args.input(), 2)
                     : textOf(args.input())).getBytes(StandardCharsets.UTF_8);
@@ -254,6 +265,11 @@ public final class FsBuiltins {
     }
 
     private static String textOf(Value value) {
+        // Text goes out as it came in, give or take a final newline.
+        if (value instanceof Value.Str s) {
+            String text = s.value();
+            return text.isEmpty() || text.endsWith("\n") ? text : text + "\n";
+        }
         if (value instanceof Value.ListVal list) {
             StringBuilder sb = new StringBuilder();
             for (Value item : list.items()) sb.append(Values.display(item)).append('\n');

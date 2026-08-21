@@ -93,6 +93,40 @@ class LocalTimeTest {
     }
 
     @Test
+    void aWrittenTimeWithNoOffsetMeansTheUsersOwnClock() {
+        // The input side of the same promise: someone filtering on a date is
+        // talking about their own day, not about UTC.
+        pretendWeAreIn("Asia/Tokyo");
+        long tokyoMidnight = Times.parse("2026-08-21");
+        pretendWeAreIn("America/New_York");
+        long newYorkMidnight = Times.parse("2026-08-21");
+        assertEquals(13 * 3_600_000L, newYorkMidnight - tokyoMidnight,
+                "the same written date should be a different instant in a different zone");
+    }
+
+    @Test
+    void aWrittenTimeWithAnOffsetKeepsIt() {
+        pretendWeAreIn("Asia/Tokyo");
+        long inTokyo = Times.parse("2026-08-21T00:00:00.000Z");
+        pretendWeAreIn("America/New_York");
+        long inNewYork = Times.parse("2026-08-21T00:00:00.000Z");
+        assertEquals(inTokyo, inNewYork, "an explicit offset is not the user's zone to override");
+    }
+
+    @Test
+    void whatIsWrittenIsWhatIsRead() {
+        // The two halves of the invariant have to agree, or a value cannot go to a
+        // file and come back.
+        pretendWeAreIn("America/New_York");
+        long original = 1_787_330_787_123L;
+        assertEquals(original, Times.parse(Times.machine(original)));
+        pretendWeAreIn("Asia/Tokyo");
+        // And it still reads as the same instant somewhere else, because the
+        // written form carries its offset.
+        assertEquals(original, Times.parse(Times.machine(original)));
+    }
+
+    @Test
     void daylightSavingIsFollowedRatherThanAveraged() {
         pretendWeAreIn("America/New_York");
         long january = 1_705_000_000_000L;   // winter, EST
