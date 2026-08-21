@@ -1,23 +1,20 @@
 package dev.mainframe;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import dev.mainframe.builtins.CoreBuiltins;
-import dev.mainframe.eval.Interpreter;
-import dev.mainframe.eval.Registry;
-import dev.mainframe.fs.IndexStore;
-import dev.mainframe.lang.Parser;
+import dev.mainframe.api.MainFrame;
 import dev.mainframe.ui.Renderer;
 
-/** Command line entry point. */
+/**
+ * Command line entry point.
+ *
+ * <p>This is built on the same embedding API a host program would use, which is
+ * the cheapest way to be sure that API can really carry a whole shell.
+ */
 public final class Main {
 
     private Main() {}
@@ -52,7 +49,7 @@ public final class Main {
                     return 0;
                 }
                 case "-v", "--version" -> {
-                    System.out.println("mainframe " + CoreBuiltins.VERSION);
+                    System.out.println("mainframe " + MainFrame.version());
                     return 0;
                 }
                 default -> {
@@ -67,59 +64,37 @@ public final class Main {
             }
         }
 
-        PrintStream out = new PrintStream(System.out, true, StandardCharsets.UTF_8);
-        PrintStream err = new PrintStream(System.err, true, StandardCharsets.UTF_8);
-        Renderer renderer = new Renderer(out, err, color);
-        BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
-
-        Session session = new Session(renderer, IndexStore.inState(), input, Path.of("").toAbsolutePath());
-        session.dryRun(dryRun);
-        session.assumeYes(assumeYes);
-
-        Registry registry = Registry.standard();
-        Interpreter interpreter = new Interpreter(session, registry);
+        MainFrame shell = MainFrame.builder()
+                .directory(Path.of("").toAbsolutePath())
+                .color(color)
+                .dryRun(dryRun)
+                .assumeYes(assumeYes)
+                // With no console there is nobody to answer a confirmation, so
+                // destructive commands should refuse rather than prompt into a pipe.
+                .interactive(System.console() != null)
+                .build();
 
         if (!leftovers.isEmpty()) {
-            renderer.warn("ignoring extra arguments: " + String.join(", ", leftovers));
+            System.err.println("mainframe: ignoring extra arguments: " + String.join(", ", leftovers));
         }
 
-        if (command != null) return runOnce(session, interpreter, command);
+        if (command != null) return shell.execute(command);
 
         if (script != null) {
-            Path file = session.resolve(script.toString());
+            Path file = script.isAbsolute() ? script : Path.of("").toAbsolutePath().resolve(script);
             if (!Files.isRegularFile(file)) {
-                renderer.error(MfError.of("E001", "there is no script at " + file)
-                        .hint("check the path, or run mainframe with no arguments for a shell")
-                        .build(), null);
+                System.err.println("mainframe: there is no script at " + file);
+                System.err.println("check the path, or run mainframe with no arguments for a shell");
                 return 1;
             }
-            try {
-                return runOnce(session, interpreter, Files.readString(file, StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                renderer.error(MfError.of("E002", "could not read " + file + ": " + e.getMessage()).build(), null);
-                return 1;
-            }
+            return shell.executeFile(file);
         }
 
-        session.interactive(System.console() != null);
-        return new Shell(session, interpreter, input).loop();
-    }
-
-    private static int runOnce(Session session, Interpreter interpreter, String source) {
-        session.source(source);
-        try {
-            interpreter.run(Parser.parse(source));
-            return 0;
-        } catch (ExitRequest e) {
-            return e.code();
-        } catch (MfError e) {
-            session.out().error(e, source);
-            return 1;
-        }
+        return shell.repl();
     }
 
     private static void usage(PrintStream out) {
-        out.println("MainFrame " + CoreBuiltins.VERSION + " -- a shell you cannot mess up");
+        out.println("MainFrame " + MainFrame.version() + " -- a shell you cannot mess up");
         out.println();
         out.println("usage");
         out.println("  mainframe                 start the shell");

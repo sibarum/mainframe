@@ -39,6 +39,14 @@ public final class Registry {
         builtins.put(name, builtin);
     }
 
+    /** Adds a command, taking the place of any existing one with the same name. */
+    public void replace(Builtin builtin) {
+        builtins.put(builtin.signature().name(), builtin);
+    }
+
+    /** Removes a command, so a host can offer a shell without it. */
+    public boolean remove(String name) { return builtins.remove(name) != null; }
+
     public Builtin get(String name) { return builtins.get(name); }
 
     public boolean has(String name) { return builtins.containsKey(name); }

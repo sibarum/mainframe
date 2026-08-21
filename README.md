@@ -220,6 +220,104 @@ Two things are read once at startup and not from this environment:
 `MAINFRAME_HOME` (moving the trash or the indexes mid-session would be worse than
 useless) and `NO_COLOR`.
 
+## Embedding it: your commands, in-process
+
+MainFrame is also a library. A program can hook its own commands into the shell
+and get called back with the piped data and the checked arguments — same thread,
+no process spawned, nothing serialised in either direction.
+
+```java
+MainFrame shell = MainFrame.builder()
+        .command(CommandSpec.named("customers")
+                        .category("my app")
+                        .summary("list customers from the live database")
+                        .optional("filter", DataType.TEXT, "only names containing this")
+                        .output(DataType.TABLE)
+                        .effect(Effect.READS)
+                        .example("customers | where spend > 1000")
+                        .build(),
+                invocation -> Data.table(database.customers(invocation.text(0, ""))))
+        .build();
+
+Data top = shell.run("customers | where spend > 1000 | sort-by spend --reverse | first 5");
+shell.repl();   // or hand the whole shell to the user
+```
+
+`customers` is now a command like any other, so it composes with everything:
+
+```
+customers | where spend > 1000 | select name email | to-json | save leads.json
+```
+
+**Every command declares itself the same way**, whether it is built in or yours —
+so a hosted command gets the whole unified interface without writing any of it:
+
+- arguments and flags are checked against the spec *before* the callback runs
+- `help customers` and `customers --help` are generated from the spec
+- a typo gets "did you mean customers?" from the real command list
+- failures render exactly like MainFrame's own, with a code and hints
+- `--dry-run` and confirmation appear on anything that changes data
+
+That last one is the reason a command declares an `Effect`. Anything marked
+`WRITES` or `DESTRUCTIVE` must be registered as a `PlannedCommand`: you say what
+you *would* do, one step at a time, and MainFrame decides whether to show it, ask
+about it, or run it.
+
+```java
+.command(CommandSpec.named("drop")
+                .summary("drop a table")
+                .argument("table", DataType.TEXT, "the table to drop")
+                .effect(Effect.DESTRUCTIVE)
+                .build(),
+        (invocation, steps) -> steps.step(
+                "drop the table " + invocation.text(0) + " (" + rows + " rows)",
+                () -> database.drop(invocation.text(0))))
+```
+
+```
+> drop customers
+error[E302] drop can lose data, so it will not run unattended
+help add --yes once you are sure, or --dry-run to see the one thing it would do
+```
+
+Data crosses the boundary with its types intact — a size is a size, a media type
+is a media type, a table is rows of named fields — so a callback never parses
+text the shell had already understood:
+
+```java
+for (Data row : invocation.input().rows()) {
+    String name = row.field("name").text();
+    long spend = row.field("spend").number();     // a number, not a string
+}
+```
+
+You can also shape what the shell contains. `without(...)` drops commands that
+have no business in your app, and `replacing(...)` deliberately takes over a
+built-in name — plain `command(...)` refuses to shadow one, so a future MainFrame
+release cannot quietly swallow your command:
+
+```java
+MainFrame.builder()
+        .command(spec, callback)
+        .without("rm", "mv", "cp", "save", "mkdir")   // a read-only shell
+        .directory(projectRoot)
+        .env("APP_MODE", "live")
+        .build();
+```
+
+The public API is the `dev.mainframe.api` package and nothing else:
+`MainFrame`, `CommandSpec`, `Command`, `PlannedCommand`, `Invocation`, `Data`,
+`DataType`, `Effect`, `ShellError`. MainFrame's own command line is built on it,
+which is the cheapest way to be sure it can carry a whole shell.
+
+There is a worked example in
+[`HostApp.java`](src/test/java/dev/mainframe/api/HostApp.java) — a task list with
+a shell in it:
+
+```bash
+java -cp target/classes:target/test-classes dev.mainframe.api.HostApp
+```
+
 ## The language
 
 ```
