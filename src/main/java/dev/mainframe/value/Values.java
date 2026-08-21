@@ -1,8 +1,5 @@
 package dev.mainframe.value;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,9 +10,6 @@ import dev.mainframe.Span;
 
 /** Coercions, comparisons and rendering of {@link Value}s. */
 public final class Values {
-
-    private static final DateTimeFormatter STAMP =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private Values() {}
 
@@ -71,7 +65,7 @@ public final class Values {
             case Value.Float f -> trimDouble(f.value());
             case Value.Bool b -> Boolean.toString(b.value());
             case Value.Size s -> Long.toString(s.bytes());
-            case Value.Time t -> STAMP.format(Instant.ofEpochMilli(t.epochMillis()));
+            case Value.Time t -> Times.display(t.epochMillis());
             case Value.Nothing _ -> "";
             default -> throw MfError.of("E201", "cannot use a " + ValueType.of(v).display() + " as text")
                     .at(span).hint("pipe it through to-json if you want its text form").build();
@@ -208,7 +202,7 @@ public final class Values {
             case Value.Float f -> trimDouble(f.value());
             case Value.Str s -> s.value();
             case Value.Size s -> formatSize(s.bytes());
-            case Value.Time t -> STAMP.format(Instant.ofEpochMilli(t.epochMillis()));
+            case Value.Time t -> Times.display(t.epochMillis());
             case Value.PathVal p -> p.path().toString();
             case Value.Mime m -> m.full();
             case Value.Block _ -> "{block}";
@@ -261,7 +255,7 @@ public final class Values {
             case Value.Int i -> sb.append(i.value());
             case Value.Size s -> sb.append(s.bytes());
             case Value.Float f -> sb.append(trimDouble(f.value()));
-            case Value.Time t -> quote(STAMP.format(Instant.ofEpochMilli(t.epochMillis())), sb);
+            case Value.Time t -> quote(Times.machine(t.epochMillis()), sb);
             case Value.Str s -> quote(s.value(), sb);
             case Value.PathVal p -> quote(p.path().toString(), sb);
             case Value.Mime m -> quote(m.full(), sb);

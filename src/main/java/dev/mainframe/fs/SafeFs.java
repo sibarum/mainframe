@@ -7,10 +7,8 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 
+import dev.mainframe.value.Times;
 import dev.mainframe.value.Value;
 
 /**
@@ -18,9 +16,6 @@ import dev.mainframe.value.Value;
  * explicitly, writes land atomically, and deletes go to a recoverable trash.
  */
 public final class SafeFs {
-
-    private static final DateTimeFormatter TRASH_STAMP =
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneId.systemDefault());
 
     private SafeFs() {}
 
@@ -75,7 +70,7 @@ public final class SafeFs {
 
     /** Moves a path into the trash and returns where it landed. */
     public static Path trash(Path victim) throws IOException {
-        Path bin = stateDir().resolve("trash").resolve(TRASH_STAMP.format(Instant.now()));
+        Path bin = stateDir().resolve("trash").resolve(Times.stamp(System.currentTimeMillis()));
         Files.createDirectories(bin);
         Path destination = bin.resolve(victim.getFileName().toString());
         int n = 1;

@@ -341,6 +341,17 @@ ls
 Types: `nothing`, `bool`, `int`, `float`, `string`, `size` (`10mb`), `time`,
 `path`, `mime`, `list`, `record`, `table` (a list of records), `block`.
 
+**Times are always shown in your local zone.** What MainFrame stores and compares
+is an instant, because that is the only form that survives daylight saving, a
+machine changing zones, and an index built on one computer being read on another
+— but every timestamp you *see* is the wall clock you can look up at. That is
+enforced rather than intended: [`Times`](src/main/java/dev/mainframe/value/Times.java)
+is the only place allowed to turn a moment into text, and a test fails the build
+if a second formatter appears anywhere in `src/main/java`. Where a machine will
+read the value back — `to-json` — it is still local time, but carries its offset
+(`2026-08-21T12:33:17.804-04:00`), because local time without an offset manages
+to be both friendly and useless.
+
 Operators: `== != < <= > >=`, `=~` and `!~` (substring, or glob when the pattern
 holds `*`/`?`), `and`/`or`/`not`, `+ - * / %`. `+` also joins two strings, two
 lists or two records. One value counts as a list of one, so `... | first | get name`
