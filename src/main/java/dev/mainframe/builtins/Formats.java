@@ -163,6 +163,10 @@ final class Formats {
             case Value.Str s -> Values.quoted(s.value());
             case Value.PathVal p -> Values.quoted(Values.portable(p.path()));
             case Value.Mime m -> Values.quoted(m.full());
+            // A record or a list is nested JSON, not a string that looks like one.
+            // Its inner values carry JSON's types, since only the header row has
+            // somewhere to say otherwise.
+            case Value.Rec _, Value.ListVal _ -> Values.toJson(cell, 0);
             default -> Values.quoted(Values.source(cell));
         };
     }
@@ -208,9 +212,22 @@ final class Formats {
             case SIZE -> new Value.Size(Values.asLong(cell, args.span()));
             case INT -> new Value.Int(Values.asLong(cell, args.span()));
             case FLOAT -> new Value.Float(Values.asDouble(cell, args.span()));
-            case BOOL, STRING -> cell;
+            // Already the right shape: JSON nests natively.
+            case BOOL, STRING, RECORD, LIST, TABLE -> cell;
             default -> Values.parseAs(type, Values.display(cell), args.span());
         };
+    }
+
+    /**
+     * A CSV cell as the type its header declared. Records and lists have no shape
+     * of their own in CSV, so they travel as the literal MainFrame would write and
+     * are read back by running it.
+     */
+    private static Value readCell(ValueType type, String text, Args args) {
+        if (type != ValueType.RECORD && type != ValueType.LIST && type != ValueType.TABLE) {
+            return Values.parseAs(type, text, args.span());
+        }
+        return text.isBlank() ? Value.Nothing.INSTANCE : readSource(text, args);
     }
 
     /**
@@ -361,15 +378,16 @@ final class Formats {
             List<String> cells = lines.get(i);
             SequencedMap<String, Value> fields = new LinkedHashMap<>();
             for (int c = 0; c < names.size(); c++) {
-                fields.put(names.get(c), Values.parseAs(types.get(c),
-                        c < cells.size() ? cells.get(c) : "", args.span()));
+                fields.put(names.get(c), readCell(types.get(c),
+                        c < cells.size() ? cells.get(c) : "", args));
             }
             rows.add(new Value.Rec(fields));
         }
         return new Value.ListVal(List.copyOf(rows));
     }
 
-    private static ValueType typeNamed(String name) {
+    /** The type of that name, or null. The same names the headers use. */
+    static ValueType typeNamed(String name) {
         for (ValueType type : ValueType.values()) {
             if (type.display().equals(name.trim())) return type;
         }

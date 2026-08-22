@@ -1,9 +1,12 @@
 package dev.mainframe.builtins;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.SequencedMap;
 
 import dev.mainframe.eval.Builtin;
+import dev.mainframe.ui.Suggest;
 import dev.mainframe.eval.Registry;
 import dev.mainframe.eval.Signature;
 import dev.mainframe.eval.Signature.Effect;
@@ -28,6 +31,7 @@ public final class ConvertBuiltins {
     private ConvertBuiltins() {}
 
     public static void register(Registry registry) {
+        registry.add(cast());
         registry.add(toCsv());
         registry.add(fromCsv());
         registry.add(toSource());
@@ -64,6 +68,70 @@ public final class ConvertBuiltins {
                 .build();
         return Cmd.of(signature, args ->
                 Formats.fromCsv(Values.asString(args.input(), args.span()), args.flag("text"), args));
+    }
+
+    // ---- giving foreign data its types ------------------------------------------------------
+
+    private static Builtin cast() {
+        Signature signature = Signature.named("cast", CATEGORY)
+                .summary("give columns their real types, for data that arrived as text")
+                .required("types", ValueType.RECORD, "which column is what, e.g. {joined: time, spend: size}")
+                .input(ValueType.LIST)
+                .output(ValueType.LIST)
+                .example("open theirs.json | cast {signed_up: time}")
+                .example("open theirs.csv | cast {bytes: size, took: duration} | where took > 1m")
+                .build();
+        return Cmd.of(signature, args -> {
+            Value.Rec wanted = (Value.Rec) args.value(0);
+            SequencedMap<String, ValueType> types = new LinkedHashMap<>();
+            wanted.fields().forEach((column, named) -> {
+                String name = Values.display(named);
+                ValueType type = Formats.typeNamed(name);
+                if (type == null) {
+                    throw args.fail("E1106", "\"" + name + "\" is not a type I know")
+                            .hint("the types are: " + typeNames())
+                            .hint("write them as {column: type}, e.g. {joined: time}")
+                            .build();
+                }
+                types.put(column, type);
+            });
+
+            List<Value> rows = new ArrayList<>();
+            for (Value item : args.items()) {
+                if (!(item instanceof Value.Rec row)) {
+                    throw args.fail("E1107", "cast works on rows, and this is a "
+                                    + ValueType.of(item).display())
+                            .hint("pipe in a table, or convert the value another way")
+                            .build();
+                }
+                SequencedMap<String, Value> fields = new LinkedHashMap<>(row.fields());
+                types.forEach((column, type) -> {
+                    if (!fields.containsKey(column)) {
+                        var error = args.fail("E1108", "there is no column called " + column);
+                        String closest = Suggest.closest(column, fields.keySet());
+                        if (closest != null) error.hint("did you mean " + closest + "?");
+                        error.hint("the columns here are: " + String.join(", ", fields.keySet()));
+                        throw error.build();
+                    }
+                    Value cell = fields.get(column);
+                    if (cell instanceof Value.Nothing) return;
+                    fields.put(column, Values.parseAs(type, Values.display(cell), args.span()));
+                });
+                rows.add(new Value.Rec(fields));
+            }
+            return new Value.ListVal(List.copyOf(rows));
+        });
+    }
+
+    private static String typeNames() {
+        List<String> names = new ArrayList<>();
+        for (ValueType type : ValueType.values()) {
+            switch (type) {
+                case ANY, NUMBER, EXPR, BLOCK, TABLE, LIST, RECORD, NOTHING -> { }
+                default -> names.add(type.display());
+            }
+        }
+        return String.join(", ", names);
     }
 
     // ---- MainFrame's own written form -----------------------------------------------------

@@ -24,6 +24,7 @@ public final class TableBuiltins {
 
     public static void register(Registry registry) {
         registry.add(where());
+        registry.add(morph());
         registry.add(select());
         registry.add(reject());
         registry.add(sortBy());
@@ -68,6 +69,24 @@ public final class TableBuiltins {
                 if (Values.truthy(args.evalInRow(condition, asRow(item)))) kept.add(item);
             }
             return new Value.ListVal(List.copyOf(kept));
+        });
+    }
+
+    private static Builtin morph() {
+        Signature signature = Signature.named("morph", CATEGORY)
+                .summary("reshape every row into a new one")
+                .condition("shape", "a record describing the row you want, written in terms of the columns you have")
+                .input(ValueType.LIST)
+                .output(ValueType.LIST)
+                .example("ls | morph {file: name, mb: size / 1mb}")
+                .example("open theirs.json | morph {name: full_name, spend: cents / 100}")
+                .example("ls | morph {file: {name: name, bytes: size}} | save for-them.json")
+                .build();
+        return Cmd.of(signature, args -> {
+            Ast.Expr shape = args.expr(0);
+            List<Value> morphed = new ArrayList<>();
+            for (Value item : args.items()) morphed.add(args.evalInRow(shape, asRow(item)));
+            return new Value.ListVal(List.copyOf(morphed));
         });
     }
 

@@ -429,7 +429,52 @@ and text -- that is what --plain means
 **Neither format guesses.** The type-annotated header is what marks a file as
 one of MainFrame's. Without it, a CSV is a CSV of text and a JSON array of arrays
 is an array of arrays — nothing is ever inferred from what the values happen to
-look like.
+look like. And the header-row form is only ever used for a table; anything else
+is ordinary JSON, because only a table has columns to describe.
+
+## Adapting one API to another
+
+Two systems rarely agree on names, units or shapes. Rather than a format command
+per destination, there are two commands: `cast` gives foreign data its real
+types, and `morph` rebuilds each row into whatever shape the far end wants.
+
+Coming in — their names, their units, their dates as strings:
+
+```
+open theirs.json
+  | cast {signed_up: time, total_cents: int}
+  | where signed_up > 2026-02-01
+  | morph {name: full_name, spend: total_cents / 100, joined: signed_up}
+  | save ours.csv
+```
+
+Once `cast` has said what a column is, it filters and sorts like anything else —
+`signed_up > 2026-02-01` is a date comparison, not string prefix matching.
+
+Going out — if the far end wants proper objects, it gets proper objects:
+
+```
+ls | morph {asset: {label: name, bytes: size}, updated: modified}
+   | save for-them.json --plain
+```
+
+```json
+[
+  { "asset": { "label": "hero.png", "bytes": 4194304 }, "updated": "2026-08-19T09:12:00.000-04:00" }
+]
+```
+
+Whole documents too, when an API wants its rows wrapped in something:
+
+```
+echo {count: (ls | length), files: (ls | morph {label: name})} | save envelope.json
+```
+
+`morph` needs no syntax of its own: the shape is a record literal, written in the
+same expression language `where` and `sort-by` already use. `{sum: a + b}` is a
+column called `sum` holding `a + b`. Nested records, lists and sub-pipelines all
+work, so any JSON shape is reachable — and morphing costs you nothing on the way
+out, since a reshaped table still saves with its types.
 
 **Paths are written with forward slashes** whatever this machine calls a
 separator, so a file written on Windows opens correctly on a Mac. Reading turns
@@ -470,8 +515,8 @@ does what you meant.
 |---|---|
 | **getting around** | `help` `describe` `pwd` `cd` `echo` `which` `version` `exit` |
 | **files** | `ls` `cat` `open` `mime` `save` `mkdir` `cp` `mv` `rm` |
-| **shaping data** | `where` `select` `reject` `sort-by` `first` `last` `reverse` `length` `get` `each` `uniq` `count-by` `sum` |
-| **converting** | `to-csv` `from-csv` `to-source` `from-source` `to-json` `from-json` `lines` `to-text` |
+| **shaping data** | `where` `morph` `select` `reject` `sort-by` `first` `last` `reverse` `length` `get` `each` `uniq` `count-by` `sum` |
+| **converting** | `cast` `to-csv` `from-csv` `to-source` `from-source` `to-json` `from-json` `lines` `to-text` |
 | **searching** | `index-build` `index-sync` `index-list` `index-drop` `from-index` `find` |
 | **environment** | `env` `env-set` `env-remove` `path` `path-add` `path-remove` |
 
