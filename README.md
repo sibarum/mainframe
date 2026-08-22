@@ -564,3 +564,14 @@ Set `MAINFRAME_HOME` to put it somewhere else.
 - Environment changes last for the session only. There is no startup profile yet,
   so nothing carries over to the next run.
 - No functions or user-defined commands, and no background jobs.
+
+## Licence
+
+MainFrame is dual-licensed:
+
+- **Source code** under the
+  [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+  See `LICENSE`.
+- **Documentation** (this file and the examples under `examples/`) under the
+  [Creative Commons Attribution 4.0 International License
+  (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/). See `LICENSE-docs`.
