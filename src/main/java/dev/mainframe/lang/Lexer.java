@@ -30,6 +30,9 @@ public final class Lexer {
             Map.entry("true", TokenType.TRUE),
             Map.entry("false", TokenType.FALSE),
             Map.entry("nothing", TokenType.NOTHING),
+            // JSON writes null. Reading it as anything but nothing would be a
+            // silent mis-parse, which is the one thing this language will not do.
+            Map.entry("null", TokenType.NOTHING),
             Map.entry("now", TokenType.NOW),
             Map.entry("and", TokenType.AND),
             Map.entry("or", TokenType.OR),
@@ -97,10 +100,29 @@ public final class Lexer {
                 advance();
                 char e = eof() ? '\\' : peek();
                 advance();
+                // JSON's escape set, so that any JSON string is read the same way
+                // here as it is by the JSON reader.
+                if (e == 'u') {
+                    if (pos + 4 > src.length()) {
+                        throw MfError.of("E008", "a \\u escape needs four hex digits after it")
+                                .at(start).hint("for example \\u0041 is the letter A").build();
+                    }
+                    String hex = src.substring(pos, pos + 4);
+                    try {
+                        sb.append((char) Integer.parseInt(hex, 16));
+                    } catch (NumberFormatException bad) {
+                        throw MfError.of("E008", "\"" + hex + "\" is not four hex digits")
+                                .at(start).hint("a \\u escape looks like \\u0041").build();
+                    }
+                    for (int i = 0; i < 4; i++) advance();
+                    continue;
+                }
                 sb.append(switch (e) {
                     case 'n' -> '\n';
                     case 't' -> '\t';
                     case 'r' -> '\r';
+                    case 'b' -> '\b';
+                    case 'f' -> '\f';
                     case '0' -> '\0';
                     default -> e;
                 });
@@ -128,6 +150,18 @@ public final class Lexer {
                 if (peek() != '_') sb.append(peek());
                 advance();
             }
+        }
+        // An exponent, because JSON numbers have them and JSON has to read here.
+        // Checked before the unit suffix so that 1e5 is a number, not a bad unit.
+        if (!eof() && (peek() == 'e' || peek() == 'E') && exponentFollows()) {
+            isFloat = true;
+            sb.append('e');
+            advance();
+            if (peek() == '+' || peek() == '-') { sb.append(peek()); advance(); }
+            while (!eof() && Character.isDigit(peek())) { sb.append(peek()); advance(); }
+            rejectGluedOperator(start);
+            add(TokenType.FLOAT, sb.toString(), start, 0);
+            return;
         }
         // A unit suffix, e.g. 10mb, makes this a size rather than a plain number.
         StringBuilder suffix = new StringBuilder();
@@ -165,6 +199,13 @@ public final class Lexer {
     private boolean datetimeAhead(int at) {
         return digits(at, 4) && charAt(at + 4) == '-' && digits(at + 5, 2)
                 && charAt(at + 7) == '-' && digits(at + 8, 2);
+    }
+
+    /** True when an e is the start of an exponent rather than the start of a unit. */
+    private boolean exponentFollows() {
+        char next = charAt(pos + 1);
+        if (Character.isDigit(next)) return true;
+        return (next == '+' || next == '-') && Character.isDigit(charAt(pos + 2));
     }
 
     private boolean digits(int at, int howMany) {

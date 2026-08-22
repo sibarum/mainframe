@@ -343,6 +343,24 @@ Types: `nothing`, `bool`, `int`, `float`, `string`, `size` (`10mb`), `time`
 `table` (a list of records), `block`. `now` is a value, not a command, so it
 composes: `where modified > (now - 7d)`.
 
+## JSON is a subset of the language
+
+This is the constraint everything else is designed around, so it is worth stating
+plainly: **any JSON document is already a MainFrame expression.** Records are
+written `{"name": value}` with the key quoted, lists are `[a, b]`, and the
+punctuation is JSON's punctuation. MainFrame's own written form is JSON *plus*
+the literals JSON lacks — `4mb`, `7d`, `2026-08-21T14:30:00.000-04:00`,
+`path"./x"` — each sitting in value position, where JSON would have a number or a
+string. They extend the grammar rather than colliding with it.
+
+The practical consequence is that the two readers cannot disagree, and there is a
+test that checks it across every shape JSON can take. `null` is `nothing`,
+`A` is `A`, and `1.5e-3` is a number, whichever way you read the file.
+
+It also settles which punctuation is available for anything added later: `{}` and
+`[]` are spoken for by JSON, `()` is free because JSON has no parentheses, and
+postfix or infix forms are free because JSON has no operators at all.
+
 ## The written form is the read form
 
 Every value has one canonical text, that text is valid MainFrame source, and
