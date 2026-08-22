@@ -25,14 +25,26 @@ import dev.mainframe.value.Values;
  * format from the file name and {@code open} picks the reader the same way, and
  * a table written to a .csv comes back as the table that went in.
  *
- * <h2>Which formats can do that</h2>
- * CSV can: its header carries a type per column. MainFrame's own source form can:
- * every value is written as the literal it would be typed as. JSON cannot -- a
- * JSON array has nowhere to put a schema without ceasing to be an ordinary JSON
- * array, which is the only reason anybody wants JSON. So JSON is the format for
- * handing data to somebody else's program, it reads back as the types JSON has,
- * and {@code save} says so at the moment you write one rather than leaving you to
- * find out on the way back in.
+ * <h2>Which formats can do that, and how</h2>
+ * <ul>
+ *   <li><b>Source</b> needs no schema: every value is written as the literal it
+ *       would be typed as, so {@code 4mb} says what it is on its own.
+ *   <li><b>CSV</b> has a header row, which is already metadata by universal
+ *       agreement, so the types go there: {@code size:size}. One annotation per
+ *       column, stated once.
+ *   <li><b>JSON</b> has the same slot if a table is written as a table -- a
+ *       header row and one array per row -- rather than as a list of objects.
+ *       That is still ordinary JSON, it costs one annotation per column instead
+ *       of repeating every key on every row, and it is about a third smaller for
+ *       the trouble.
+ * </ul>
+ *
+ * <p>The type-annotated header is what marks a file as one of ours, in both CSV
+ * and JSON. Without it a file is what it appears to be: a CSV of text, a list of
+ * lists. Nothing is ever inferred from what the values happen to look like.
+ *
+ * <p>{@code plain} turns the annotations off in either format, for handing data
+ * to a program that wants an ordinary CSV or the usual list of objects.
  */
 final class Formats {
 
@@ -54,7 +66,7 @@ final class Formats {
         String display() { return name; }
 
         /** True when a value written this way comes back as the same value. */
-        boolean keepsTypes() { return this == CSV || this == SOURCE; }
+        boolean keepsTypes() { return this != TEXT; }
     }
 
     private Formats() {}
@@ -81,13 +93,144 @@ final class Formats {
 
     // ---- writing ------------------------------------------------------------------------
 
-    static String write(Format format, Value value, Args args) {
+    static String write(Format format, Value value, boolean plain, Args args) {
         return switch (format) {
-            case CSV -> toCsv(value, false, args);
-            case JSON -> Values.toJson(value, 2);
+            case CSV -> toCsv(value, plain, args);
+            case JSON -> toJson(value, plain, false);
             case SOURCE -> Values.source(value);
             case TEXT -> asText(value);
         };
+    }
+
+    // ---- JSON: a table is rows, not a pile of repeated keys --------------------------------
+
+    /**
+     * Writes JSON. A table becomes a header row and one array per row, which is
+     * ordinary JSON that happens to have somewhere to put the column types --
+     * the same slot CSV has always had. It is also markedly smaller, since the
+     * column names are stated once instead of once per row.
+     *
+     * <p>{@code plain} gives the array of objects most consumers expect, at the
+     * cost of the types.
+     */
+    static String toJson(Value value, boolean plain, boolean compact) {
+        if (plain || !Values.isTable(value) || Values.rows(value).isEmpty()) {
+            return Values.toJson(value, compact ? 0 : 2);
+        }
+        List<Value.Rec> rows = Values.rows(value);
+        List<String> columns = new ArrayList<>(Values.columns(rows));
+
+        List<String> header = new ArrayList<>(columns.size());
+        for (String column : columns) {
+            header.add(Values.quoted(column + ":" + columnType(rows, column).display()));
+        }
+
+        StringBuilder json = new StringBuilder("[");
+        newRow(json, compact);
+        json.append('[').append(String.join(",", header)).append(']');
+        for (Value.Rec row : rows) {
+            json.append(',');
+            newRow(json, compact);
+            json.append('[');
+            for (int i = 0; i < columns.size(); i++) {
+                if (i > 0) json.append(compact ? "," : ", ");
+                json.append(jsonCell(row.get(columns.get(i))));
+            }
+            json.append(']');
+        }
+        if (!compact) json.append('\n');
+        return json.append(']').toString();
+    }
+
+    /** One row per line, because that is how a table wants to be read and diffed. */
+    private static void newRow(StringBuilder json, boolean compact) {
+        if (!compact) json.append("\n  ");
+    }
+
+    /**
+     * A cell as JSON's own types where it has them, and text where it does not.
+     * A reader that ignores our header still gets sensible JSON; one that reads it
+     * gets the value back exactly.
+     */
+    private static String jsonCell(Value cell) {
+        if (cell == null) return "null";
+        return switch (cell) {
+            case Value.Nothing _ -> "null";
+            case Value.Bool b -> Boolean.toString(b.value());
+            case Value.Int i -> Long.toString(i.value());
+            case Value.Float f -> Values.toJson(f, 0);
+            case Value.Size s -> Long.toString(s.bytes());
+            case Value.Str s -> Values.quoted(s.value());
+            case Value.PathVal p -> Values.quoted(Values.portable(p.path()));
+            case Value.Mime m -> Values.quoted(m.full());
+            default -> Values.quoted(Values.source(cell));
+        };
+    }
+
+    /**
+     * Reads JSON, turning the table shape back into rows when it is one.
+     *
+     * <p>The type-annotated header is the marker, exactly as it is in CSV. JSON
+     * that is merely a list of lists is a list of lists; nothing is guessed at
+     * from what the values happen to look like.
+     */
+    static Value fromJson(String text, Args args) {
+        Value parsed = Json.parse(text, args.span());
+        List<String> header = tableHeader(parsed);
+        if (header == null) return parsed;
+
+        List<Value> items = ((Value.ListVal) parsed).items();
+        List<String> names = new ArrayList<>(header.size());
+        List<ValueType> types = new ArrayList<>(header.size());
+        for (String column : header) {
+            int colon = column.lastIndexOf(':');
+            names.add(column.substring(0, colon));
+            types.add(typeNamed(column.substring(colon + 1)));
+        }
+
+        List<Value> rows = new ArrayList<>(items.size() - 1);
+        for (int i = 1; i < items.size(); i++) {
+            List<Value> cells = ((Value.ListVal) items.get(i)).items();
+            SequencedMap<String, Value> fields = new LinkedHashMap<>();
+            for (int c = 0; c < names.size(); c++) {
+                Value cell = c < cells.size() ? cells.get(c) : Value.Nothing.INSTANCE;
+                fields.put(names.get(c), restore(types.get(c), cell, args));
+            }
+            rows.add(new Value.Rec(fields));
+        }
+        return new Value.ListVal(List.copyOf(rows));
+    }
+
+    /** A cell read back as the type the header declared. */
+    private static Value restore(ValueType type, Value cell, Args args) {
+        if (cell instanceof Value.Nothing) return cell;
+        return switch (type) {
+            case SIZE -> new Value.Size(Values.asLong(cell, args.span()));
+            case INT -> new Value.Int(Values.asLong(cell, args.span()));
+            case FLOAT -> new Value.Float(Values.asDouble(cell, args.span()));
+            case BOOL, STRING -> cell;
+            default -> Values.parseAs(type, Values.display(cell), args.span());
+        };
+    }
+
+    /**
+     * The column headings, if this is a table MainFrame wrote: a list whose first
+     * item is a list of strings, every one of them naming a column and a type.
+     */
+    private static List<String> tableHeader(Value parsed) {
+        if (!(parsed instanceof Value.ListVal list) || list.items().isEmpty()) return null;
+        if (!(list.items().getFirst() instanceof Value.ListVal first) || first.items().isEmpty()) return null;
+        List<String> header = new ArrayList<>(first.items().size());
+        for (Value cell : first.items()) {
+            if (!(cell instanceof Value.Str text)) return null;
+            int colon = text.value().lastIndexOf(':');
+            if (colon <= 0 || typeNamed(text.value().substring(colon + 1)) == null) return null;
+            header.add(text.value());
+        }
+        for (int i = 1; i < list.items().size(); i++) {
+            if (!(list.items().get(i) instanceof Value.ListVal)) return null;
+        }
+        return header;
     }
 
     private static String asText(Value value) {
@@ -172,7 +315,7 @@ final class Formats {
     static Value read(Format format, String text, Args args) {
         return switch (format) {
             case CSV -> fromCsv(text, false, args);
-            case JSON -> Json.parse(text, args.span());
+            case JSON -> fromJson(text, args);
             case SOURCE -> readSource(text, args);
             case TEXT -> new Value.Str(text);
         };

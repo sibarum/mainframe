@@ -222,6 +222,7 @@ public final class FsBuiltins {
                 .summary("write what came down the pipe to a file, in the format its name implies")
                 .required("file", ValueType.PATH, "where to write")
                 .switchFlag("force", 'f', "overwrite the file if it already exists")
+                .switchFlag("plain", '\0', "leave the column types out, for programs that do not want them")
                 .valueFlag("as", '\0', ValueType.STRING,
                         "write it as " + Formats.formatNames() + ", whatever the file is called")
                 .input(ValueType.ANY)
@@ -252,13 +253,15 @@ public final class FsBuiltins {
             // something -- the file is the same either way you build it.
             if (args.input() instanceof Value.Str && !args.hasFlag("as")) format = Formats.Format.TEXT;
 
-            byte[] bytes = Formats.write(format, args.input(), args).getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = Formats.write(format, args.input(), args.flag("plain"), args).getBytes(StandardCharsets.UTF_8);
 
-            // A table on its way into a format that cannot hold column types is
+            // A table on its way into a form that cannot hold column types is
             // worth a word now, rather than a surprise on the way back in.
-            if (!format.keepsTypes() && Values.isTable(args.input()) && !args.rows().isEmpty()) {
-                plan.note(format.display() + " does not carry column types, so sizes and times"
-                        + " read back as plain numbers and text -- save it as .csv to keep them");
+            boolean keeps = format.keepsTypes() && !args.flag("plain");
+            if (!keeps && Values.isTable(args.input()) && !args.rows().isEmpty()) {
+                plan.note("written without column types, so sizes and times read back as plain"
+                        + " numbers and text" + (args.flag("plain")
+                        ? " -- that is what --plain means" : " -- save it as .csv or .json to keep them"));
             }
             String what = (exists ? "replace " : "create ") + SafeFs.describe(args.session().cwd(), file)
                     + " (" + Values.formatSize(bytes.length) + ", " + format.display() + ")";

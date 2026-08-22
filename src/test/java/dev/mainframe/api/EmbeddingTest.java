@@ -145,7 +145,9 @@ class EmbeddingTest {
     void aHostedCommandCanBeGivenTheWholePipeline() {
         MainFrame shell = shell().command(customersSpec(), invocation -> customers()).build();
         Data json = shell.run("customers | select name spend | to-json");
-        assertTrue(json.text().contains("\"name\": \"Ada\""), json.text());
+        // A table is written as a table: the column names once, then the rows.
+        assertTrue(json.text().contains("[\"name:string\",\"spend:int\"]"), json.text());
+        assertTrue(json.text().contains("[\"Ada\", 4200]"), json.text());
     }
 
     // ---- the unified interface ----------------------------------------------------------

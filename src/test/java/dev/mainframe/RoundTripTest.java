@@ -259,14 +259,40 @@ class RoundTripTest {
     }
 
     @Test
-    void savingATableSomewhereThatCannotHoldTypesSaysSoAtTheTime() {
-        // JSON has nowhere to put a schema without ceasing to be ordinary JSON.
-        // That is worth a word when the file is written, not a discovery when it
-        // is read.
+    void savingATableWithoutItsTypesSaysSoAtTheTime() {
+        // Asking for the plain form is asking to lose the types. Worth a word when
+        // the file is written, not a discovery when it is read.
         Mf mf = mf();
+        mf.eval(TABLE + " | save ./plain.json --plain");
+        assertTrue(mf.printed().contains("without column types"), mf.printed());
+        assertTrue(mf.printed().contains("--plain"), mf.printed());
+    }
+
+    @Test
+    void aTableSurvivesAJsonFile() throws IOException {
+        // JSON written as a table -- a header row and one array per row -- has the
+        // same slot for types CSV has, and is still perfectly ordinary JSON.
+        Mf mf = mf();
+        Value before = mf.eval(TABLE);
         mf.eval(TABLE + " | save ./table.json");
-        assertTrue(mf.printed().contains("does not carry column types"), mf.printed());
-        assertTrue(mf.printed().contains(".csv"), mf.printed());
+        Value after = mf.eval("open ./table.json");
+        assertTrue(Values.equal(before, after),
+                "before: " + Values.source(before) + "\nafter:  " + Values.source(after));
+
+        String json = Files.readString(here.resolve("table.json"));
+        assertTrue(json.contains("[\"name:string\",\"size:size\",\"when:time\",\"took:duration\"]"), json);
+        // Column names are stated once, not on every row.
+        assertEquals(1, json.split("name:string", -1).length - 1, json);
+    }
+
+    @Test
+    void thePlainJsonFormIsTheOneOtherProgramsExpect() {
+        Mf mf = mf();
+        mf.eval(TABLE + " | save ./plain.json --plain");
+        Value reloaded = mf.eval("open ./plain.json");
+        // Still readable, still rows -- but the sizes came back as numbers, which
+        // is what asking for plain JSON means.
+        assertEquals(ValueType.INT, ValueType.of(Values.rows(reloaded).getFirst().get("size")));
     }
 
     @Test

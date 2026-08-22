@@ -400,16 +400,36 @@ Filtering and ordering work on the way back because the file carried its own
 schema — not because you told the shell a second time what its own columns held.
 Being asked to re-declare that is the paperwork this design exists to avoid.
 
-**JSON has no size and no moment**, and a JSON array has nowhere to put a schema
-without ceasing to be an ordinary JSON array — which is the only reason anyone
-wants JSON. So JSON is for handing data to somebody else's program, and `save`
-says so when you write one, rather than leaving you to find out on the way back:
+**A table is written as a table**, in JSON too — a header row and one array per
+row, rather than the same keys repeated on every object:
+
+```json
+[
+  ["name:string","size:size","modified:time"],
+  ["hero.png", 4404019, "2026-08-19T09:12:03.114-04:00"],
+  ["banner.jpg", 1887436, "2026-08-14T16:40:55.201-04:00"]
+]
+```
+
+That is still perfectly ordinary JSON. It just uses arrays, which gives it the
+same metadata slot CSV's header has always had — and it is about a third smaller
+for the trouble, since the column names are stated once instead of once per row.
+Cells use JSON's own types where JSON has them, so a consumer that ignores the
+header still gets sensible numbers and strings.
+
+`--plain` gives the list of objects most scripts expect, at the cost of the
+types, and `save` says so when you ask for it:
 
 ```
-~/work > ls | select name size | save listing.json
-json does not carry column types, so sizes and times read back as plain numbers
-and text -- save it as .csv to keep them
+~/work > ls | select name size | save theirs.json --plain
+written without column types, so sizes and times read back as plain numbers
+and text -- that is what --plain means
 ```
+
+**Neither format guesses.** The type-annotated header is what marks a file as
+one of MainFrame's. Without it, a CSV is a CSV of text and a JSON array of arrays
+is an array of arrays — nothing is ever inferred from what the values happen to
+look like.
 
 **Paths are written with forward slashes** whatever this machine calls a
 separator, so a file written on Windows opens correctly on a Mac. Reading turns

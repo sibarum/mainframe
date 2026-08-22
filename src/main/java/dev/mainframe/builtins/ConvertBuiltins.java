@@ -94,14 +94,16 @@ public final class ConvertBuiltins {
 
     private static Builtin toJson() {
         Signature signature = Signature.named("to-json", CATEGORY)
-                .summary("write what came down the pipe as JSON, for other programs")
+                .summary("write what came down the pipe as JSON, a table as rows with a header")
                 .switchFlag("compact", 'c', "leave out the indentation")
+                .switchFlag("plain", '\0', "write a list of objects instead, losing the column types")
                 .input(ValueType.ANY)
                 .output(ValueType.STRING)
                 .example("ls | select name size | to-json")
+                .example("ls | to-json --plain | save for-their-script.json")
                 .build();
         return Cmd.of(signature, args ->
-                new Value.Str(Values.toJson(args.input(), args.flag("compact") ? 0 : 2)));
+                new Value.Str(Formats.toJson(args.input(), args.flag("plain"), args.flag("compact"))));
     }
 
     private static Builtin fromJson() {
