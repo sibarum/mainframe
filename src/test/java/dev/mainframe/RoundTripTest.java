@@ -212,6 +212,57 @@ class RoundTripTest {
     // ---- where the edges are, said out loud -------------------------------------------------
 
     @Test
+    void pathsAreWrittenWithForwardSlashesWhateverTheMachineCallsThem() {
+        Mf mf = mf();
+        String written = Values.display(mf.eval("echo path\"./docs/notes.md\" | to-source"));
+        assertTrue(written.contains("./docs/notes.md"),
+                "a path written on one platform has to be readable on another: " + written);
+        assertFalse(written.contains("\\"), written);
+
+        // And it comes back as a path this machine can actually use.
+        Value read = mf.eval("echo path\"./docs/notes.md\" | to-source | from-source");
+        assertEquals(ValueType.PATH, ValueType.of(read));
+        assertEquals(Path.of("./docs/notes.md").toString(), Values.display(read));
+    }
+
+    @Test
+    void aMediaTypeComesBackKnowingItWasReadRatherThanDetected() {
+        // Provenance is not part of the value. After a trip through a file, "we
+        // sniffed the bytes" would be false -- we read it off a line -- so the
+        // media type survives and how we came by it honestly does not.
+        Mf mf = mf();
+        Value.Mime detected = new Value.Mime("text", "markdown", "content");
+        Value read = mf.eval(Values.source(detected));
+        assertTrue(Values.equal(detected, read), "the media type itself must survive");
+        assertEquals("written", ((Value.Mime) read).detectedBy());
+    }
+
+    @Test
+    void jsonCanBeToldWhatItsColumnsWere() {
+        // JSON cannot carry a size, so the caller names the columns instead --
+        // the same information a CSV header would have held, said out loud.
+        Mf mf = mf();
+        mf.eval(TABLE + " | to-json | save ./table.json");
+        Value guessed = mf.eval("cat ./table.json | from-json");
+        assertEquals(ValueType.INT, ValueType.of(Values.rows(guessed).getFirst().get("size")));
+
+        Value told = mf.eval("cat ./table.json | from-json --types=\"size:size\" --types=\"when:time\"");
+        assertTrue(Values.equal(mf.eval(TABLE + " | select size when"), mf.eval(
+                        "cat ./table.json | from-json --types=\"size:size\" --types=\"when:time\" | select size when")),
+                "named columns should come back exactly: " + Values.source(told));
+    }
+
+    @Test
+    void namingAColumnThatIsNotThereIsAnError() {
+        Mf mf = mf();
+        mf.eval(TABLE + " | to-json | save ./table.json");
+        MfError error = mf.error("cat ./table.json | from-json --types=\"siez:size\"");
+        assertEquals("E1104", error.code());
+        assertTrue(error.hints().getFirst().contains("size"), error.hints().toString());
+        assertEquals("E1102", mf.errorCode("cat ./table.json | from-json --types=\"size\""));
+    }
+
+    @Test
     void jsonIsForOtherProgramsAndSaysSoByLosingTypes() {
         // JSON has no size and no moment, so a size comes back a number. This is
         // not a bug to fix quietly -- it is why to-csv and to-source exist, and the

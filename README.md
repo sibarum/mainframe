@@ -388,10 +388,23 @@ what you meant and it will do it.
 write MainFrame's own literals, so any value at all — a record, a list, a lone
 duration — can go to a file and come back.
 
-**JSON is the interoperable one, and it says so.** JSON has no size and no
-moment, so `to-json | from-json` gives you a number where you had a size. That is
-a property of JSON, not a bug to fix quietly, and there is a test asserting it so
-nobody mistakes it for the lossless path.
+**JSON has no size and no moment**, so `to-json | from-json` gives you a number
+where you had a size. That is a property of JSON, not a bug to fix quietly, and
+there is a test asserting it. When you need the types back, name them — the same
+information a CSV header carries, said out loud rather than guessed:
+
+```
+cat listing.json | from-json --types="size:size" --types="modified:time"
+```
+
+**Paths are written with forward slashes** whatever this machine calls a
+separator, so a file written on Windows opens correctly on a Mac. Reading turns
+them back into whatever the local system uses.
+
+**A media type comes back knowing it was read, not detected.** `mime` records how
+it decided — content, extension, shebang — and after a trip through a file the
+honest answer is "written down". The media type itself survives; the story of how
+you came by it does not, because it is no longer true.
 
 **Times are local, in both directions.** A timestamp you see is the wall clock you
 can look up at; a time you *write* means your wall clock too. What travels

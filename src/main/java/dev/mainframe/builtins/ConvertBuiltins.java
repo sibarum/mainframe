@@ -11,6 +11,7 @@ import dev.mainframe.eval.Registry;
 import dev.mainframe.eval.Signature;
 import dev.mainframe.eval.Signature.Effect;
 import dev.mainframe.lang.Parser;
+import dev.mainframe.ui.Suggest;
 import dev.mainframe.value.Json;
 import dev.mainframe.value.Value;
 import dev.mainframe.value.ValueType;
@@ -89,7 +90,7 @@ public final class ConvertBuiltins {
     private static String cellText(Value cell) {
         return switch (cell) {
             case Value.Str s -> s.value();
-            case Value.PathVal p -> p.path().toString();
+            case Value.PathVal p -> Values.portable(p.path());
             case Value.Mime m -> m.full();
             case Value.Nothing _ -> "";
             default -> Values.source(cell);
@@ -259,13 +260,83 @@ public final class ConvertBuiltins {
     private static Builtin fromJson() {
         Signature signature = Signature.named("from-json", CATEGORY)
                 .summary("read JSON text into values")
+                .valueFlag("types", 't', ValueType.STRING,
+                        "restore a column's type, e.g. --types=\"size:size\"; repeat for more")
                 .input(ValueType.STRING)
                 .output(ValueType.ANY)
                 .example("cat package.json | from-json | get name")
+                .example("cat listing.json | from-json --types=\"size:size\" --types=\"modified:time\"")
                 .example("^curl -s https://example.com/data.json | from-json")
                 .build();
-        return Cmd.of(signature, args ->
-                Json.parse(Values.asString(args.input(), args.span()), args.span()));
+        return Cmd.of(signature, args -> {
+            Value parsed = Json.parse(Values.asString(args.input(), args.span()), args.span());
+            List<String> types = args.flagList("types");
+            if (types.isEmpty()) return parsed;
+            return restore(args, parsed, types);
+        });
+    }
+
+    /**
+     * Puts the types back on columns JSON could not carry.
+     *
+     * <p>JSON has no size and no moment, so a size comes back a number. Rather
+     * than guess from what the values look like -- which is how a spreadsheet eats
+     * a phone number -- the caller says which column is what, exactly as a CSV
+     * header would have.
+     */
+    private static Value restore(Args args, Value parsed, List<String> types) {
+        SequencedMap<String, ValueType> wanted = new LinkedHashMap<>();
+        for (String spec : types) {
+            int colon = spec.lastIndexOf(':');
+            ValueType type = colon < 0 ? null : typeNamed(spec.substring(colon + 1));
+            if (type == null) {
+                throw args.fail("E1102", "\"" + spec + "\" does not name a column and a type")
+                        .hint("write them as column:type, for example --types=\"size:size\"")
+                        .hint("the types are: " + typeNames())
+                        .build();
+            }
+            wanted.put(spec.substring(0, colon), type);
+        }
+
+        List<Value.Rec> rows = Values.rows(parsed);
+        if (rows.isEmpty()) {
+            throw args.fail("E1103", "--types only applies to rows, and this is a "
+                            + dev.mainframe.value.ValueType.of(parsed).display())
+                    .hint("drop --types, or check the JSON holds a list of objects")
+                    .build();
+        }
+        for (String column : wanted.keySet()) {
+            if (!rows.getFirst().has(column)) {
+                var error = args.fail("E1104", "there is no column called " + column + " in that JSON");
+                String closest = Suggest.closest(column, rows.getFirst().fields().keySet());
+                if (closest != null) error.hint("did you mean " + closest + "?");
+                error.hint("the columns here are: " + String.join(", ", rows.getFirst().fields().keySet()));
+                throw error.build();
+            }
+        }
+
+        List<Value> restored = new ArrayList<>(rows.size());
+        for (Value.Rec row : rows) {
+            SequencedMap<String, Value> fields = new LinkedHashMap<>(row.fields());
+            wanted.forEach((column, type) -> {
+                Value cell = fields.get(column);
+                if (cell == null || cell instanceof Value.Nothing) return;
+                fields.put(column, Values.parseAs(type, Values.display(cell), args.span()));
+            });
+            restored.add(new Value.Rec(fields));
+        }
+        return new Value.ListVal(List.copyOf(restored));
+    }
+
+    private static String typeNames() {
+        List<String> names = new ArrayList<>();
+        for (ValueType type : ValueType.values()) {
+            switch (type) {
+                case ANY, NUMBER, EXPR, BLOCK, TABLE, LIST, RECORD, NOTHING -> { }
+                default -> names.add(type.display());
+            }
+        }
+        return String.join(", ", names);
     }
 
     // ---- text ----------------------------------------------------------------------------

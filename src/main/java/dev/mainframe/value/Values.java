@@ -293,7 +293,7 @@ public final class Values {
             case Value.Size s -> sizeSource(s.bytes());
             case Value.Time t -> Times.machine(t.epochMillis());
             case Value.Duration d -> Times.duration(d.millis());
-            case Value.PathVal p -> "path" + quoted(p.path().toString());
+            case Value.PathVal p -> "path" + quoted(portable(p.path()));
             case Value.Mime m -> "mime" + quoted(m.full());
             case Value.Block _ -> "{ }";
             case Value.ListVal l -> {
@@ -440,6 +440,21 @@ public final class Values {
         return new Value.Mime(text.substring(0, slash), text.substring(slash + 1), "written");
     }
 
+    /**
+     * A path written with forward slashes, whatever this machine calls a
+     * separator.
+     *
+     * <p>A file written on Windows gets opened on a Mac. Backslashes in it would
+     * be an unreadable path there and a pile of escapes in the JSON besides,
+     * whereas forward slashes are read correctly by every platform -- Windows
+     * included. Reading turns them back into whatever the local system uses, so
+     * the value is unchanged on the machine that wrote it and usable on one that
+     * did not.
+     */
+    public static String portable(java.nio.file.Path path) {
+        return path.toString().replace('\\', '/');
+    }
+
     /** Text as a MainFrame string literal, escapes and all. */
     public static String quoted(String text) {
         StringBuilder sb = new StringBuilder();
@@ -463,7 +478,7 @@ public final class Values {
             case Value.Time t -> quote(Times.machine(t.epochMillis()), sb);
             case Value.Duration d -> quote(Times.duration(d.millis()), sb);
             case Value.Str s -> quote(s.value(), sb);
-            case Value.PathVal p -> quote(p.path().toString(), sb);
+            case Value.PathVal p -> quote(portable(p.path()), sb);
             case Value.Mime m -> quote(m.full(), sb);
             case Value.Block _ -> quote("{block}", sb);
             case Value.ListVal l -> {
