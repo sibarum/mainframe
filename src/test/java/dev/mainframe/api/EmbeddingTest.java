@@ -417,6 +417,34 @@ class EmbeddingTest {
     }
 
     @Test
+    void aHostedCommandIsDiscoverableAsDataToo() {
+        // The point of describing the shell as data: whatever is asking does not
+        // have to be a person, and a host's own commands are in there on the same
+        // footing as the built-in ones.
+        MainFrame shell = shell().command(customersSpec(), invocation -> customers()).build();
+
+        Data mine = shell.run("commands | where name == \"customers\" | first");
+        assertEquals("my app", mine.field("category").text());
+        assertEquals("table", mine.field("output").text());
+        assertEquals("reads", mine.field("effect").text());
+
+        Data full = shell.run("commands customers");
+        Data argument = full.field("arguments").items().getFirst();
+        assertEquals("filter", argument.field("name").text());
+        // The type name is the one files and cast use, not the Java enum name.
+        assertEquals("string", argument.field("type").text());
+        assertEquals(false, argument.field("required").bool());
+    }
+
+    @Test
+    void aDestructiveHostedCommandSaysSoInItsDescription() {
+        MainFrame shell = shell().command(dropSpec(), plan(new AtomicInteger())).build();
+        Data dangerous = shell.run("commands | where effect == \"destructive\" | get name");
+        assertTrue(dangerous.items().stream().anyMatch(d -> d.text().equals("drop")),
+                dangerous.toString());
+    }
+
+    @Test
     void theHostCanListWhatTheShellOffers() {
         MainFrame shell = shell().command(customersSpec(), invocation -> customers()).build();
         assertTrue(shell.commands().contains("customers"));

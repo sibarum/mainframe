@@ -12,6 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import dev.mainframe.eval.Registry;
 import dev.mainframe.value.Value;
+import dev.mainframe.value.Values;
 
 /** Piping typed values from one command to the next. */
 class PipelineTest {
@@ -134,6 +135,39 @@ class PipelineTest {
             mf.eval("help " + builtin.signature().name());
         }
         assertTrue(mf.printed().contains("usage"));
+    }
+
+    @Test
+    void theShellDescribesItselfAsData() {
+        Mf mf = mf();
+        int known = Registry.standard().all().size();
+        assertEquals(new Value.Int(known), mf.eval("commands | length"));
+
+        // The description comes from the same signature that does the checking,
+        // so it cannot drift from what the command actually does.
+        Value rm = mf.eval("commands rm");
+        assertEquals(new Value.Str("destructive"), ((Value.Rec) rm).get("effect"));
+        assertTrue(Values.display(((Value.Rec) rm).get("usage")).startsWith("rm "),
+                Values.display(((Value.Rec) rm).get("usage")));
+
+        // And it is a table like any other, so it can be queried.
+        Value destructive = mf.eval("commands | where effect == \"destructive\" | get name");
+        assertTrue(((Value.ListVal) destructive).items().contains(new Value.Str("rm")));
+    }
+
+    @Test
+    void everyCommandDescribesItsArgumentsAndFlags() {
+        Mf mf = mf();
+        for (var builtin : Registry.standard().all()) {
+            Value described = mf.eval("commands " + builtin.signature().name());
+            Value.Rec row = (Value.Rec) described;
+            assertEquals(builtin.signature().params().size(),
+                    ((Value.ListVal) row.get("arguments")).items().size(),
+                    builtin.signature().name() + " describes the wrong number of arguments");
+            assertEquals(builtin.signature().flags().size(),
+                    ((Value.ListVal) row.get("flags")).items().size(),
+                    builtin.signature().name() + " describes the wrong number of flags");
+        }
     }
 
     @Test

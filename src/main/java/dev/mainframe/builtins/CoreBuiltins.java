@@ -25,6 +25,7 @@ public final class CoreBuiltins {
 
     public static void register(Registry registry) {
         registry.add(help(registry));
+        registry.add(commands(registry));
         registry.add(describe());
         registry.add(pwd());
         registry.add(cd());
@@ -59,6 +60,80 @@ public final class CoreBuiltins {
             Help.command(args.session().out(), builtin);
             return Value.Nothing.INSTANCE;
         });
+    }
+
+    /**
+     * The shell described as data rather than as help text.
+     *
+     * <p>Every command already declares its shape, so the whole registry is a
+     * table waiting to be handed over: a spec of what this instance can do. That
+     * makes a MainFrame -- or a program hosting one -- discoverable to something
+     * on the other end of a pipe, not just readable by a person.
+     */
+    private static dev.mainframe.eval.Builtin commands(Registry registry) {
+        Signature signature = Signature.named("commands", CATEGORY)
+                .summary("describe every command as data, for programs rather than people")
+                .optional("name", ValueType.STRING, "just this one, in full")
+                .switchFlag("detail", 'd', "include the arguments and flags of each")
+                .output(ValueType.TABLE)
+                .effect(Effect.READS)
+                .example("commands")
+                .example("commands | where effect == \"destructive\" | get name")
+                .example("commands ls --detail | to-json")
+                .build();
+        return Cmd.of(signature, args -> {
+            if (args.has(0)) {
+                String name = args.str(0);
+                var builtin = registry.get(name);
+                if (builtin == null) {
+                    var error = args.fail("E505", "there is no command called " + name);
+                    String closest = Suggest.closest(name, registry.names());
+                    if (closest != null) error.hint("did you mean " + closest + "?");
+                    return error.raise();
+                }
+                return described(builtin.signature(), true);
+            }
+            List<Value> rows = new ArrayList<>();
+            for (var builtin : registry.all()) rows.add(described(builtin.signature(), args.flag("detail")));
+            return new Value.ListVal(List.copyOf(rows));
+        });
+    }
+
+    /** One command as a record. Arguments and flags are records of their own. */
+    private static Value.Rec described(Signature signature, boolean detail) {
+        Value.Rec row = Value.Rec.of(
+                "name", new Value.Str(signature.name()),
+                "category", new Value.Str(signature.category()),
+                "summary", new Value.Str(signature.summary()),
+                "usage", new Value.Str(signature.usage()),
+                "input", new Value.Str(signature.input().display()),
+                "output", new Value.Str(signature.output().display()),
+                "effect", new Value.Str(signature.effect().name().toLowerCase()));
+        if (!detail) return row;
+
+        List<Value> params = new ArrayList<>();
+        for (Signature.Param p : signature.params()) {
+            params.add(Value.Rec.of(
+                    "name", new Value.Str(p.name()),
+                    "type", new Value.Str(p.type().display()),
+                    "required", new Value.Bool(p.required()),
+                    "repeatable", new Value.Bool(p.rest()),
+                    "about", new Value.Str(p.description())));
+        }
+        List<Value> flags = new ArrayList<>();
+        for (Signature.Flag f : signature.flags()) {
+            flags.add(Value.Rec.of(
+                    "name", new Value.Str(f.name()),
+                    "short", new Value.Str(f.shortName() == '\0' ? "" : String.valueOf(f.shortName())),
+                    "type", new Value.Str(f.isSwitch() ? "switch" : f.type().display()),
+                    "about", new Value.Str(f.description())));
+        }
+        List<Value> examples = new ArrayList<>();
+        for (String example : signature.examples()) examples.add(new Value.Str(example));
+
+        return row.with("arguments", new Value.ListVal(List.copyOf(params)))
+                .with("flags", new Value.ListVal(List.copyOf(flags)))
+                .with("examples", new Value.ListVal(List.copyOf(examples)));
     }
 
     private static dev.mainframe.eval.Builtin describe() {
