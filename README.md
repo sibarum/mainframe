@@ -388,13 +388,27 @@ what you meant and it will do it.
 write MainFrame's own literals, so any value at all — a record, a list, a lone
 duration — can go to a file and come back.
 
-**JSON has no size and no moment**, so `to-json | from-json` gives you a number
-where you had a size. That is a property of JSON, not a bug to fix quietly, and
-there is a test asserting it. When you need the types back, name them — the same
-information a CSV header carries, said out loud rather than guessed:
+**A file says what is in it.** `save` picks the format from the name and `open`
+picks the reader the same way, so nothing has to be declared twice:
 
 ```
-cat listing.json | from-json --types="size:size" --types="modified:time"
+ls | where size > 1mb | save big.csv
+open big.csv | sort-by size --reverse | first 5
+```
+
+Filtering and ordering work on the way back because the file carried its own
+schema — not because you told the shell a second time what its own columns held.
+Being asked to re-declare that is the paperwork this design exists to avoid.
+
+**JSON has no size and no moment**, and a JSON array has nowhere to put a schema
+without ceasing to be an ordinary JSON array — which is the only reason anyone
+wants JSON. So JSON is for handing data to somebody else's program, and `save`
+says so when you write one, rather than leaving you to find out on the way back:
+
+```
+~/work > ls | select name size | save listing.json
+json does not carry column types, so sizes and times read back as plain numbers
+and text -- save it as .csv to keep them
 ```
 
 **Paths are written with forward slashes** whatever this machine calls a
@@ -435,7 +449,7 @@ does what you meant.
 | | |
 |---|---|
 | **getting around** | `help` `describe` `pwd` `cd` `echo` `which` `version` `exit` |
-| **files** | `ls` `cat` `mime` `save` `mkdir` `cp` `mv` `rm` |
+| **files** | `ls` `cat` `open` `mime` `save` `mkdir` `cp` `mv` `rm` |
 | **shaping data** | `where` `select` `reject` `sort-by` `first` `last` `reverse` `length` `get` `each` `uniq` `count-by` `sum` |
 | **converting** | `to-csv` `from-csv` `to-source` `from-source` `to-json` `from-json` `lines` `to-text` |
 | **searching** | `index-build` `index-sync` `index-list` `index-drop` `from-index` `find` |

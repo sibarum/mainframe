@@ -36,7 +36,7 @@ env-set TOUR_VAR "set while running"
 env TOUR_VAR
 
 echo "10. a value written to a file reads back as itself"
-ls | where kind == "file" | select name size modified | to-csv | save ./tour-listing.csv --force
-cat ./tour-listing.csv | from-csv | sum size
+ls | where kind == "file" | select name size modified | save ./tour-listing.csv --force
+open ./tour-listing.csv | sum size
 ls | where kind == "file" | sum size
 rm ./tour-listing.csv --yes

@@ -1,18 +1,12 @@
 package dev.mainframe.builtins;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.SequencedMap;
 
-import dev.mainframe.eval.Args;
 import dev.mainframe.eval.Builtin;
 import dev.mainframe.eval.Registry;
 import dev.mainframe.eval.Signature;
 import dev.mainframe.eval.Signature.Effect;
-import dev.mainframe.lang.Parser;
-import dev.mainframe.ui.Suggest;
-import dev.mainframe.value.Json;
 import dev.mainframe.value.Value;
 import dev.mainframe.value.ValueType;
 import dev.mainframe.value.Values;
@@ -20,12 +14,12 @@ import dev.mainframe.value.Values;
 /**
  * Turning values into text and back again.
  *
- * <p>These commands exist to make one workflow reliable: send results to a file,
- * read them back later, and get the same answer as if you had never stopped.
- * Every writer here uses {@link Values#source} for its values and every reader
- * uses {@link Values#parseAs}, so the written form and the read form cannot drift
- * apart. Where a format cannot carry a type -- JSON has no size, no moment -- the
- * command says so rather than quietly losing it.
+ * <p>These are the same formats {@code save} and {@code open} use -- one
+ * implementation each, in {@link Formats} -- so a file written by
+ * {@code ... | to-csv | save x.csv} is the file {@code save x.csv} writes, and
+ * either can be read by either. Most of the time you want {@code save} and
+ * {@code open}, which pick the format from the file name; these exist for when
+ * the text itself is what you are after.
  */
 public final class ConvertBuiltins {
 
@@ -44,206 +38,59 @@ public final class ConvertBuiltins {
         registry.add(toText());
     }
 
-    // ---- CSV: human-readable, and exact ------------------------------------------------
+    // ---- CSV: rows, columns, and a type on every column ----------------------------------
 
     private static Builtin toCsv() {
         Signature signature = Signature.named("to-csv", CATEGORY)
                 .summary("write a table as CSV, with the column types in the header")
-                .switchFlag("plain", '\0', "leave the types out of the header, for other programs")
+                .switchFlag("plain", '\0', "leave the types out, for programs that do not want them")
                 .input(ValueType.TABLE)
                 .output(ValueType.STRING)
-                .example("ls | to-csv | save listing.csv")
+                .example("ls | to-csv")
                 .example("ls | to-csv --plain | save for-excel.csv")
                 .build();
-        return Cmd.of(signature, args -> {
-            List<Value.Rec> rows = args.rows();
-            List<String> columns = new ArrayList<>(Values.columns(rows));
-            if (columns.isEmpty()) return new Value.Str("");
-
-            StringBuilder csv = new StringBuilder();
-            for (int i = 0; i < columns.size(); i++) {
-                if (i > 0) csv.append(',');
-                String header = columns.get(i);
-                // The type goes in the header so that from-csv can hand back what
-                // it was given rather than a table of text that looks similar.
-                if (!args.flag("plain")) header += ":" + columnType(rows, columns.get(i)).display();
-                csv.append(escape(header));
-            }
-            csv.append('\n');
-            for (Value.Rec row : rows) {
-                for (int i = 0; i < columns.size(); i++) {
-                    if (i > 0) csv.append(',');
-                    Value cell = row.get(columns.get(i));
-                    csv.append(escape(cell == null ? "" : cellText(cell)));
-                }
-                csv.append('\n');
-            }
-            return new Value.Str(csv.toString());
-        });
-    }
-
-    /**
-     * The written form of one cell. Deliberately the same text the language uses
-     * for a literal -- 4mb, 2026-08-21T14:30:00.000-04:00 -- minus the quoting
-     * that CSV does for itself.
-     */
-    private static String cellText(Value cell) {
-        return switch (cell) {
-            case Value.Str s -> s.value();
-            case Value.PathVal p -> Values.portable(p.path());
-            case Value.Mime m -> m.full();
-            case Value.Nothing _ -> "";
-            default -> Values.source(cell);
-        };
-    }
-
-    /** The one type every value in a column shares, or text when they disagree. */
-    private static ValueType columnType(List<Value.Rec> rows, String column) {
-        ValueType found = null;
-        for (Value.Rec row : rows) {
-            Value cell = row.get(column);
-            if (cell == null || cell instanceof Value.Nothing) continue;
-            ValueType type = ValueType.of(cell);
-            if (found == null) found = type;
-            else if (found != type) return ValueType.STRING;
-        }
-        return found == null ? ValueType.STRING : found;
+        return Cmd.of(signature, args ->
+                new Value.Str(Formats.toCsv(args.input(), args.flag("plain"), args)));
     }
 
     private static Builtin fromCsv() {
         Signature signature = Signature.named("from-csv", CATEGORY)
-                .summary("read CSV back into a table, restoring the types in its header")
+                .summary("read CSV into a table, restoring the types in its header")
                 .switchFlag("text", '\0', "treat every column as text, whatever the header says")
                 .input(ValueType.STRING)
                 .output(ValueType.TABLE)
-                .example("cat listing.csv | from-csv | where size > 1mb")
-                .example("cat from-elsewhere.csv | from-csv --text")
+                .example("open listing.csv | where size > 1mb")
+                .example("cat from-elsewhere.csv | from-csv")
                 .build();
-        return Cmd.of(signature, args -> {
-            String text = Values.asString(args.input(), args.span());
-            List<List<String>> lines = readCsv(text);
-            if (lines.isEmpty()) return new Value.ListVal(List.of());
-
-            List<String> names = new ArrayList<>();
-            List<ValueType> types = new ArrayList<>();
-            for (String header : lines.getFirst()) {
-                int colon = header.lastIndexOf(':');
-                ValueType type = ValueType.STRING;
-                String name = header;
-                if (colon > 0 && !args.flag("text")) {
-                    ValueType named = typeNamed(header.substring(colon + 1));
-                    if (named != null) {
-                        type = named;
-                        name = header.substring(0, colon);
-                    }
-                }
-                names.add(name);
-                types.add(type);
-            }
-
-            List<Value> rows = new ArrayList<>(lines.size() - 1);
-            for (int i = 1; i < lines.size(); i++) {
-                List<String> cells = lines.get(i);
-                SequencedMap<String, Value> fields = new LinkedHashMap<>();
-                for (int c = 0; c < names.size(); c++) {
-                    String cell = c < cells.size() ? cells.get(c) : "";
-                    fields.put(names.get(c), Values.parseAs(types.get(c), cell, args.span()));
-                }
-                rows.add(new Value.Rec(fields));
-            }
-            return new Value.ListVal(List.copyOf(rows));
-        });
+        return Cmd.of(signature, args ->
+                Formats.fromCsv(Values.asString(args.input(), args.span()), args.flag("text"), args));
     }
 
-    private static ValueType typeNamed(String name) {
-        for (ValueType type : ValueType.values()) {
-            if (type.display().equals(name.trim())) return type;
-        }
-        return null;
-    }
-
-    /** A CSV reader that understands quotes, doubled quotes and newlines inside them. */
-    private static List<List<String>> readCsv(String text) {
-        List<List<String>> lines = new ArrayList<>();
-        List<String> row = new ArrayList<>();
-        StringBuilder cell = new StringBuilder();
-        boolean quoted = false;
-        boolean any = false;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (quoted) {
-                if (c == '"') {
-                    if (i + 1 < text.length() && text.charAt(i + 1) == '"') { cell.append('"'); i++; }
-                    else quoted = false;
-                } else {
-                    cell.append(c);
-                }
-                continue;
-            }
-            switch (c) {
-                case '"' -> { quoted = true; any = true; }
-                case ',' -> { row.add(cell.toString()); cell.setLength(0); any = true; }
-                case '\r' -> { }
-                case '\n' -> {
-                    row.add(cell.toString());
-                    cell.setLength(0);
-                    if (any || row.size() > 1 || !row.getFirst().isEmpty()) lines.add(List.copyOf(row));
-                    row.clear();
-                    any = false;
-                }
-                default -> { cell.append(c); any = true; }
-            }
-        }
-        if (any || !cell.isEmpty()) {
-            row.add(cell.toString());
-            lines.add(List.copyOf(row));
-        }
-        return lines;
-    }
-
-    private static String escape(String cell) {
-        boolean needsQuotes = cell.indexOf(',') >= 0 || cell.indexOf('"') >= 0
-                || cell.indexOf('\n') >= 0 || cell.indexOf('\r') >= 0;
-        if (!needsQuotes) return cell;
-        return '"' + cell.replace("\"", "\"\"") + '"';
-    }
-
-    // ---- MainFrame's own written form ---------------------------------------------------
+    // ---- MainFrame's own written form -----------------------------------------------------
 
     private static Builtin toSource() {
         Signature signature = Signature.named("to-source", CATEGORY)
                 .summary("write any value as MainFrame source, losing nothing")
                 .input(ValueType.ANY)
                 .output(ValueType.STRING)
-                .example("ls | to-source | save listing.mf")
                 .example("echo 4mb | to-source")
+                .example("ls | save listing.mf")
                 .build();
         return Cmd.of(signature, args -> new Value.Str(Values.source(args.input())));
     }
 
     private static Builtin fromSource() {
         Signature signature = Signature.named("from-source", CATEGORY)
-                .summary("read a value written by to-source")
+                .summary("read a value written as MainFrame source")
                 .input(ValueType.STRING)
                 .output(ValueType.ANY)
-                .example("cat listing.mf | from-source | where size > 1mb")
+                .example("open listing.mf | where size > 1mb")
                 .build();
-        return Cmd.of(signature, args -> {
-            String text = Values.asString(args.input(), args.span()).trim();
-            if (text.isEmpty()) return Value.Nothing.INSTANCE;
-            try {
-                // The written form is source, so reading it is just running it --
-                // which is the whole point of the two being the same thing.
-                return args.evalSource(Parser.parse(text));
-            } catch (dev.mainframe.MfError e) {
-                throw args.fail("E1101", "that is not something to-source wrote: " + e.getMessage())
-                        .hint("to-source and from-source are a pair; for other text try from-json or from-csv")
-                        .build();
-            }
-        });
+        return Cmd.of(signature, args ->
+                Formats.read(Formats.Format.SOURCE, Values.asString(args.input(), args.span()), args));
     }
 
-    // ---- JSON: interoperable, and honest about it ----------------------------------------
+    // ---- JSON: for handing data to somebody else ------------------------------------------
 
     private static Builtin toJson() {
         Signature signature = Signature.named("to-json", CATEGORY)
@@ -260,86 +107,16 @@ public final class ConvertBuiltins {
     private static Builtin fromJson() {
         Signature signature = Signature.named("from-json", CATEGORY)
                 .summary("read JSON text into values")
-                .valueFlag("types", 't', ValueType.STRING,
-                        "restore a column's type, e.g. --types=\"size:size\"; repeat for more")
                 .input(ValueType.STRING)
                 .output(ValueType.ANY)
-                .example("cat package.json | from-json | get name")
-                .example("cat listing.json | from-json --types=\"size:size\" --types=\"modified:time\"")
+                .example("open package.json | get name")
                 .example("^curl -s https://example.com/data.json | from-json")
                 .build();
-        return Cmd.of(signature, args -> {
-            Value parsed = Json.parse(Values.asString(args.input(), args.span()), args.span());
-            List<String> types = args.flagList("types");
-            if (types.isEmpty()) return parsed;
-            return restore(args, parsed, types);
-        });
+        return Cmd.of(signature, args ->
+                Formats.read(Formats.Format.JSON, Values.asString(args.input(), args.span()), args));
     }
 
-    /**
-     * Puts the types back on columns JSON could not carry.
-     *
-     * <p>JSON has no size and no moment, so a size comes back a number. Rather
-     * than guess from what the values look like -- which is how a spreadsheet eats
-     * a phone number -- the caller says which column is what, exactly as a CSV
-     * header would have.
-     */
-    private static Value restore(Args args, Value parsed, List<String> types) {
-        SequencedMap<String, ValueType> wanted = new LinkedHashMap<>();
-        for (String spec : types) {
-            int colon = spec.lastIndexOf(':');
-            ValueType type = colon < 0 ? null : typeNamed(spec.substring(colon + 1));
-            if (type == null) {
-                throw args.fail("E1102", "\"" + spec + "\" does not name a column and a type")
-                        .hint("write them as column:type, for example --types=\"size:size\"")
-                        .hint("the types are: " + typeNames())
-                        .build();
-            }
-            wanted.put(spec.substring(0, colon), type);
-        }
-
-        List<Value.Rec> rows = Values.rows(parsed);
-        if (rows.isEmpty()) {
-            throw args.fail("E1103", "--types only applies to rows, and this is a "
-                            + dev.mainframe.value.ValueType.of(parsed).display())
-                    .hint("drop --types, or check the JSON holds a list of objects")
-                    .build();
-        }
-        for (String column : wanted.keySet()) {
-            if (!rows.getFirst().has(column)) {
-                var error = args.fail("E1104", "there is no column called " + column + " in that JSON");
-                String closest = Suggest.closest(column, rows.getFirst().fields().keySet());
-                if (closest != null) error.hint("did you mean " + closest + "?");
-                error.hint("the columns here are: " + String.join(", ", rows.getFirst().fields().keySet()));
-                throw error.build();
-            }
-        }
-
-        List<Value> restored = new ArrayList<>(rows.size());
-        for (Value.Rec row : rows) {
-            SequencedMap<String, Value> fields = new LinkedHashMap<>(row.fields());
-            wanted.forEach((column, type) -> {
-                Value cell = fields.get(column);
-                if (cell == null || cell instanceof Value.Nothing) return;
-                fields.put(column, Values.parseAs(type, Values.display(cell), args.span()));
-            });
-            restored.add(new Value.Rec(fields));
-        }
-        return new Value.ListVal(List.copyOf(restored));
-    }
-
-    private static String typeNames() {
-        List<String> names = new ArrayList<>();
-        for (ValueType type : ValueType.values()) {
-            switch (type) {
-                case ANY, NUMBER, EXPR, BLOCK, TABLE, LIST, RECORD, NOTHING -> { }
-                default -> names.add(type.display());
-            }
-        }
-        return String.join(", ", names);
-    }
-
-    // ---- text ----------------------------------------------------------------------------
+    // ---- text ------------------------------------------------------------------------------
 
     private static Builtin lines() {
         Signature signature = Signature.named("lines", CATEGORY)
@@ -347,7 +124,7 @@ public final class ConvertBuiltins {
                 .switchFlag("keep-empty", '\0', "keep blank lines instead of dropping them")
                 .input(ValueType.STRING)
                 .output(ValueType.LIST)
-                .example("cat notes.txt | lines | length")
+                .example("open notes.txt | lines | length")
                 .build();
         return Cmd.of(signature, args -> {
             String text = Values.asString(args.input(), args.span());

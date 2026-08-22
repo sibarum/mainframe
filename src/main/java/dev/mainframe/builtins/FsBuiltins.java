@@ -32,6 +32,7 @@ public final class FsBuiltins {
     public static void register(Registry registry) {
         registry.add(ls());
         registry.add(cat());
+        registry.add(open());
         registry.add(mime());
         registry.add(save());
         registry.add(mkdir());
@@ -218,13 +219,15 @@ public final class FsBuiltins {
 
     private static Builtin save() {
         Signature signature = Signature.named("save", CATEGORY)
-                .summary("write what came down the pipe to a file")
+                .summary("write what came down the pipe to a file, in the format its name implies")
                 .required("file", ValueType.PATH, "where to write")
                 .switchFlag("force", 'f', "overwrite the file if it already exists")
-                .switchFlag("json", '\0', "write JSON, whatever the file is called")
+                .valueFlag("as", '\0', ValueType.STRING,
+                        "write it as " + Formats.formatNames() + ", whatever the file is called")
                 .input(ValueType.ANY)
                 .output(ValueType.TABLE)
                 .effect(Effect.WRITES)
+                .example("ls | save listing.csv")
                 .example("ls | save listing.json")
                 .example("cat a.txt | save b.txt --force")
                 .build();
@@ -243,40 +246,90 @@ public final class FsBuiltins {
                         .hint("or pick another name so nothing is lost")
                         .build();
             }
+            Formats.Format format = chosenFormat(args, file);
             // Text is written as it stands. Only structured values get converted,
-            // so `ls | to-json | save x.json` writes JSON rather than JSON wrapped
-            // in a JSON string -- the file is the same either way you build it.
-            boolean alreadyText = args.input() instanceof Value.Str;
-            boolean asJson = !alreadyText
-                    && (args.flag("json") || file.getFileName().toString().toLowerCase().endsWith(".json"));
-            if (alreadyText && args.flag("json")) {
-                throw args.fail("E618", "that is already text, so there is nothing to convert to JSON")
-                        .hint("drop --json to write the text as it is")
-                        .hint("or drop to-json from the pipeline and let save do the converting")
-                        .build();
+            // so `ls | to-csv | save x.csv` writes CSV rather than CSV wrapped in
+            // something -- the file is the same either way you build it.
+            if (args.input() instanceof Value.Str && !args.hasFlag("as")) format = Formats.Format.TEXT;
+
+            byte[] bytes = Formats.write(format, args.input(), args).getBytes(StandardCharsets.UTF_8);
+
+            // A table on its way into a format that cannot hold column types is
+            // worth a word now, rather than a surprise on the way back in.
+            if (!format.keepsTypes() && Values.isTable(args.input()) && !args.rows().isEmpty()) {
+                plan.note(format.display() + " does not carry column types, so sizes and times"
+                        + " read back as plain numbers and text -- save it as .csv to keep them");
             }
-            byte[] bytes = (asJson
-                    ? Values.toJson(args.input(), 2)
-                    : textOf(args.input())).getBytes(StandardCharsets.UTF_8);
             String what = (exists ? "replace " : "create ") + SafeFs.describe(args.session().cwd(), file)
-                    + " (" + Values.formatSize(bytes.length) + (asJson ? ", json" : ", text") + ")";
+                    + " (" + Values.formatSize(bytes.length) + ", " + format.display() + ")";
             return plan.step(what, () -> SafeFs.atomicWrite(file, bytes));
         });
     }
 
-    private static String textOf(Value value) {
-        // Text goes out as it came in, give or take a final newline.
-        if (value instanceof Value.Str s) {
-            String text = s.value();
-            return text.isEmpty() || text.endsWith("\n") ? text : text + "\n";
+    /** The format the user asked for, or the one the file name implies. */
+    private static Formats.Format chosenFormat(Args args, Path file) {
+        if (!args.hasFlag("as")) return Formats.forFile(file);
+        String asked = args.flagStr("as", "");
+        Formats.Format format = Formats.named(asked);
+        if (format == null) {
+            throw args.fail("E619", "\"" + asked + "\" is not a format I know")
+                    .hint("the formats are " + Formats.formatNames())
+                    .build();
         }
-        if (value instanceof Value.ListVal list) {
-            StringBuilder sb = new StringBuilder();
-            for (Value item : list.items()) sb.append(Values.display(item)).append('\n');
-            return sb.toString();
+        return format;
+    }
+
+    private static Builtin open() {
+        Signature signature = Signature.named("open", CATEGORY)
+                .summary("read a file back in, in the format its name implies")
+                .rest("files", ValueType.PATH, "the files to read; taken from the pipe if you name none")
+                .valueFlag("as", '\0', ValueType.STRING,
+                        "read it as " + Formats.formatNames() + ", whatever the file is called")
+                .input(ValueType.ANY)
+                .output(ValueType.ANY)
+                .effect(Effect.READS)
+                .example("open listing.csv | where size > 1mb")
+                .example("open notes.txt")
+                .example("open data.dat --as=csv")
+                .build();
+        return Cmd.of(signature, args -> {
+            List<Path> files = targets(args, 0);
+            List<Value> read = new ArrayList<>(files.size());
+            for (Path file : files) {
+                Formats.Format format = chosenFormat(args, file);
+                read.add(Formats.read(format, readText(args, file), args));
+            }
+            if (read.size() == 1) return read.getFirst();
+            // Several files of rows join up into one table, which is what anybody
+            // opening a folder of them wanted.
+            List<Value> joined = new ArrayList<>();
+            for (Value value : read) {
+                if (value instanceof Value.ListVal list) joined.addAll(list.items());
+                else joined.add(value);
+            }
+            return new Value.ListVal(List.copyOf(joined));
+        });
+    }
+
+    /** Reads a file as text, refusing binary for the same reason cat does. */
+    private static String readText(Args args, Path file) {
+        if (Files.isDirectory(file)) {
+            throw args.fail("E620", SafeFs.describe(args.session().cwd(), file) + " is a directory")
+                    .hint("list it instead: ls " + SafeFs.describe(args.session().cwd(), file))
+                    .build();
         }
-        String text = Values.display(value);
-        return text.endsWith("\n") ? text : text + "\n";
+        Value.Mime type = MimeDetector.detect(file);
+        if (!isTextual(type)) {
+            throw args.fail("E621", SafeFs.describe(args.session().cwd(), file)
+                            + " is " + type.full() + ", which MainFrame cannot read back")
+                    .hint("open handles csv, json, MainFrame source and plain text")
+                    .build();
+        }
+        try {
+            return Files.readString(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw args.fail("E622", "could not read " + file.getFileName() + ": " + e.getMessage()).build();
+        }
     }
 
     private static Builtin mkdir() {

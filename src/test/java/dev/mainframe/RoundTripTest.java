@@ -132,8 +132,8 @@ class RoundTripTest {
     void aTableSurvivesACsvFile() throws IOException {
         Mf mf = mf();
         Value before = mf.eval(TABLE);
-        mf.eval(TABLE + " | to-csv | save ./table.csv");
-        Value after = mf.eval("cat ./table.csv | from-csv");
+        mf.eval(TABLE + " | save ./table.csv");
+        Value after = mf.eval("open ./table.csv");
         assertTrue(Values.equal(before, after),
                 "before: " + Values.source(before) + "\nafter:  " + Values.source(after));
     }
@@ -142,8 +142,8 @@ class RoundTripTest {
     void aTableSurvivesASourceFile() {
         Mf mf = mf();
         Value before = mf.eval(TABLE);
-        mf.eval(TABLE + " | to-source | save ./table.mf");
-        Value after = mf.eval("cat ./table.mf | from-source");
+        mf.eval(TABLE + " | save ./table.mf");
+        Value after = mf.eval("open ./table.mf");
         assertTrue(Values.equal(before, after),
                 "before: " + Values.source(before) + "\nafter:  " + Values.source(after));
     }
@@ -151,7 +151,7 @@ class RoundTripTest {
     @Test
     void theCsvIsSomethingAPersonCanRead() throws IOException {
         Mf mf = mf();
-        mf.eval(TABLE + " | to-csv | save ./table.csv");
+        mf.eval(TABLE + " | save ./table.csv");
         String csv = Files.readString(here.resolve("table.csv"));
         // The header carries the types, which is what lets from-csv hand back a
         // size rather than a number that happens to look like one.
@@ -172,8 +172,8 @@ class RoundTripTest {
 
         Value straight = direct.eval(fetchAndFilter + aggregate);
 
-        viaFile.eval(fetchAndFilter + " | to-csv | save ./step.csv");
-        Value stopped = viaFile.eval("cat ./step.csv | from-csv" + aggregate);
+        viaFile.eval(fetchAndFilter + " | save ./step.csv");
+        Value stopped = viaFile.eval("open ./step.csv" + aggregate);
 
         assertTrue(Values.equal(straight, stopped),
                 "fetch|filter|aggregate gave " + Values.source(straight)
@@ -184,15 +184,15 @@ class RoundTripTest {
     @Test
     void filteringWorksTheSameOnEitherSideOfAFile() {
         Mf mf = mf();
-        mf.eval(TABLE + " | to-csv | save ./step.csv");
+        mf.eval(TABLE + " | save ./step.csv");
 
         // A filter written against the live table, applied to the reloaded one.
         Value live = mf.eval(TABLE + " | where when > 2026-06-01 | get name");
-        Value reloaded = mf.eval("cat ./step.csv | from-csv | where when > 2026-06-01 | get name");
+        Value reloaded = mf.eval("open ./step.csv | where when > 2026-06-01 | get name");
         assertTrue(Values.equal(live, reloaded),
                 "live: " + Values.source(live) + " reloaded: " + Values.source(reloaded));
 
-        Value spans = mf.eval("cat ./step.csv | from-csv | where took > 1m | get name");
+        Value spans = mf.eval("open ./step.csv | where took > 1m | get name");
         assertEquals(new Value.Str("alpha"), ((Value.ListVal) spans).items().getFirst());
     }
 
@@ -201,10 +201,10 @@ class RoundTripTest {
         Mf mf = mf();
         mf.eval("mkdir ./tree");
         mf.eval("echo \"hello\" | save ./tree/a.txt");
-        mf.eval("ls ./tree | to-csv | save ./listing.csv");
+        mf.eval("ls ./tree | save ./listing.csv");
 
         Value live = mf.eval("ls ./tree | select name size modified");
-        Value reloaded = mf.eval("cat ./listing.csv | from-csv | select name size modified");
+        Value reloaded = mf.eval("open ./listing.csv | select name size modified");
         assertTrue(Values.equal(live, reloaded),
                 "live: " + Values.source(live) + "\nreloaded: " + Values.source(reloaded));
     }
@@ -238,28 +238,35 @@ class RoundTripTest {
     }
 
     @Test
-    void jsonCanBeToldWhatItsColumnsWere() {
-        // JSON cannot carry a size, so the caller names the columns instead --
-        // the same information a CSV header would have held, said out loud.
+    void nobodySaysTheTypesTwice() {
+        // The whole point. Save it, open it, and filtering and ordering work on
+        // the way back without a word from anybody about what the columns hold.
         Mf mf = mf();
-        mf.eval(TABLE + " | to-json | save ./table.json");
-        Value guessed = mf.eval("cat ./table.json | from-json");
-        assertEquals(ValueType.INT, ValueType.of(Values.rows(guessed).getFirst().get("size")));
+        mf.eval(TABLE + " | save ./step.csv");
 
-        Value told = mf.eval("cat ./table.json | from-json --types=\"size:size\" --types=\"when:time\"");
-        assertTrue(Values.equal(mf.eval(TABLE + " | select size when"), mf.eval(
-                        "cat ./table.json | from-json --types=\"size:size\" --types=\"when:time\" | select size when")),
-                "named columns should come back exactly: " + Values.source(told));
+        // Exactly 4mb does not beat 4mb; the extra byte does. Which only works if
+        // the column came back as sizes rather than as text that looks like them.
+        assertEquals(new Value.Int(2), mf.eval("open ./step.csv | where size > 1mb | length"));
+        assertEquals(new Value.Int(1), mf.eval("open ./step.csv | where size > 4mb | length"));
+        assertEquals(new Value.Int(1), mf.eval("open ./step.csv | where when > 2026-06-01 | length"));
+        assertEquals(new Value.Int(1), mf.eval("open ./step.csv | where took > 1m | length"));
+        // Ordering by one byte, which text sorting would get backwards: "4194305b"
+        // sorts before "4mb" alphabetically, and after it numerically.
+        assertEquals(new Value.Str("alpha"),
+                ((Value.ListVal) mf.eval("open ./step.csv | sort-by size | get name")).items().getFirst());
+        assertEquals(new Value.Str("beta"),
+                ((Value.ListVal) mf.eval("open ./step.csv | sort-by size --reverse | get name")).items().getFirst());
     }
 
     @Test
-    void namingAColumnThatIsNotThereIsAnError() {
+    void savingATableSomewhereThatCannotHoldTypesSaysSoAtTheTime() {
+        // JSON has nowhere to put a schema without ceasing to be ordinary JSON.
+        // That is worth a word when the file is written, not a discovery when it
+        // is read.
         Mf mf = mf();
-        mf.eval(TABLE + " | to-json | save ./table.json");
-        MfError error = mf.error("cat ./table.json | from-json --types=\"siez:size\"");
-        assertEquals("E1104", error.code());
-        assertTrue(error.hints().getFirst().contains("size"), error.hints().toString());
-        assertEquals("E1102", mf.errorCode("cat ./table.json | from-json --types=\"size\""));
+        mf.eval(TABLE + " | save ./table.json");
+        assertTrue(mf.printed().contains("does not carry column types"), mf.printed());
+        assertTrue(mf.printed().contains(".csv"), mf.printed());
     }
 
     @Test
@@ -276,7 +283,7 @@ class RoundTripTest {
     @Test
     void savingTextWritesTheTextRatherThanEncodingItAgain() throws IOException {
         Mf mf = mf();
-        mf.eval("echo 4mb | to-json | save ./once.json");
+        mf.eval("echo 4mb | save ./once.json");
         String written = Files.readString(here.resolve("once.json"));
         // Not "\"4194304\"" -- text that is already JSON is written as it stands.
         assertEquals("4194304", written.strip());
@@ -286,7 +293,7 @@ class RoundTripTest {
     @Test
     void bothWaysOfWritingJsonAgree() throws IOException {
         Mf mf = mf();
-        mf.eval(TABLE + " | to-json | save ./explicit.json");
+        mf.eval(TABLE + " | save ./explicit.json");
         mf.eval(TABLE + " | save ./implicit.json");
         assertEquals(Files.readString(here.resolve("explicit.json")).strip(),
                 Files.readString(here.resolve("implicit.json")).strip(),
@@ -297,7 +304,7 @@ class RoundTripTest {
     void aForeignCsvComesInAsTextRatherThanBeingGuessedAt() {
         Mf mf = mf();
         mf.eval("echo \"name,when\\nalpha,2026-08-21\" | save ./foreign.csv");
-        Value read = mf.eval("cat ./foreign.csv | from-csv");
+        Value read = mf.eval("open ./foreign.csv");
         Value.Rec row = Values.rows(read).getFirst();
         // No type in the header means text. A column that merely looks like a date
         // is not turned into one, because guessing is how data gets mangled.
@@ -308,7 +315,7 @@ class RoundTripTest {
     void readingACellThatDoesNotFitItsColumnIsAnError() {
         Mf mf = mf();
         mf.eval("echo \"size:size\\nnot-a-size\" | save ./broken.csv");
-        MfError error = mf.error("cat ./broken.csv | from-csv");
+        MfError error = mf.error("open ./broken.csv");
         assertEquals("E205", error.code());
         assertTrue(error.hints().getLast().contains("4mb"), error.hints().toString());
     }
