@@ -28,10 +28,12 @@ import dev.mainframe.eval.Builtin;
 import dev.mainframe.eval.Interpreter;
 import dev.mainframe.eval.Registry;
 import dev.mainframe.form.Form;
+import dev.mainframe.form.FormPanel;
 import dev.mainframe.form.FormScreen;
 import dev.mainframe.form.FormStore;
 import dev.mainframe.fs.IndexStore;
 import dev.mainframe.lang.Parser;
+import dev.mainframe.panel.Editor;
 import dev.mainframe.ui.Renderer;
 import dev.mainframe.value.Value;
 
@@ -223,7 +225,9 @@ public final class MainFrame {
         try {
             Form form = Form.read(fields.unwrap(), Span.NONE);
             requireSomebodyToAsk(session, "this shell");
-            Value.Rec answers = FormScreen.show(form, offered, title, true, session);
+            Value.Rec answers = session.editor() != null
+                    ? FormPanel.show(form, offered, title, session.editor(), session.cwd())
+                    : FormScreen.show(form, offered, title, true, session);
             return answers == null ? Data.nothing() : Data.wrap(answers);
         } catch (MfError e) {
             throw translate(e);
@@ -358,6 +362,7 @@ public final class MainFrame {
         private Path directory = Path.of("").toAbsolutePath();
         private Path indexDirectory;
         private Path formDirectory;
+        private Editor editor;
         private PrintStream out;
         private PrintStream err;
         private BufferedReader input;
@@ -419,6 +424,21 @@ public final class MainFrame {
         /** Where filesystem indexes live. Defaults to {@code ~/.mainframe/indexes}. */
         public Builder indexDirectory(Path directory) {
             this.indexDirectory = directory;
+            return this;
+        }
+
+        /**
+         * A display to borrow: an editor, or anything that can paint a rectangle
+         * of text and say what was clicked.
+         *
+         * <p>With one attached, a form goes up as a whole screen the person moves
+         * about, rather than being printed downwards a question at a time, and a
+         * confirmation is a screen too. Nothing else about the shell changes --
+         * the same commands, the same rules, the same answers. See
+         * { PROTOCOL.md}.
+         */
+        public Builder editor(Editor editor) {
+            this.editor = editor;
             return this;
         }
 
@@ -549,6 +569,7 @@ public final class MainFrame {
             Session session = new Session(new Renderer(chosenOut, chosenErr, chosenColor),
                     indexes, chosenInput, directory);
             if (formDirectory != null) session.forms(new FormStore(formDirectory));
+            if (editor != null) session.editor(editor);
             session.dryRun(dryRun);
             session.assumeYes(assumeYes);
             session.interactive(interactive != null && interactive);

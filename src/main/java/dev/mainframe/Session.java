@@ -9,6 +9,7 @@ import dev.mainframe.eval.Scope;
 import dev.mainframe.form.FormStore;
 import dev.mainframe.fs.IndexStore;
 import dev.mainframe.fs.SafeFs;
+import dev.mainframe.panel.Editor;
 import dev.mainframe.ui.Renderer;
 
 /** Everything a running MainFrame knows: where it is, what it has been told, and how it talks. */
@@ -22,6 +23,7 @@ public final class Session {
     private final Programs programs = new Programs();
 
     private FormStore forms = FormStore.inState();
+    private Editor editor;
     private Path cwd;
     private boolean dryRun;
     private boolean assumeYes;
@@ -44,6 +46,17 @@ public final class Session {
     public FormStore forms() { return forms; }
 
     public void forms(FormStore store) { this.forms = store; }
+
+    /**
+     * Whatever is painting screens for this session, or null when nobody is.
+     *
+     * <p>An editor is a display MainFrame borrows, not a mode it runs in: with one
+     * attached a form is a panel, and without one it is printed downwards. Nothing
+     * else about the session changes.
+     */
+    public Editor editor() { return editor; }
+
+    public void editor(Editor value) { this.editor = value; }
 
     /**
      * The environment handed to external programs, editable between commands.
@@ -84,6 +97,9 @@ public final class Session {
     public boolean confirm(String question) {
         if (assumeYes) return true;
         if (!interactive) return false;
+        // With an editor attached, standard input is the protocol -- reading a
+        // line from it would eat the editor's next message.
+        if (editor != null) return dev.mainframe.panel.Panels.confirm(editor, question);
         renderer.out().print(question + " " + renderer.dim("[y/N]") + " ");
         renderer.out().flush();
         String answer = readLine();

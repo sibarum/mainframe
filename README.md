@@ -947,6 +947,78 @@ replacing something, like `index-build` does; `form-forget` can lose data, so it
 asks first and refuses to run unattended without `--yes`. Both are the ordinary
 guardrails, not anything this feature invented.
 
+## Borrowing a display
+
+MainFrame cannot read an arrow key. There is no cursor addressing and no raw
+mode, and adding them would mean native calls and a terminal library — see *Not
+there yet*. So it does the other thing: it describes a screen, and something that
+already knows how to draw asks the person and says what they did.
+
+That is the 3270 arrangement, and it is worth saying why rather than treating it
+as nostalgia. A 3270 terminal received a datastream saying where the fields were,
+painted it, handled typing *within* a field itself, and sent back the fields that
+changed plus the key that ended the transaction. It knew nothing about what any
+of it meant. That is why the terminal stayed simple for fifty years while the
+software behind it changed completely.
+
+```
+~/crm > mainframe --panel -c 'form $visit --title="New visit"'
+```
+
+```json
+{"screen":{"id":1,"title":"NEW VISIT","size":{"rows":14,"cols":92},"focus":"client",
+ "keys":[{"key":"F12","does":"submit","text":"Submit"}],
+ "parts":[{"at":[4,3],"text":"CLIENT","style":"label"},
+          {"at":[4,21],"entry":"client","width":59,"value":"","holds":"string","style":"entry-focus"},
+          {"at":[5,21],"text":"at least 2 characters","style":"hint"},
+          {"at":[6,21],"choice":"office","of":["london","berlin"],"value":""},
+          {"at":[11,21],"action":"add:expenses","text":"+ Add another","style":"action"}]}}
+```
+
+and back:
+
+```json
+{"event":{"screen":1,"did":"submit","key":"F12","fields":{"client":"A","office":"berlin","rate":"lots"}}}
+```
+
+which MainFrame answers with the next screen, carrying what was typed and why it
+is not acceptable:
+
+```json
+{"at":[6,21],"text":"client needs at least 2 characters, and that is 1 character","style":"error"}
+{"at":[8,21],"entry":"rate","value":"lots","style":"entry-focus"}
+{"at":[10,21],"text":"cannot read \"lots\" as a size","style":"error"}
+```
+
+**The whole vocabulary is five parts** — `text`, `entry`, `choice`, `box`,
+`action` — placed at `[row, col]` in character cells, with a style *name* rather
+than a colour so a panel looks like the editor rather than like a screenshot of
+one. That is the entire surface an editor implements. It does not know what a
+form is, what validation is, or what any field is for, and adding a feature to
+MainFrame must never need a new editor.
+
+**Nothing crosses that has to be understood twice.** A screen is a record and an
+event is a record, in the written form everything else already uses — so a screen
+can be saved, replayed against a different editor, and compared in a test, and
+there is no second format to keep in step. The editor sends text, always; the
+field said what type it holds, and MainFrame reads it back as that.
+
+**The same form, both ways.** `Form` still says what a good answer is and
+`Field.read` still says what typed text means, whether the questions are printed
+downwards or all on view at once. What a panel adds is what a printed form could
+never offer — somewhere to click to take one entry back out of a list of details.
+
+The whole thing is specified in **[PROTOCOL.md](PROTOCOL.md)**, including the six
+rules that keep it evergreen. The shortest of them: an editor that supports only
+`text` and `entry`, reports `submit` and `cancel`, and ignores everything else is
+a conforming editor. It says what it `can` do in its first message and MainFrame
+renders down to it — an editor without `choice` gets an entry with the options
+written above it, and never learns it missed anything.
+
+A host embedding MainFrame attaches one with `.editor(...)`; the command line
+speaks it with `--panel`, where standard output carries nothing but messages —
+even ordinary command output leaves as `print`.
+
 ## Commands
 
 | | |
@@ -986,10 +1058,15 @@ Set `MAINFRAME_HOME` to put it somewhere else.
 - Environment changes last for the session only. There is no startup profile yet,
   so nothing carries over to the next run.
 - No functions or user-defined commands, and no background jobs.
-- A form asks for its fields downwards, because there is no cursor addressing to
-  fill one in on the spot. A field cannot be jumped to by name — `!back` walks —
-  and one entry cannot be picked out of a list of details, only the whole list
-  cleared with `!clear`.
+- On a terminal, a form asks for its fields downwards, because there is no cursor
+  addressing to fill one in on the spot. A field cannot be jumped to by name —
+  `!back` walks — and one entry cannot be picked out of a list of details, only
+  the whole list cleared with `!clear`. Both go away when a display is borrowed;
+  see [Borrowing a display](#borrowing-a-display).
+- `--panel` runs a script or a `-c` line, not the shell itself: the REPL still
+  reads lines, and standard input in panel mode belongs to the editor. A whole
+  session over the protocol — a prompt, a table, an error, all as messages — is
+  the next piece.
 
 ## Licence
 
@@ -998,6 +1075,6 @@ MainFrame is dual-licensed:
 - **Source code** under the
   [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
   See `LICENSE`.
-- **Documentation** (this file and the examples under `examples/`) under the
+- **Documentation** (this file, `PROTOCOL.md`, and the examples under `examples/`) under the
   [Creative Commons Attribution 4.0 International License
   (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/). See `LICENSE-docs`.

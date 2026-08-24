@@ -10,6 +10,7 @@ import dev.mainframe.eval.Builtin;
 import dev.mainframe.eval.Plan;
 import dev.mainframe.eval.Signature;
 import dev.mainframe.form.Form;
+import dev.mainframe.form.FormPanel;
 import dev.mainframe.form.FormScreen;
 import dev.mainframe.value.Value;
 
@@ -221,7 +222,9 @@ final class Hosted {
             // in should not spray a blank one down a log first.
             Form form = Form.read(fields.unwrap(), args.span());
             MainFrame.requireSomebodyToAsk(args.session(), commandName());
-            Value.Rec answers = FormScreen.show(form, offered, title, true, args.session());
+            Value.Rec answers = args.session().editor() != null
+                    ? FormPanel.show(form, offered, title, args.session().editor(), args.session().cwd())
+                    : FormScreen.show(form, offered, title, true, args.session());
             return answers == null ? Data.nothing() : Data.wrap(answers);
         }
 

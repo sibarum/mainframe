@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
 
-import dev.mainframe.MfError;
 import dev.mainframe.Session;
 import dev.mainframe.Span;
 import dev.mainframe.form.Form.Field;
@@ -210,7 +209,7 @@ public final class FormScreen {
         Value current = answers.get(field.name());
         out.info("");
         out.info(leader(indent, field.heading(), field.required() ? "required" : "optional"));
-        String rules = rules(field);
+        String rules = field.rules();
         if (!rules.isEmpty()) out.info(out.dim(spaces(indent + 2) + rules));
         if (field.choices() != null) {
             List<String> choices = field.choices();
@@ -268,7 +267,7 @@ public final class FormScreen {
     private Step askEntries(Field field, SequencedMap<String, Value> answers, int indent) {
         out.info("");
         out.info(leader(indent, field.heading(), field.required() ? "required" : "optional"));
-        String rules = rules(field);
+        String rules = field.rules();
         if (!rules.isEmpty()) out.info(out.dim(spaces(indent + 2) + rules));
 
         List<Value> entries = new ArrayList<>(
@@ -337,47 +336,16 @@ public final class FormScreen {
 
     /**
      * Turns what someone typed into a typed value, or says why it is not one and
-     * hands back null so the field asks again.
+     * hands back null so the field asks again. The reading itself belongs to the
+     * field, so a form on a terminal and a form on a panel agree about what was
+     * meant; all that is left here is saying so out loud.
      */
     private Value parse(Field field, String typed, int indent) {
-        if (field.choices() != null) {
-            List<String> choices = field.choices();
-            int pick = number(typed);
-            if (pick >= 1 && pick <= choices.size()) return new Value.Str(choices.get(pick - 1));
-            for (String choice : choices) {
-                if (choice.equalsIgnoreCase(typed)) return new Value.Str(choice);
-            }
-            complain(indent, field.label() + " has to be one of: " + String.join(", ", choices));
-            hint(indent, "type the choice, or the number beside it");
-            return null;
-        }
-        switch (field.type()) {
-            // Read here rather than through the language's reader, so the word
-            // "nothing" typed into a text field is the text someone typed.
-            case STRING -> { return new Value.Str(typed); }
-            case PATH -> { return new Value.PathVal(session.resolve(typed)); }
-            case BOOL -> {
-                String lower = typed.toLowerCase(Locale.ROOT);
-                if (YES.contains(lower)) return new Value.Bool(true);
-                if (NO.contains(lower)) return new Value.Bool(false);
-                complain(indent, field.label() + " is a yes or no question");
-                hint(indent, "answer y or n");
-                return null;
-            }
-            default -> { }
-        }
-        try {
-            return Values.parseAs(field.type(), typed, Span.NONE);
-        } catch (MfError e) {
-            // The language already explains every one of these well; a form has no
-            // business explaining them a second, different way.
-            complain(indent, e.getMessage());
-            for (String explanation : e.hints()) {
-                hint(indent, explanation);
-                break;
-            }
-            return null;
-        }
+        Form.Reading reading = field.read(typed, session.cwd());
+        if (reading.ok()) return reading.value();
+        complain(indent, reading.problem());
+        if (reading.hint() != null) hint(indent, reading.hint());
+        return null;
     }
 
     /** @param clearable whether {@code !clear} means anything at this prompt */
@@ -424,45 +392,6 @@ public final class FormScreen {
     }
 
     private String rule(char c) { return String.valueOf(c).repeat(width); }
-
-    /** The dim line under a label: what this field will take, in one breath. */
-    private static String rules(Field field) {
-        List<String> parts = new ArrayList<>();
-        if (field.help() != null && !field.help().isBlank()) parts.add(field.help());
-        String shape = shape(field.type());
-        if (shape != null) parts.add(shape);
-        if (field.isGroup()) {
-            long least = field.leastEntries();
-            if (least > 0) parts.add("at least " + least + (least == 1 ? " entry" : " entries"));
-            if (field.max() != null) parts.add("at most " + Values.display(field.max()) + " entries");
-        } else if (field.isTextual()) {
-            if (field.min() != null) parts.add("at least " + Values.display(field.min()) + " characters");
-            if (field.max() != null) parts.add("at most " + Values.display(field.max()) + " characters");
-        } else {
-            if (field.min() != null) parts.add("at least " + Values.display(field.min()));
-            if (field.max() != null) parts.add("at most " + Values.display(field.max()));
-        }
-        if (field.matchSource() != null) parts.add("matching " + field.matchSource());
-        return String.join(", ", parts);
-    }
-
-    /**
-     * How to write one of these, for the types where that is not obvious. No
-     * commas in them: they are joined with commas.
-     */
-    private static String shape(ValueType type) {
-        return switch (type) {
-            case INT -> "a whole number";
-            case FLOAT, NUMBER -> "a number";
-            case BOOL -> "y or n";
-            case SIZE -> "a size like 4mb";
-            case TIME -> "a moment like 2026-08-21 or 2026-08-21T14:30";
-            case DURATION -> "a span like 7d or 90m";
-            case PATH -> "a path from where the shell is";
-            case MIME -> "a media type like text/plain";
-            default -> null;
-        };
-    }
 
     private static boolean blank(Value value) {
         return value == null || value instanceof Value.Nothing;

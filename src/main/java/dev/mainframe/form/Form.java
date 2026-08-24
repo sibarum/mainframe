@@ -1,15 +1,18 @@
 package dev.mainframe.form;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.SequencedSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import dev.mainframe.MfError;
 import dev.mainframe.Span;
+import dev.mainframe.fs.SafeFs;
 import dev.mainframe.ui.Suggest;
 import dev.mainframe.value.Value;
 import dev.mainframe.value.ValueType;
@@ -28,6 +31,19 @@ import dev.mainframe.value.Values;
  * to hold when there is nobody at the keyboard.
  */
 public record Form(List<Field> fields) {
+
+    private static final Set<String> YES = Set.of("y", "yes", "true", "1");
+    private static final Set<String> NO = Set.of("n", "no", "false", "0");
+
+    /** What reading typed text as a field's type came to. */
+    public record Reading(Value value, String problem, String hint) {
+
+        static Reading of(Value value) { return new Reading(value, null, null); }
+
+        static Reading no(String problem, String hint) { return new Reading(null, problem, hint); }
+
+        public boolean ok() { return problem == null; }
+    }
 
     /** The types a field can hold. Deliberately fewer than the language has. */
     private static final List<String> TYPES = List.of(
@@ -153,6 +169,104 @@ public record Form(List<Field> fields) {
                 }
             }
             return null;
+        }
+
+        /**
+         * Text somebody typed, read as this field's type -- or why it is not one.
+         *
+         * <p>The counterpart to {@link #problem}: that one says whether a value is
+         * acceptable, this one says whether text is a value at all. Both are here
+         * rather than in whatever is doing the asking, because a form filled in on
+         * a terminal and a form filled in on a screen somebody else is painting
+         * have to agree about what was meant.
+         */
+        public Reading read(String typed, Path from) {
+            if (choices != null) {
+                int pick = whole(typed);
+                if (pick >= 1 && pick <= choices.size()) {
+                    return Reading.of(new Value.Str(choices.get(pick - 1)));
+                }
+                for (String choice : choices) {
+                    if (choice.equalsIgnoreCase(typed)) return Reading.of(new Value.Str(choice));
+                }
+                return Reading.no(label + " has to be one of: " + String.join(", ", choices),
+                        "type the choice, or the number beside it");
+            }
+            switch (type) {
+                // Read here rather than through the language's reader, so the word
+                // "nothing" typed into a text field is the text somebody typed.
+                case STRING -> { return Reading.of(new Value.Str(typed)); }
+                case PATH -> {
+                    return Reading.of(new Value.PathVal(from == null
+                            ? java.nio.file.Path.of(typed)
+                            : SafeFs.resolve(from, typed)));
+                }
+                case BOOL -> {
+                    String lower = typed.toLowerCase(Locale.ROOT);
+                    if (YES.contains(lower)) return Reading.of(new Value.Bool(true));
+                    if (NO.contains(lower)) return Reading.of(new Value.Bool(false));
+                    return Reading.no(label + " is a yes or no question", "answer y or n");
+                }
+                default -> { }
+            }
+            try {
+                return Reading.of(Values.parseAs(type, typed, Span.NONE));
+            } catch (MfError e) {
+                // The language already explains every one of these well; a form has
+                // no business explaining them a second, different way.
+                return Reading.no(e.getMessage(), e.hints().isEmpty() ? null : e.hints().getFirst());
+            }
+        }
+
+        /**
+         * What this field will take, in one breath: its own help, the shape of
+         * the type, and the bounds. Shown under the label on a terminal and under
+         * the entry on a panel, which is why it lives here rather than in either.
+         */
+        public String rules() {
+            List<String> parts = new ArrayList<>();
+            if (help != null && !help.isBlank()) parts.add(help);
+            String shape = shape(type);
+            if (shape != null) parts.add(shape);
+            if (isGroup()) {
+                long least = leastEntries();
+                if (least > 0) parts.add("at least " + least + (least == 1 ? " entry" : " entries"));
+                if (max != null) parts.add("at most " + Values.display(max) + " entries");
+            } else if (isTextual()) {
+                if (min != null) parts.add("at least " + Values.display(min) + " characters");
+                if (max != null) parts.add("at most " + Values.display(max) + " characters");
+            } else {
+                if (min != null) parts.add("at least " + Values.display(min));
+                if (max != null) parts.add("at most " + Values.display(max));
+            }
+            if (matchSource != null) parts.add("matching " + matchSource);
+            return String.join(", ", parts);
+        }
+
+        /**
+         * How to write one of these, for the types where that is not obvious. No
+         * commas in them: they are joined with commas.
+         */
+        private static String shape(ValueType type) {
+            return switch (type) {
+                case INT -> "a whole number";
+                case FLOAT, NUMBER -> "a number";
+                case BOOL -> "y or n";
+                case SIZE -> "a size like 4mb";
+                case TIME -> "a moment like 2026-08-21 or 2026-08-21T14:30";
+                case DURATION -> "a span like 7d or 90m";
+                case PATH -> "a path from where the shell is";
+                case MIME -> "a media type like text/plain";
+                default -> null;
+            };
+        }
+
+        private static int whole(String text) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException e) {
+                return -1;
+            }
         }
 
         private static boolean isBlank(Value value) {

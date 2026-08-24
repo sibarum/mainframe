@@ -1,12 +1,18 @@
 package dev.mainframe;
 
+import java.io.BufferedReader;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 import dev.mainframe.api.MainFrame;
+import dev.mainframe.panel.StdioEditor;
 import dev.mainframe.ui.Renderer;
 
 /**
@@ -26,6 +32,7 @@ public final class Main {
     static int run(String[] arguments) {
         boolean dryRun = false;
         boolean assumeYes = false;
+        boolean panel = false;
         boolean color = Renderer.colorSupported();
         String command = null;
         Path script = null;
@@ -44,6 +51,7 @@ public final class Main {
                 case "--dry-run" -> dryRun = true;
                 case "--yes" -> assumeYes = true;
                 case "--no-color" -> color = false;
+                case "--panel" -> panel = true;
                 case "-h", "--help" -> {
                     usage(System.out);
                     return 0;
@@ -64,21 +72,29 @@ public final class Main {
             }
         }
 
-        MainFrame shell = MainFrame.builder()
+        if (panel && command == null && script == null) {
+            System.err.println("mainframe: --panel needs something to run, e.g. -c \"form [\\\"name\\\"]\"");
+            System.err.println("the shell itself does not speak the panel protocol yet");
+            return 2;
+        }
+
+        MainFrame.Builder building = MainFrame.builder()
                 .directory(Path.of("").toAbsolutePath())
                 .color(color)
                 .dryRun(dryRun)
                 .assumeYes(assumeYes)
                 // With no console there is nobody to answer a confirmation, so
                 // destructive commands should refuse rather than prompt into a pipe.
-                .interactive(System.console() != null)
-                .build();
+                .interactive(System.console() != null);
+
+        StdioEditor editor = panel ? attach(building) : null;
+        MainFrame shell = building.build();
 
         if (!leftovers.isEmpty()) {
             System.err.println("mainframe: ignoring extra arguments: " + String.join(", ", leftovers));
         }
 
-        if (command != null) return shell.execute(command);
+        if (command != null) return finish(editor, shell.execute(command));
 
         if (script != null) {
             Path file = script.isAbsolute() ? script : Path.of("").toAbsolutePath().resolve(script);
@@ -87,10 +103,35 @@ public final class Main {
                 System.err.println("check the path, or run mainframe with no arguments for a shell");
                 return 1;
             }
-            return shell.executeFile(file);
+            return finish(editor, shell.executeFile(file));
         }
 
         return shell.repl();
+    }
+
+    /**
+     * Hands the standard streams over to the panel protocol.
+     *
+     * <p>In panel mode there is no ordinary output: what the renderer writes
+     * leaves as {@code print} messages, so the one channel carrying JSON stays
+     * carrying only JSON. Standard input belongs to the editor for the same
+     * reason, which is why a confirmation becomes a screen rather than a prompt.
+     */
+    private static StdioEditor attach(MainFrame.Builder building) {
+        BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+        StdioEditor editor = new StdioEditor(in,
+                new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
+        building.editor(editor)
+                .input(in)
+                .color(false)
+                .interactive(true)
+                .output(editor.lines("plain"), editor.lines("error"));
+        return editor;
+    }
+
+    private static int finish(StdioEditor editor, int exit) {
+        if (editor != null) editor.done(exit);
+        return exit;
     }
 
     private static void usage(PrintStream out) {
@@ -105,6 +146,7 @@ public final class Main {
         out.println("  --dry-run                 never change anything, just say what would happen");
         out.println("  --yes                     answer yes to confirmations (for scripts you trust)");
         out.println("  --no-color                plain output");
+        out.println("  --panel                   speak the panel protocol on stdio (see PROTOCOL.md)");
         out.println("  -h, --help                this text");
         out.println("  -v, --version             which MainFrame this is");
         out.println();

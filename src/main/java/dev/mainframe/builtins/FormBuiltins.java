@@ -14,8 +14,10 @@ import dev.mainframe.eval.Registry;
 import dev.mainframe.eval.Signature;
 import dev.mainframe.eval.Signature.Effect;
 import dev.mainframe.form.Form;
+import dev.mainframe.form.FormPanel;
 import dev.mainframe.form.FormScreen;
 import dev.mainframe.form.FormStore;
+import dev.mainframe.panel.Editor;
 import dev.mainframe.ui.Suggest;
 import dev.mainframe.value.Value;
 import dev.mainframe.value.ValueType;
@@ -59,7 +61,8 @@ public final class FormBuiltins {
                 .valueFlag("title", '\0', ValueType.STRING, "the heading across the top of the form")
                 .valueFlag("prefill", '\0', ValueType.STRING,
                         "start from the form data saved under this name, if there is any")
-                .switchFlag("no-review", '\0', "hand the answers back without showing them for approval")
+                .switchFlag("no-review", '\0',
+                        "hand the answers back without showing them for approval")
                 .input(ValueType.ANY)
                 .output(ValueType.RECORD)
                 .effect(Effect.READS)
@@ -78,8 +81,14 @@ public final class FormBuiltins {
                         .hint("to hold data to these same rules without asking, use form-check")
                         .build();
             }
-            Value.Rec answers = FormScreen.show(form, starting, args.flagStr("title", "form"),
-                    !args.flag("no-review"), args.session());
+            // With a display to borrow, the whole form goes up at once and the
+            // person moves about it; without one it is printed downwards. Same
+            // fields, same rules, same answers -- only the asking differs.
+            Editor editor = args.session().editor();
+            String title = args.flagStr("title", "form");
+            Value.Rec answers = editor != null
+                    ? FormPanel.show(form, starting, title, editor, args.session().cwd())
+                    : FormScreen.show(form, starting, title, !args.flag("no-review"), args.session());
             if (answers == null) {
                 // A cancel is a result, not a failure -- but it is never silent,
                 // because the next command in the line is about to get nothing.
