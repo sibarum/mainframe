@@ -199,6 +199,11 @@ Because MainFrame resolves external programs against *its own* PATH rather than
 letting the OS use the one this process inherited, `path-add` takes effect on the
 next command — and "not found" becomes an error that says where it looked.
 
+A program embedding MainFrame can also install programs of its own, which run in
+the JVM instead of being spawned but are still written with a caret. `programs`
+lists them, and `which` says so when one stands in front of a real binary — see
+[Programs of your own](#programs-of-your-own-tool-in-process).
+
 The guardrails carry over: `path-add` refuses a directory that doesn't exist
 (`--force` if you're about to create it), adding the same entry twice does
 nothing and says so, and `env-remove` won't unset something like `PATH` or
@@ -305,14 +310,143 @@ MainFrame.builder()
         .build();
 ```
 
+### A shell is also a place to run things
+
+The environment a shell hands to programs, the PATH it searches, and programs of
+your own that live in the JVM rather than on disk are one subject, and all three
+are live — set a variable and the very next command sees it.
+
+```java
+shell.env("JAVA_HOME", jdk.toString());     // every program it starts sees this
+shell.pathAddFirst(jdk.resolve("bin"));     // so ^javac is that JDK's javac
+shell.pathRemove(oldJdk.resolve("bin"));
+shell.onPath("javac");                      // where ^javac would come from, or null
+```
+
+The same four things are available to a hosted command (`invocation.env(...)`,
+`invocation.pathAdd(...)`) and, on the builder, before anything runs:
+`.env(name, value)`, `.pathAdd(dir)`, `.pathAddFirst(dir)`.
+
+### Asking the user for a record
+
+A program embedding MainFrame gets the [form framework](#data-entry) as well, so
+it does not have to write a prompt loop, a validator and an error message for
+every field it needs. The fields are the same data the `form` command takes, and
+the answers arrive with their types intact:
+
+```java
+Data answers = invocation.form(Data.of(List.of(
+                Map.of("name", "what", "required", true, "min", 4),
+                Map.of("name", "priority", "required", true, "default", "soon",
+                        "choose", List.of("now", "soon", "later")),
+                Map.of("name", "due", "type", "time"))),
+        "New task");
+
+if (answers.isNothing()) return Data.nothing();              // they cancelled
+tasks.add(answers.field("what").text(),
+          answers.field("priority").text(),
+          answers.field("due").time());                      // an Instant, not a string
+```
+
+Nothing there validates anything, because the fields already did. The same call
+is on the shell itself — `shell.form(fields, "New task")` — for a host that wants
+to ask outside a command. Either way it needs a person: a shell built without
+`.interactive(true)` refuses rather than printing a form nobody will fill in.
+
+To pre-fill from your own data, pass it as the starting record —
+`invocation.form(fields, "Edit task", existing)` — and everything in it the form
+does not ask about comes back untouched. The
+[`--prefill` store](#saving-the-answers-and-starting-from-them-next-time) is there
+too, and `.formDirectory(path)` on the builder moves it, for an app whose
+preferences belong to the app rather than to the user's shell.
+
+### Programs of your own: `^tool`, in-process
+
+Some things are not commands. A tool has a name people type, flags it parses
+itself, text it prints and an exit code at the end — and pretending it is part of
+the language does nobody a favour. So register it as a **program** instead, and it
+is invoked with a caret like anything on the PATH, while running in this JVM:
+
+```java
+.program(ProgramSpec.named("jdk")
+                .summary("switch the JDK this session uses")
+                .usage("jdk <version>")
+                .example("^jdk 25")
+                .build(),
+        call -> {
+            Path home = toolchains.get(call.argument(0, ""));
+            if (home == null) {
+                call.writeError("no JDK called " + call.argument(0, "") + " is installed");
+                return 1;                       // a non-zero exit stops the pipeline
+            }
+            call.env("JAVA_HOME", home.toString());
+            call.pathAddFirst(home.resolve("bin"));
+            call.writeLine("JAVA_HOME is now " + home);
+            return 0;
+        })
+```
+
+```
+~/code/app > ^jdk 25
+JAVA_HOME is now /opt/jdk-25
+~/code/app > ^javac --version
+javac 25.0.3
+~/code/app > ^jdk 17.5
+error[E322] jdk failed with exit code 1
+help no JDK called 17.5 is installed
+help MainFrame does not guess what a failing program meant, so the pipeline stops here
+```
+
+The contract is a binary's contract: arguments as plain strings (`--jobs=4`
+spelled out, nothing pre-parsed), text out, an exit code, standard error becoming
+a warning — or the first hint of the error when the code is non-zero. Two things
+come free from there being no process:
+
+- **it can change the session it was run from.** A spawned program gets a copy of
+  the environment and its edits die with it; `^jdk 25` really does leave
+  `JAVA_HOME` set for everything that follows, as `env-set` would.
+- **the piped value arrives with its types intact.** `call.input()` is the text a
+  process would have read; `call.inputData()` is the value itself, rows and sizes
+  and all, because nothing was serialised on the way in.
+
+Programs are searched *before* the PATH, so one called `git` stands in front of
+the real git. Nothing stops you — but nothing hides it either:
+
+```
+> which git
+name         git
+kind         hosted program
+summary      run git against the workspace, with our credentials
+usage        git <subcommand>
+run-it-with  ^git
+instead-of   C:\Program Files\Git\cmd\git.exe
+```
+
+`programs` lists them, and `help` says they are there, since they are not commands
+and so are not in the command list. What they do *not* get is the guardrails: a
+caret says MainFrame is not in charge of what happens next, and that is as true of
+a hosted program as of a spawned one. `call.dryRun()` tells you the session was
+told to change nothing — a well-behaved program checks it and prints what it would
+have done — but MainFrame cannot enforce that on code it does not own.
+
+Install and uninstall while the shell is running, too, for an app whose tools
+arrive with a plugin or a login:
+
+```java
+shell.program(spec, callback);   // takes the place of one already installed
+shell.programRemove("jdk");
+shell.programs();                // the names, in the order they were installed
+```
+
 The public API is the `dev.mainframe.api` package and nothing else:
-`MainFrame`, `CommandSpec`, `Command`, `PlannedCommand`, `Invocation`, `Data`,
-`DataType`, `Effect`, `ShellError`. MainFrame's own command line is built on it,
-which is the cheapest way to be sure it can carry a whole shell.
+`MainFrame`, `CommandSpec`, `Command`, `PlannedCommand`, `Invocation`,
+`ProgramSpec`, `Program`, `ProgramCall`, `Data`, `DataType`, `Effect`,
+`ShellError`. MainFrame's own command line is built on it, which is the cheapest
+way to be sure it can carry a whole shell.
 
 There is a worked example in
 [`HostApp.java`](src/test/java/dev/mainframe/api/HostApp.java) — a task list with
-a shell in it:
+a shell in it, including a `task-new` that asks for the details with a form:
 
 ```bash
 java -cp target/classes:target/test-classes dev.mainframe.api.HostApp
@@ -527,6 +661,292 @@ holds `*`/`?`), `and`/`or`/`not`, `+ - * / %`. `+` also joins two strings, two
 lists or two records. One value counts as a list of one, so `... | first | get name`
 does what you meant.
 
+## Data entry
+
+Somebody has to type the data in the first place. A **form** is a table of
+fields — ordinary data, so it can be written in a line, kept in a variable, or
+read out of a file like anything else — and `form` shows it, asks for each field
+in turn, and hands back a record.
+
+```
+~/crm > let contact = [
+...        {name: "name", label: "full name", required: true, min: 2},
+...        {name: "email", required: true, match: "[^@ ]+@[^@ ]+[.][^@ ]+"},
+...        {name: "tier", choose: ["free", "team", "enterprise"], default: "free"},
+...        {name: "quota", type: "size", min: 1mb},
+...        {name: "phones", type: "table", required: true, max: 3, fields: [
+...           {name: "kind", choose: ["mobile", "home", "work"], required: true},
+...           {name: "number", required: true, min: 7}
+...        ]}
+...      ]
+~/crm > form $contact --title="New customer" | save ./ada.json
+```
+
+```
+========================================================================
+ NEW CUSTOMER
+------------------------------------------------------------------------
+ 5 fields, asked one at a time
+ !back the field before, !cancel the whole form
+========================================================================
+
+ FULL NAME .................................................... required
+   at least 2 characters
+ > A
+ !! full name needs at least 2 characters, and that is 1 character
+ > Ada Lovelace
+
+ EMAIL ........................................................ required
+   matching [^@ ]+@[^@ ]+[.][^@ ]+
+ > ada@example
+ !! email does not match [^@ ]+@[^@ ]+[.][^@ ]+
+ > ada@example.com
+
+ TIER ......................................................... optional
+   1) free
+   2) team
+   3) enterprise
+   blank keeps free, !clear empties it
+ > 2
+
+ QUOTA ........................................................ optional
+   a size like 4mb, at least 1.0 MB
+ > 4mb
+
+ PHONES ....................................................... required
+   at least 1 entry, at most 3 entries
+   [1]
+
+     KIND ..................................................... required
+       1) mobile
+       2) home
+       3) work
+     > 1
+     NUMBER ................................................... required
+       at least 7 characters
+     > 555-0100
+   another entry? [y/N] n
+
+========================================================================
+ NEW CUSTOMER  what you entered
+------------------------------------------------------------------------
+ name    Ada Lovelace
+ email   ada@example.com
+ tier    team
+ quota   4.0 MB
+ phones  [1] {kind: mobile, number: 555-0100}
+========================================================================
+ submit? [Y/n]
+```
+
+**The answers keep their types.** `quota` comes back a size, not the text `4mb`;
+a `time` field comes back a moment. So the record goes straight into `save`,
+`where`, `sum` or a hosted command with nothing to re-parse — and `open ./ada.json`
+gives back the same values it went in as.
+
+**A field says what it takes**, and only these things:
+
+| | |
+|---|---|
+| `name` | the field's name, which becomes a column of the answer |
+| `label` | what to call it on screen; the name with its dashes opened out, by default |
+| `type` | `string` (the default), `int`, `float`, `number`, `bool`, `size`, `time`, `duration`, `path`, `mime`, or `table` for a list of details |
+| `required` | it will not take a blank |
+| `min` / `max` | characters for text, the value itself for a number or a moment, entries for a `table` |
+| `match` | a regular expression the *whole* answer has to match |
+| `choose` | a list to pick from, offered as a numbered menu |
+| `help` | a line of explanation shown under the label |
+| `default` | offered as the answer, and checked against the field's own rules |
+| `fields` | for a `table`: the questions each entry is made of |
+
+A field that is only a name can be written as one, so a quick form is quick to
+write: `form ["name", "email", "phone"]`.
+
+**Lists of details repeat a few questions** rather than a single answer. That is
+what `type: "table"` and `fields` are: the entry is a sub-form, MainFrame asks
+whether there is another one, and the field comes back as a table — which is to
+say it filters, sorts and saves like any other table.
+
+**The definition is checked before the first question**, the same way a command's
+arguments are:
+
+```
+~/crm > form [{name: "code", type: "int", match: "[0-9]{5}"}]
+error[E1206] code is an int, so a pattern cannot be matched against it
+help match works on string, path and mime fields
+help a code with leading zeros or spacing rules is text, not a number -- say
+     type: "string" and keep the pattern
+```
+
+A misspelt key or type gets a "did you mean", a default that breaks its own rules
+is refused, and two fields cannot share a name. A form that would fail at its
+last field fails before its first.
+
+**There is always a way out.** At any prompt, `!back` returns to the field
+before, `!cancel` abandons the whole form, `!clear` empties a field that came in
+with something in it — or, at a list of details, the whole list — and the end of
+the input, Ctrl-D, is a cancel too. The
+answers are shown for approval before they count — `--no-review` hands them
+straight back — and answering `n` there walks the fields again with everything
+already entered offered back, so a blank keeps it. A cancelled form is `nothing`,
+and says so:
+
+```
+~/crm > let answers = form $contact
+cancelled -- nothing was entered
+~/crm > if $answers { echo $answers | save ./ada.json }
+```
+
+**Editing is the same command.** Pipe a record in and each field starts out
+holding what was there; blank keeps it. Anything in that record the form does not
+ask about is carried through rather than quietly dropped, so a file can be edited
+without losing the parts this form knows nothing about:
+
+```
+open ./ada.json | form $contact --title="Edit customer" | save ./ada.json --force
+```
+
+**The same rules hold with nobody at the keyboard.** `form` refuses to run
+unattended — a record of blanks that nothing checked is worse than an error — and
+`form-check` is the half that needs no terminal, holding data that arrived from
+somewhere else to exactly the rules a person would have been held to:
+
+```
+~/crm > open theirs.csv | form-check $contact | save ours.csv
+error[E1210] 3 answers do not fit these fields
+help row 2: email does not match [^@ ]+@[^@ ]+[.][^@ ]+
+help row 5: full name is required
+help row 5: phones needs at least 1 entry, and there are 0 entries
+```
+
+Every problem, not the first one: somebody fixing a file wants the whole list,
+not a round trip per mistake.
+
+### Saving the answers, and starting from them next time
+
+A form fills in from a record — so anything that can produce a record can pre-fill
+one, and anything that can keep a record can remember it. There are two ways to
+keep one, and they are the same two ways you keep anything else in MainFrame.
+
+**A file, when you chose where it goes.** `save` and `open` already do this, and
+the answers keep their types on the way through, so nothing needs re-declaring:
+
+```
+form $visit | save ./acme.json                  # write it
+open ./acme.json | form $visit | save ./acme.json --force   # read it, edit it, write it back
+```
+
+**A name, when you would rather not think about a path.** `form-save` keeps a
+record under a name in `~/.mainframe/forms`, and `--prefill` starts a form from
+it. That is the whole preferences loop, in one line:
+
+```
+~/crm > form $visit --prefill=defaults | form-save defaults
+```
+
+The first time through there is nothing saved, and that is not a mistake — it is
+said, and the form carries on:
+
+```
+nothing is saved as defaults yet, so there is nothing to start from
+```
+
+```
+========================================================================
+ FORM
+------------------------------------------------------------------------
+ 4 fields, asked one at a time
+ !back the field before, !cancel the whole form
+========================================================================
+
+ CLIENT ....................................................... required
+   at least 2 characters
+ > Acme
+...
+save the answers saved as defaults (4 fields)
+help start from it next time with: form <fields> --prefill=defaults
+```
+
+Every time after that, the same line starts from what you last entered — and a
+blank takes it, so the fields that never change cost one keystroke each:
+
+```
+ CLIENT ....................................................... required
+   at least 2 characters
+   blank keeps Acme
+ > Globex
+
+ OFFICE ....................................................... required
+   1) london
+   2) berlin
+   3) austin
+   blank keeps berlin
+ >
+
+ RATE ......................................................... optional
+   a size like 4mb
+   blank keeps 1.0 MB, !clear empties it
+ >
+
+ EXPENSES ..................................................... optional
+   [1] {what: train, amount: 120}
+   another entry? [y/N] y
+```
+
+**Lists of details come back too.** A saved `expenses` table is listed back as
+`[1]`, `[2]`, `[3]` and you carry on adding to it — or `!clear` and start the list
+again. **And every value comes back as itself**: `rate` is still a size, an
+`amount` still a whole number, a `time` still a moment. The store holds
+MainFrame's own written form, which is the same guarantee `save` and `open` give:
+
+```
+~/crm > cat ~/.mainframe/forms/defaults.mf
+{"client": "Acme", "office": "berlin", "rate": 1mb, "expenses": [{"what": "train", "amount": 120}]}
+```
+
+That is a plain `.mf` file, so `open ~/.mainframe/forms/defaults.mf` reads it like
+any other. The store is a name and a home, not a format.
+
+**Three starting points, most specific first.** A field takes its value from what
+was piped in, or failing that from `--prefill`, or failing that from its own
+`default`. So the record being edited wins over your saved preferences, which win
+over what the form says out of the box:
+
+```
+open ./acme.json | form $visit --prefill=defaults      # this visit, then your usual, then the field's own
+```
+
+**Keep only what should stick.** `form-save` saves the record it is given, so to
+remember some fields and not others, hand it only those — `select` is already the
+command for that:
+
+```
+let answers = form $visit --prefill=defaults
+echo $answers | select office rate | form-save defaults    # the settings, not this client
+echo $answers | save ./acme.json                           # the whole visit
+```
+
+**Seeing and forgetting.** `form-recall` on its own lists what you have kept;
+with a name it hands that record back:
+
+```
+~/crm > form-recall
+name      saved             on-disk  fields
+defaults  2026-08-24 14:25  137 B    client, office, rate, expenses
+
+~/crm > form-recall defaults | get office
+berlin
+
+~/crm > form-forget defaults --dry-run
+dry run forget 1 item -- nothing was changed
+  would forget the answers saved as defaults
+```
+
+`form-save` shows what it will do under `--dry-run` and says plainly when it is
+replacing something, like `index-build` does; `form-forget` can lose data, so it
+asks first and refuses to run unattended without `--yes`. Both are the ordinary
+guardrails, not anything this feature invented.
+
 ## Commands
 
 | | |
@@ -536,7 +956,8 @@ does what you meant.
 | **shaping data** | `where` `morph` `select` `reject` `sort-by` `first` `last` `reverse` `length` `get` `each` `uniq` `count-by` `sum` |
 | **converting** | `cast` `to-csv` `from-csv` `to-source` `from-source` `to-json` `from-json` `lines` `to-text` |
 | **searching** | `index-build` `index-sync` `index-list` `index-drop` `from-index` `find` |
-| **environment** | `env` `env-set` `env-remove` `path` `path-add` `path-remove` |
+| **environment** | `env` `env-set` `env-remove` `path` `path-add` `path-remove` `programs` |
+| **data entry** | `form` `form-check` `form-save` `form-recall` `form-forget` |
 
 `cp` and `mv` take their destination as `--to=<path>`, never as a trailing
 argument, so the last thing you typed is never mistaken for a target.
@@ -547,6 +968,7 @@ Everything MainFrame keeps lives in one directory, `~/.mainframe`:
 
 ```
 ~/.mainframe/indexes/   saved indexes, one text file each
+~/.mainframe/forms/     form data form-save kept, one record each
 ~/.mainframe/trash/     what rm moved, in timestamped folders
 ~/.mainframe/history    what you have typed
 ```
@@ -564,6 +986,10 @@ Set `MAINFRAME_HOME` to put it somewhere else.
 - Environment changes last for the session only. There is no startup profile yet,
   so nothing carries over to the next run.
 - No functions or user-defined commands, and no background jobs.
+- A form asks for its fields downwards, because there is no cursor addressing to
+  fill one in on the spot. A field cannot be jumped to by name — `!back` walks —
+  and one entry cannot be picked out of a list of details, only the whole list
+  cleared with `!clear`.
 
 ## Licence
 

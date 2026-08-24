@@ -31,6 +31,17 @@ public enum ValueType {
 
     public String display() { return display; }
 
+    /**
+     * The display name with the article in front of it: "a size", "an int".
+     *
+     * <p>Small, but an error that says "a int" reads like it was assembled rather
+     * than written, and these are the messages people are handed when they are
+     * already stuck.
+     */
+    public String withArticle() {
+        return ("aeiou".indexOf(display.charAt(0)) >= 0 ? "an " : "a ") + display;
+    }
+
     /** Is {@code v} acceptable where {@code this} was declared? */
     public boolean accepts(Value v) {
         return switch (this) {

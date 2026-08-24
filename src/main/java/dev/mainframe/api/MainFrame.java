@@ -7,6 +7,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,17 +16,24 @@ import java.util.OptionalInt;
 import java.util.SequencedMap;
 import java.util.Set;
 
+import dev.mainframe.Environment;
 import dev.mainframe.ExitRequest;
 import dev.mainframe.MfError;
+import dev.mainframe.Programs;
 import dev.mainframe.Session;
 import dev.mainframe.Shell;
+import dev.mainframe.Span;
 import dev.mainframe.builtins.CoreBuiltins;
 import dev.mainframe.eval.Builtin;
 import dev.mainframe.eval.Interpreter;
 import dev.mainframe.eval.Registry;
+import dev.mainframe.form.Form;
+import dev.mainframe.form.FormScreen;
+import dev.mainframe.form.FormStore;
 import dev.mainframe.fs.IndexStore;
 import dev.mainframe.lang.Parser;
 import dev.mainframe.ui.Renderer;
+import dev.mainframe.value.Value;
 
 /**
  * An embedded MainFrame: a shell your program owns, with your commands in it.
@@ -50,6 +58,21 @@ import dev.mainframe.ui.Renderer;
  *
  * Data big = shell.run("customers | where spend > 1000 | first 5");
  * shell.repl();   // or hand the whole shell to the user
+ * }</pre>
+ *
+ * <p>A shell is also a place to run things: the environment it hands to programs,
+ * the PATH it searches, and programs of your own that live in this JVM rather than
+ * on disk. Those three go together, and they are all live -- set an environment
+ * variable and the very next command sees it.
+ *
+ * <pre>{@code
+ * shell.env("JAVA_HOME", jdk.toString());          // every program it starts sees this
+ * shell.pathAddFirst(jdk.resolve("bin"));          // so ^javac is that JDK's javac
+ * shell.program(ProgramSpec.named("jdk")           // ^jdk 25, run in this JVM
+ *                 .summary("switch the JDK this session uses")
+ *                 .usage("jdk <version>")
+ *                 .build(),
+ *         call -> toolchains.select(call.argument(0, ""), call));
  * }</pre>
  *
  * <p>Not thread safe: one shell belongs to one thread, like the session it is.
@@ -154,6 +177,72 @@ public final class MainFrame {
     /** The exit code, if anything ran {@code exit}. */
     public OptionalInt exitRequest() { return exitRequest; }
 
+    // ---- asking the user ----------------------------------------------------------------
+
+    /** Shows a form on the shell's streams and hands back the answers. */
+    public Data form(Data fields) { return form(fields, null, null); }
+
+    /** Shows a form under a heading of your choosing. */
+    public Data form(Data fields, String title) { return form(fields, title, null); }
+
+    /**
+     * Shows a form, offering {@code starting} as the answers, and hands back what
+     * the user entered -- or {@link Data#nothing()} if they cancelled.
+     *
+     * <p>The fields are the same data the {@code form} command takes: a table of
+     * field records, or a list of names. Build them with {@link Data}, or read them
+     * from a file the same way anything else is read, since a form is a value like
+     * any other.
+     *
+     * <pre>{@code
+     * Data answers = shell.form(Data.of(List.of(
+     *                 Map.of("name", "name", "required", true, "min", 2),
+     *                 Map.of("name", "email", "match", "[^@ ]+@[^@ ]+"))),
+     *         "New contact");
+     * if (!answers.isNothing()) contacts.add(answers.field("email").text());
+     * }</pre>
+     *
+     * <p>Anything in {@code starting} the form does not ask about is carried
+     * through to the answers rather than dropped, so a record can be edited
+     * without losing the parts this form knows nothing about.
+     *
+     * @throws ShellError if the fields do not describe a form, or if the shell was
+     *                    not told there is somebody to ask -- see
+     *                    {@link Builder#interactive(boolean)}
+     */
+    public Data form(Data fields, String title, Data starting) {
+        if (fields == null) throw new IllegalArgumentException("a form needs fields to ask for");
+        Value.Rec offered = null;
+        if (starting != null && !starting.isNothing()) {
+            if (!(starting.unwrap() instanceof Value.Rec record)) {
+                throw new IllegalArgumentException("a form is filled in over a record, not a "
+                        + starting.type());
+            }
+            offered = record;
+        }
+        try {
+            Form form = Form.read(fields.unwrap(), Span.NONE);
+            requireSomebodyToAsk(session, "this shell");
+            Value.Rec answers = FormScreen.show(form, offered, title, true, session);
+            return answers == null ? Data.nothing() : Data.wrap(answers);
+        } catch (MfError e) {
+            throw translate(e);
+        }
+    }
+
+    /**
+     * A form has to be filled in by somebody, and MainFrame will not pretend
+     * otherwise: with nobody there it stops, rather than handing back a record of
+     * blanks that nothing checked.
+     */
+    static void requireSomebodyToAsk(Session session, String who) {
+        if (session.interactive()) return;
+        throw MfError.of("E1209", who + " has nobody to ask")
+                .hint("a form reads its answers from the terminal, and there is not one here")
+                .hint("say so with MainFrame.builder().interactive(true) if there is")
+                .build();
+    }
+
     // ---- looking at the shell ----------------------------------------------------------
 
     /** Every command name, built-in and hosted. */
@@ -171,26 +260,74 @@ public final class MainFrame {
 
     public Path directory() { return session.cwd(); }
 
-    public void directory(Path directory) {
-        if (!Files.isDirectory(directory)) {
-            throw new IllegalArgumentException(directory + " is not a directory");
-        }
-        session.cd(directory.toAbsolutePath().normalize());
-    }
+    public void directory(Path directory) { Sessions.directory(session, directory); }
 
     /** A variable from the shell's environment, or null. */
     public String env(String name) { return session.env().get(name); }
 
-    /** Sets a variable, which every program the shell starts will then see. */
-    public void env(String name, String value) { session.env().set(name, value); }
+    /**
+     * Sets a variable, which every program the shell starts will then see.
+     *
+     * <p>MainFrame keeps its own environment rather than the one this process was
+     * started with -- which a running JVM cannot change anyway -- so this takes
+     * effect on the very next command, spawned or hosted.
+     */
+    public void env(String name, String value) { Sessions.env(session, name, value); }
 
-    /** Adds a directory to the shell's PATH, at the end. */
-    public void pathAdd(Path directory) {
-        var entries = new java.util.ArrayList<>(session.env().pathEntries());
-        String resolved = directory.toAbsolutePath().normalize().toString();
-        if (!session.env().onPath(directory.toAbsolutePath().normalize())) entries.add(resolved);
-        session.env().pathEntries(entries);
+    /** Unsets a variable. False when it was not set. */
+    public boolean envRemove(String name) { return Sessions.envRemove(session, name); }
+
+    /** The whole environment as it stands, for handing to something else. */
+    public Map<String, String> environment() { return session.env().all(); }
+
+    /** The PATH, in the order it is searched. */
+    public List<Path> path() { return Sessions.path(session); }
+
+    /**
+     * Adds a directory to the end of the shell's PATH. False when it was already
+     * on it.
+     *
+     * <p>The directory does not have to exist yet: a program that is about to
+     * create it is not a person who has mistyped something. {@code path} shows
+     * entries that are not there rather than hiding them.
+     */
+    public boolean pathAdd(Path directory) { return Sessions.pathAdd(session, directory, false); }
+
+    /** Adds a directory to the front of the PATH, so it is searched first. */
+    public boolean pathAddFirst(Path directory) { return Sessions.pathAdd(session, directory, true); }
+
+    /** Takes a directory off the PATH. False when it was not on it. */
+    public boolean pathRemove(Path directory) { return Sessions.pathRemove(session, directory); }
+
+    /**
+     * Where {@code ^name} would be found on the PATH, or null when nowhere --
+     * resolved against the shell's own PATH, including the Windows habit of
+     * trying PATHEXT suffixes.
+     *
+     * <p>This ignores hosted programs, which have no path; {@link #hasProgram}
+     * answers for those, and one of them would win.
+     */
+    public Path onPath(String program) { return session.env().findProgram(program); }
+
+    // ---- programs the host provides ----------------------------------------------------
+
+    /**
+     * Installs a program, run in this JVM but invoked like anything on the PATH.
+     *
+     * <p>Replaces one already installed under that name, so a host that reloads
+     * its plugins does not have to uninstall first.
+     */
+    public void program(ProgramSpec spec, Program program) {
+        session.programs().install(Hosted.program(spec, program));
     }
+
+    /** Uninstalls a hosted program. False when there was none by that name. */
+    public boolean programRemove(String name) { return session.programs().remove(name); }
+
+    /** The names of the hosted programs, in the order they were installed. */
+    public List<String> programs() { return List.copyOf(session.programs().names()); }
+
+    public boolean hasProgram(String name) { return session.programs().has(name); }
 
     public boolean dryRun() { return session.dryRun(); }
 
@@ -211,12 +348,16 @@ public final class MainFrame {
     public static final class Builder {
 
         private final SequencedMap<String, Builtin> hosted = new LinkedHashMap<>();
+        private final Programs programs = new Programs();
         private final Set<String> shadowing = new LinkedHashSet<>();
         private final Set<String> without = new LinkedHashSet<>();
         private final SequencedMap<String, String> environment = new LinkedHashMap<>();
+        private final List<Path> pathFront = new ArrayList<>();
+        private final List<Path> pathEnd = new ArrayList<>();
 
         private Path directory = Path.of("").toAbsolutePath();
         private Path indexDirectory;
+        private Path formDirectory;
         private PrintStream out;
         private PrintStream err;
         private BufferedReader input;
@@ -281,6 +422,16 @@ public final class MainFrame {
             return this;
         }
 
+        /**
+         * Where {@code form-save} keeps its records. Defaults to
+         * {@code ~/.mainframe/forms}; point it at your own application's data if
+         * a user's preferences belong to your app rather than to their shell.
+         */
+        public Builder formDirectory(Path directory) {
+            this.formDirectory = directory;
+            return this;
+        }
+
         /** Where output goes. Defaults to the process streams. */
         public Builder output(PrintStream out, PrintStream err) {
             this.out = out;
@@ -325,7 +476,47 @@ public final class MainFrame {
 
         /** A variable for the shell's environment, on top of the inherited ones. */
         public Builder env(String name, String value) {
+            String problem = Environment.problemWithName(name);
+            if (problem != null) throw new IllegalArgumentException(problem);
             environment.put(name, value);
+            return this;
+        }
+
+        /**
+         * A directory to add to the end of the PATH, so {@code ^tool} finds the
+         * programs in it. Relative to the shell's directory.
+         */
+        public Builder pathAdd(Path directory) {
+            pathEnd.add(directory);
+            return this;
+        }
+
+        /** A directory to add to the front of the PATH, searched before the rest. */
+        public Builder pathAddFirst(Path directory) {
+            pathFront.add(directory);
+            return this;
+        }
+
+        /**
+         * Installs a program of the host's own: invoked with a caret like anything
+         * on the PATH, but run in this JVM.
+         *
+         * <p>Use this for something that has to look like a tool -- a name people
+         * type, flags it parses itself, text it prints. Use {@link #command} for
+         * something that should be part of the language, with typed data through
+         * the pipe and the guardrails around it.
+         *
+         * <p>Fails if the host has already registered a program by that name.
+         * Hosted programs are searched before the PATH, so one called {@code git}
+         * would take the place of the real git; {@code which git} says so, and
+         * {@code programs} lists it, but nothing stops you.
+         */
+        public Builder program(ProgramSpec spec, Program program) {
+            if (programs.has(spec.name())) {
+                throw new IllegalArgumentException("you have already registered a program called \""
+                        + spec.name() + "\"");
+            }
+            programs.install(Hosted.program(spec, program));
             return this;
         }
 
@@ -357,10 +548,16 @@ public final class MainFrame {
                     : new IndexStore(indexDirectory);
             Session session = new Session(new Renderer(chosenOut, chosenErr, chosenColor),
                     indexes, chosenInput, directory);
+            if (formDirectory != null) session.forms(new FormStore(formDirectory));
             session.dryRun(dryRun);
             session.assumeYes(assumeYes);
             session.interactive(interactive != null && interactive);
             environment.forEach((name, value) -> session.env().set(name, value));
+            // Front entries go on in reverse, so the first one declared is the
+            // first one searched.
+            for (Path directory : pathFront.reversed()) Sessions.pathAdd(session, directory, true);
+            for (Path directory : pathEnd) Sessions.pathAdd(session, directory, false);
+            programs.all().forEach(session.programs()::install);
 
             return new MainFrame(session, registry, chosenInput, interactive != null);
         }

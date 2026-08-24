@@ -36,6 +36,44 @@ public final class EnvBuiltins {
         registry.add(path());
         registry.add(pathAdd());
         registry.add(pathRemove());
+        registry.add(programs());
+    }
+
+    /**
+     * The programs the surrounding application provides in-process.
+     *
+     * <p>These do not appear in {@code help}, because they are not commands --
+     * they are run with a caret like anything on the PATH. Without somewhere to
+     * list them there would be no way to find out they exist, which is the one
+     * thing MainFrame will not do.
+     */
+    private static Builtin programs() {
+        Signature signature = Signature.named("programs", CATEGORY)
+                .summary("show the programs this app provides in-process")
+                .output(ValueType.TABLE)
+                .effect(Effect.READS)
+                .example("programs")
+                .example("programs | get name")
+                .build();
+        return Cmd.of(signature, args -> {
+            List<Value> rows = new ArrayList<>();
+            for (dev.mainframe.HostedProgram program : args.session().programs().all()) {
+                Value.Rec row = Value.Rec.of(
+                        "name", new Value.Str(program.name()),
+                        "summary", new Value.Str(program.summary()),
+                        "usage", new Value.Str(program.usage()),
+                        "run-it-with", new Value.Str("^" + program.name()));
+                // The column only appears when something is actually being stood
+                // in front of, so an honest table stays a short one.
+                Path shadowed = args.session().env().findProgram(program.name());
+                rows.add(shadowed == null ? row : row.with("instead-of", new Value.PathVal(shadowed)));
+            }
+            if (rows.isEmpty()) {
+                args.session().out().note("this shell has no programs of its own -- "
+                        + "a program embedding MainFrame can install them, and ^name finds the rest on your PATH");
+            }
+            return new Value.ListVal(List.copyOf(rows));
+        });
     }
 
     // ---- variables --------------------------------------------------------------------

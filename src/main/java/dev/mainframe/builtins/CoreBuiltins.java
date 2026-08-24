@@ -45,15 +45,29 @@ public final class CoreBuiltins {
                 .build();
         return Cmd.of(signature, args -> {
             if (!args.has(0)) {
-                Help.overview(args.session().out(), registry);
+                Help.overview(args.session().out(), registry, args.session().programs());
                 return Value.Nothing.INSTANCE;
             }
             String name = args.str(0);
             var builtin = registry.get(name);
             if (builtin == null) {
                 var error = args.fail("E501", "there is no command called " + name);
+                // It may well be one of the host's programs, which are not
+                // commands and so are not in the list help just offered.
+                dev.mainframe.HostedProgram program = args.session().programs().get(name);
+                if (program != null) {
+                    error.hint(program.name() + " is a program this app provides: " + program.summary());
+                    error.hint("run it with a caret, like anything on your PATH: ^" + program.name());
+                    error.hint("it is used like this: " + program.usage());
+                    return error.raise();
+                }
                 String closest = Suggest.closest(name, registry.names());
                 if (closest != null) error.hint("did you mean " + closest + "?");
+                String closestProgram = Suggest.closest(name, args.session().programs().names());
+                if (closestProgram != null) {
+                    error.hint("this app provides a program called " + closestProgram
+                            + " -- run it with ^" + closestProgram);
+                }
                 error.hint("run help with no arguments to see the whole list");
                 return error.raise();
             }
@@ -255,6 +269,22 @@ public final class CoreBuiltins {
                         "summary", new Value.Str(found.summary()),
                         "usage", new Value.Str(found.usage()));
             }
+            // Installed programs are searched before the PATH, so which says so --
+            // and says what it is standing in front of, when it stands in front of
+            // anything, rather than leaving the shadowing to be discovered.
+            dev.mainframe.HostedProgram hosted = args.session().programs().get(name);
+            if (hosted != null) {
+                Value.Rec record = Value.Rec.of(
+                        "name", new Value.Str(hosted.name()),
+                        "kind", new Value.Str("hosted program"),
+                        "summary", new Value.Str(hosted.summary()),
+                        "usage", new Value.Str(hosted.usage()),
+                        "run-it-with", new Value.Str("^" + hosted.name()));
+                Path shadowed = args.session().env().findProgram(name);
+                return shadowed == null
+                        ? record
+                        : record.with("instead-of", new Value.PathVal(shadowed));
+            }
             // Looked up on MainFrame's PATH, so which agrees with what ^name will run.
             Path onPath = args.session().env().findProgram(name);
             if (onPath != null) {
@@ -267,6 +297,11 @@ public final class CoreBuiltins {
             var error = args.fail("E504", "nothing called " + name + " is a command or on your PATH");
             String closest = Suggest.closest(name, registry.names());
             if (closest != null) error.hint("did you mean the builtin " + closest + "?");
+            String closestProgram = Suggest.closest(name, args.session().programs().names());
+            if (closestProgram != null) {
+                error.hint("this app provides a program called " + closestProgram
+                        + " -- run it with ^" + closestProgram);
+            }
             error.hint("run path to see where MainFrame looks for programs");
             return error.raise();
         });

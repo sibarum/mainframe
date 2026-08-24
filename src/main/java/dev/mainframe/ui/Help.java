@@ -15,7 +15,7 @@ public final class Help {
     private Help() {}
 
     /** The command list, grouped the way people look for things. */
-    public static void overview(Renderer out, Registry registry) {
+    public static void overview(Renderer out, Registry registry, dev.mainframe.Programs programs) {
         out.info(out.bold("MainFrame") + " -- type a command, or " + out.cyan("help <command>")
                 + " to see how one works.");
         out.info("");
@@ -31,6 +31,12 @@ public final class Help {
             out.info("");
         }
         out.info(out.dim("run an external program with a caret, e.g. ") + out.cyan("^git status"));
+        if (!programs.isEmpty()) {
+            // These are not commands, so they are not in the list above -- but they
+            // are only findable if something says they are there.
+            out.info(out.dim("this app provides " + programs.size() + " program(s) of its own: ")
+                    + out.cyan("programs") + out.dim(" lists them"));
+        }
         out.info(out.dim("add ") + out.cyan("--dry-run") + out.dim(" to any command that changes files"));
         out.info(out.dim("write values out as they are read back: ")
                 + out.cyan("now") + out.dim(", ") + out.cyan("7d") + out.dim(", ") + out.cyan("4mb")
@@ -87,7 +93,7 @@ public final class Help {
     private static String explainEffect(Signature s) {
         return switch (s.effect()) {
             case PURE -> "nothing outside this pipeline";
-            case READS -> "reads from disk, changes nothing";
+            case READS -> "reads, and changes nothing";
             case SESSION -> "changes this session only -- your files are untouched";
             case WRITES -> "creates or updates files (supports --dry-run)";
             case DESTRUCTIVE -> "can lose data, so it always asks first (supports --dry-run and --yes)";

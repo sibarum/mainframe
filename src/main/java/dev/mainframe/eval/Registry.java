@@ -10,6 +10,7 @@ import java.util.SequencedSet;
 import dev.mainframe.builtins.ConvertBuiltins;
 import dev.mainframe.builtins.EnvBuiltins;
 import dev.mainframe.builtins.CoreBuiltins;
+import dev.mainframe.builtins.FormBuiltins;
 import dev.mainframe.builtins.FsBuiltins;
 import dev.mainframe.builtins.IndexBuiltins;
 import dev.mainframe.builtins.TableBuiltins;
@@ -28,6 +29,7 @@ public final class Registry {
         ConvertBuiltins.register(r);
         IndexBuiltins.register(r);
         EnvBuiltins.register(r);
+        FormBuiltins.register(r);
         return r;
     }
 

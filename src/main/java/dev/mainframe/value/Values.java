@@ -358,13 +358,13 @@ public final class Values {
                 case PATH -> new Value.PathVal(java.nio.file.Path.of(trimmed));
                 case MIME -> readMime(trimmed);
                 default -> throw new IllegalArgumentException(
-                        "a " + type.display() + " has no written form to read back");
+                        type.withArticle() + " has no written form to read back");
             };
         } catch (IllegalArgumentException e) {
-            throw MfError.of("E205", "cannot read \"" + trimmed + "\" as a " + type.display())
+            throw MfError.of("E205", "cannot read \"" + trimmed + "\" as " + type.withArticle())
                     .at(span)
                     .hint(e.getMessage() == null ? "check the written form" : e.getMessage())
-                    .hint("a " + type.display() + " is written like " + example(type))
+                    .hint(type.withArticle() + " is written like " + example(type))
                     .build();
         }
     }

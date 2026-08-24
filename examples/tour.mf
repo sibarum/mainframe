@@ -35,7 +35,24 @@ echo "9. the environment can change between commands, with no restart"
 env-set TOUR_VAR "set while running"
 env TOUR_VAR
 
-echo "10. a value written to a file reads back as itself"
+echo "10. a form is data, so the same rules hold whether or not anyone is asked"
+let contact = [
+  {name: "name", label: "full name", required: true, min: 2},
+  {name: "email", required: true, match: "[^@ ]+@[^@ ]+[.][^@ ]+"},
+  {name: "phones", type: "table", fields: [{name: "kind", choose: ["mobile", "work"]},
+                                           {name: "number", required: true}]}
+]
+# `form $contact` would ask for these at the terminal. Here, where nobody is
+# being asked, the very same fields check a record that arrived from elsewhere.
+echo {name: "Ada", email: "ada@example.com"} | form-check $contact | get email
+
+echo "11. answers can be kept by name, so next time the form starts from them"
+# `form $contact --prefill=tour-example` would offer these back, field by field.
+echo {name: "Ada", email: "ada@example.com"} | form-save tour-example
+form-recall tour-example | get name
+form-forget tour-example --yes
+
+echo "12. a value written to a file reads back as itself"
 ls | where kind == "file" | select name size modified | save ./tour-listing.csv --force
 open ./tour-listing.csv | sum size
 ls | where kind == "file" | sum size

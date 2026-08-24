@@ -3,11 +3,14 @@ package dev.mainframe.api;
 import java.nio.file.Path;
 import java.util.List;
 
+import dev.mainframe.HostedProgram;
 import dev.mainframe.MfError;
 import dev.mainframe.eval.Args;
 import dev.mainframe.eval.Builtin;
 import dev.mainframe.eval.Plan;
 import dev.mainframe.eval.Signature;
+import dev.mainframe.form.Form;
+import dev.mainframe.form.FormScreen;
 import dev.mainframe.value.Value;
 
 /**
@@ -66,6 +69,62 @@ final class Hosted {
                 return plan;
             }
         };
+    }
+
+    /**
+     * Turns a host's program into one the interpreter can run behind a caret.
+     *
+     * <p>Deliberately thinner than the command bridge: there is no signature to
+     * check against, because the program parses its own line, and no plan to ask
+     * about, because a caret already says the guardrails do not apply. What is
+     * left is a name, an exit code, and two streams.
+     */
+    static HostedProgram program(ProgramSpec spec, Program program) {
+        return new HostedProgram() {
+            @Override public String name() { return spec.name(); }
+            @Override public String summary() { return spec.summary(); }
+            @Override public String usage() { return spec.usage(); }
+            @Override public List<String> examples() { return spec.examples(); }
+
+            @Override
+            public int run(Call call) throws Exception {
+                return program.run(new ProgramView(spec.name(), call));
+            }
+        };
+    }
+
+    /** The host's view of one program run, backed by the interpreter's call. */
+    private record ProgramView(String name, HostedProgram.Call call) implements ProgramCall {
+
+        @Override public List<String> arguments() { return call.arguments(); }
+        @Override public int count() { return call.arguments().size(); }
+        @Override public boolean has(int index) { return index >= 0 && index < count(); }
+
+        @Override
+        public String argument(int index, String fallback) {
+            return has(index) ? call.arguments().get(index) : fallback;
+        }
+
+        @Override public String input() { return call.inputText(); }
+        @Override public boolean hasInput() { return !(call.input() instanceof Value.Nothing); }
+        @Override public Data inputData() { return Data.wrap(call.input()); }
+
+        @Override public void write(String text) { call.write(text); }
+        @Override public void writeLine(String text) { call.write((text == null ? "" : text) + "\n"); }
+        @Override public void writeError(String text) { call.writeError(text); }
+
+        @Override public Path directory() { return call.session().cwd(); }
+        @Override public void directory(Path dir) { Sessions.directory(call.session(), dir); }
+        @Override public String env(String name) { return call.session().env().get(name); }
+        @Override public void env(String name, String value) { Sessions.env(call.session(), name, value); }
+        @Override public boolean envRemove(String name) { return Sessions.envRemove(call.session(), name); }
+        @Override public List<Path> path() { return Sessions.path(call.session()); }
+        @Override public boolean pathAdd(Path dir) { return Sessions.pathAdd(call.session(), dir, false); }
+        @Override public boolean pathAddFirst(Path dir) { return Sessions.pathAdd(call.session(), dir, true); }
+        @Override public boolean pathRemove(Path dir) { return Sessions.pathRemove(call.session(), dir); }
+
+        @Override public boolean dryRun() { return call.session().dryRun(); }
+        @Override public boolean interactive() { return call.session().interactive(); }
     }
 
     /**
@@ -137,9 +196,34 @@ final class Hosted {
         @Override public String env(String name) { return args.session().env().get(name); }
         @Override public boolean dryRun() { return args.dryRun(); }
 
+        @Override public void env(String name, String value) { Sessions.env(args.session(), name, value); }
+        @Override public boolean envRemove(String name) { return Sessions.envRemove(args.session(), name); }
+        @Override public List<Path> path() { return Sessions.path(args.session()); }
+        @Override public boolean pathAdd(Path dir) { return Sessions.pathAdd(args.session(), dir, false); }
+        @Override public boolean pathAddFirst(Path dir) { return Sessions.pathAdd(args.session(), dir, true); }
+        @Override public boolean pathRemove(Path dir) { return Sessions.pathRemove(args.session(), dir); }
+        @Override public void directory(Path dir) { Sessions.directory(args.session(), dir); }
+
         @Override public void print(String message) { args.session().out().info(message); }
         @Override public void note(String message) { args.session().out().note(message); }
         @Override public void warn(String message) { args.session().out().warn(message); }
+
+        @Override
+        public Data form(Data fields, String title) { return form(fields, title, null); }
+
+        @Override
+        public Data form(Data fields, String title, Data starting) {
+            if (fields == null) throw new IllegalArgumentException("a form needs fields to ask for");
+            Value.Rec offered = starting != null && starting.unwrap() instanceof Value.Rec record
+                    ? record
+                    : null;
+            // Read before asked, and refused before printed: a form nobody can fill
+            // in should not spray a blank one down a log first.
+            Form form = Form.read(fields.unwrap(), args.span());
+            MainFrame.requireSomebodyToAsk(args.session(), commandName());
+            Value.Rec answers = FormScreen.show(form, offered, title, true, args.session());
+            return answers == null ? Data.nothing() : Data.wrap(answers);
+        }
 
         @Override
         public RuntimeException fail(String message, String... hints) {

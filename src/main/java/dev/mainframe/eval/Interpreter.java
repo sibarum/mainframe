@@ -1,6 +1,7 @@
 package dev.mainframe.eval;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -8,6 +9,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import dev.mainframe.ExitRequest;
+import dev.mainframe.HostedProgram;
 import dev.mainframe.MfError;
 import dev.mainframe.Session;
 import dev.mainframe.Span;
@@ -671,24 +674,27 @@ public final class Interpreter {
     /**
      * Runs an external program, written with a leading caret so it is always
      * obvious that MainFrame is not in charge of what happens next.
+     *
+     * <p>A program the host installed in-process is looked for first, so
+     * {@code ^jdk} can be the host program's own code rather than a file on disk.
+     * The caret means the same thing either way: arguments in, text out, an exit
+     * code at the end.
      */
     private Value external(Ast.External call, Value input, Scope scope, boolean last) {
-        List<String> command = new ArrayList<>();
-        command.add(resolveProgram(call));
-        for (Ast.Arg arg : call.args()) {
-            if (arg instanceof Ast.FlagArg flag) {
-                String dashes = flag.shortForm() ? "-" : "--";
-                if (flag.value() == null) {
-                    command.add(dashes + flag.name());
-                } else {
-                    command.add(dashes + flag.name() + "=" + Values.asString(eval(flag.value(), scope), flag.span()));
-                }
-            } else {
-                command.add(Values.asString(eval(((Ast.Positional) arg).value(), scope), arg.span()));
-            }
+        List<String> arguments = argumentsOf(call, scope);
+        boolean handOver = last && input instanceof Value.Nothing && session.interactive();
+
+        // A name with a separator in it spells out a file, so it is never one of
+        // the installed programs: ./tool is ./tool.
+        if (!spelledOut(call.name())) {
+            HostedProgram installed = session.programs().get(call.name());
+            if (installed != null) return hosted(installed, call, arguments, input, handOver);
         }
 
-        boolean handOver = last && input instanceof Value.Nothing && session.interactive();
+        List<String> command = new ArrayList<>();
+        command.add(resolveProgram(call));
+        command.addAll(arguments);
+
         ProcessBuilder builder = new ProcessBuilder(command).directory(session.cwd().toFile());
         // The child gets the environment as it stands right now, not the one this
         // process was started with, so env-set and path-add take effect at once.
@@ -714,13 +720,7 @@ public final class Interpreter {
             String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
             int code = process.waitFor();
-            if (code != 0) {
-                MfError.Builder error = MfError.of("E322", call.name() + " failed with exit code " + code)
-                        .at(call.span());
-                if (!stderr.isBlank()) error.hint(stderr.strip().lines().findFirst().orElse(""));
-                error.hint("MainFrame does not guess what a failing program meant, so the pipeline stops here");
-                throw error.build();
-            }
+            if (code != 0) throw failedProgram(call, code, stderr);
             if (!stderr.isBlank()) session.out().warn(stderr.strip());
             return new Value.Str(stdout.stripTrailing());
         } catch (IOException e) {
@@ -734,6 +734,98 @@ public final class Interpreter {
         }
     }
 
+    /** The arguments of a caret call, as strings, the way a process would get them. */
+    private List<String> argumentsOf(Ast.External call, Scope scope) {
+        List<String> arguments = new ArrayList<>();
+        for (Ast.Arg arg : call.args()) {
+            if (arg instanceof Ast.FlagArg flag) {
+                String dashes = flag.shortForm() ? "-" : "--";
+                if (flag.value() == null) {
+                    arguments.add(dashes + flag.name());
+                } else {
+                    arguments.add(dashes + flag.name() + "="
+                            + Values.asString(eval(flag.value(), scope), flag.span()));
+                }
+            } else {
+                arguments.add(Values.asString(eval(((Ast.Positional) arg).value(), scope), arg.span()));
+            }
+        }
+        return arguments;
+    }
+
+    /**
+     * Runs one of the programs the host installed in-process.
+     *
+     * <p>It is treated exactly as a spawned one would be: a non-zero exit code
+     * stops the pipeline, standard error becomes a warning, standard output
+     * becomes the value of this stage. One difference comes free with there being
+     * no process -- output can go straight to the terminal when this is the last
+     * thing on an interactive line, instead of being held back until the program
+     * has finished.
+     */
+    private Value hosted(HostedProgram program, Ast.External call, List<String> arguments,
+                         Value input, boolean handOver) {
+        StringBuilder out = new StringBuilder();
+        StringBuilder err = new StringBuilder();
+        PrintStream terminal = handOver ? session.out().out() : null;
+        HostedProgram.Call run = new HostedProgram.Call() {
+            @Override public List<String> arguments() { return List.copyOf(arguments); }
+            @Override public Value input() { return input; }
+            @Override public Session session() { return Interpreter.this.session; }
+
+            @Override
+            public String inputText() {
+                return input instanceof Value.Nothing ? "" : textOf(input);
+            }
+
+            @Override
+            public void write(String text) {
+                if (text == null) return;
+                if (terminal != null) terminal.print(text);
+                else out.append(text);
+            }
+
+            @Override
+            public void writeError(String text) {
+                if (text != null) err.append(text);
+            }
+        };
+
+        int code;
+        try {
+            code = program.run(run);
+        } catch (MfError | ExitRequest e) {
+            throw e;
+        } catch (Exception e) {
+            String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            throw MfError.of("E327", call.name() + " could not finish: " + message)
+                    .at(call.span())
+                    .hint("this came from the program hosting MainFrame, not from the shell")
+                    .hint("it is used like this: " + program.usage())
+                    .build();
+        }
+        if (terminal != null) terminal.flush();
+        String errors = err.toString();
+        if (code != 0) throw failedProgram(call, code, errors);
+        if (!errors.isBlank()) session.out().warn(errors.strip());
+        return handOver ? Value.Nothing.INSTANCE : new Value.Str(out.toString().stripTrailing());
+    }
+
+    /** The one error a failing program raises, wherever the program came from. */
+    private MfError failedProgram(Ast.External call, int code, String stderr) {
+        MfError.Builder error = MfError.of("E322", call.name() + " failed with exit code " + code)
+                .at(call.span());
+        if (!stderr.isBlank()) error.hint(stderr.strip().lines().findFirst().orElse(""));
+        error.hint("MainFrame does not guess what a failing program meant, so the pipeline stops here");
+        return error.build();
+    }
+
+    /** True when a name spells out a file instead of naming a program to look up. */
+    private static boolean spelledOut(String name) {
+        return name.contains("/") || name.contains("\\")
+                || (name.length() > 1 && name.charAt(1) == ':');
+    }
+
     /**
      * Finds the program to run using MainFrame's own PATH.
      *
@@ -744,13 +836,15 @@ public final class Interpreter {
      */
     private String resolveProgram(Ast.External call) {
         String name = call.name();
-        boolean spelledOut = name.contains("/") || name.contains("\\")
-                || (name.length() > 1 && name.charAt(1) == ':');
-        if (spelledOut) return session.resolve(name).toString();
+        if (spelledOut(name)) return session.resolve(name).toString();
         java.nio.file.Path found = session.env().findProgram(name);
         if (found != null) return found.toString();
-        throw MfError.of("E325", "there is no program called " + name + " on your PATH")
-                .at(call.span())
+        MfError.Builder error = MfError.of("E325",
+                        "there is no program called " + name + " on your PATH")
+                .at(call.span());
+        String closest = Suggest.closest(name, session.programs().names());
+        if (closest != null) error.hint("this app provides one called " + closest + " -- try ^" + closest);
+        throw error
                 .hint("check the spelling, or run path to see the " + session.env().pathEntries().size()
                         + " place(s) MainFrame looked")
                 .hint("add somewhere to look with: path-add <directory>")

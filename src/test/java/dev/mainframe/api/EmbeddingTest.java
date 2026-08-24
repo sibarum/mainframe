@@ -33,6 +33,7 @@ class EmbeddingTest {
         return MainFrame.builder()
                 .directory(here)
                 .indexDirectory(here.resolve(".indexes"))
+                .formDirectory(here.resolve(".forms"))
                 .output(stream, stream)
                 .color(false);
     }
@@ -450,6 +451,76 @@ class EmbeddingTest {
         assertTrue(shell.commands().contains("customers"));
         assertEquals("customers [filter]", shell.usage("customers"));
         assertNull(shell.usage("not-a-command"));
+    }
+
+    // ---- asking the user ----------------------------------------------------------------
+
+    /** The same fields the form command takes, built out of what a host already has. */
+    private static Data contactFields() {
+        List<Map<String, Data>> fields = new ArrayList<>();
+        fields.add(Map.of("name", Data.text("name"), "required", Data.bool(true),
+                "min", Data.number(2)));
+        fields.add(Map.of("name", Data.text("email"), "required", Data.bool(true),
+                "match", Data.text("[^@ ]+@[^@ ]+")));
+        return Data.table(fields);
+    }
+
+    @Test
+    void theHostCanAskForARecord() {
+        MainFrame shell = shell().interactive(true).input(typing("A", "Ada", "nope", "ada@x.io", ""))
+                .build();
+        Data answers = shell.form(contactFields(), "New contact");
+        assertEquals("Ada", answers.field("name").text());
+        assertEquals("ada@x.io", answers.field("email").text());
+        // The rules were enforced on the way in, so the host never re-checks them.
+        assertTrue(printed().contains("name needs at least 2 characters"), printed());
+        assertTrue(printed().contains("email does not match"), printed());
+    }
+
+    @Test
+    void aCancelledFormIsNothing() {
+        MainFrame shell = shell().interactive(true).input(typing("!cancel")).build();
+        assertTrue(shell.form(contactFields()).isNothing());
+    }
+
+    @Test
+    void aHostedCommandCanAskAndKeepItsTypes() {
+        CommandSpec spec = CommandSpec.named("add-contact")
+                .category("my app")
+                .summary("add a contact, asking for the details")
+                .output(DataType.RECORD)
+                .effect(Effect.READS)
+                .build();
+        MainFrame shell = shell().interactive(true).input(typing("Ada", "ada@x.io", ""))
+                .command(spec, invocation -> invocation.form(contactFields(), "New contact"))
+                .build();
+        // The answers are a record like any other, so they go straight down a pipe.
+        Data added = shell.run("add-contact | select email | first");
+        assertEquals("ada@x.io", added.field("email").text());
+    }
+
+    @Test
+    void askingWithNobodyThereIsRefusedRatherThanAnswered() {
+        MainFrame shell = shell().build();
+        ShellError refused = assertThrows(ShellError.class, () -> shell.form(contactFields()));
+        assertEquals("E1209", refused.code());
+        // Nothing was printed at somebody who was never going to see it.
+        assertFalse(printed().contains("NEW CONTACT"), printed());
+    }
+
+    @Test
+    void aFormTheHostGotWrongIsRefusedAsAShellError() {
+        MainFrame shell = shell().interactive(true).build();
+        ShellError refused = assertThrows(ShellError.class,
+                () -> shell.form(Data.of(List.of(Map.of("name", "x", "requred", true)))));
+        assertEquals("E1203", refused.code());
+        assertTrue(refused.hints().contains("did you mean required?"), refused.hints().toString());
+    }
+
+    private static java.io.BufferedReader typing(String... lines) {
+        StringBuilder typed = new StringBuilder();
+        for (String line : lines) typed.append(line).append('\n');
+        return new java.io.BufferedReader(new java.io.StringReader(typed.toString()));
     }
 
     private static String codeOf(MainFrame shell, String source) {

@@ -1,0 +1,471 @@
+package dev.mainframe.form;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.SequencedSet;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import dev.mainframe.MfError;
+import dev.mainframe.Span;
+import dev.mainframe.ui.Suggest;
+import dev.mainframe.value.Value;
+import dev.mainframe.value.ValueType;
+import dev.mainframe.value.Values;
+
+/**
+ * A form: the fields to ask a person for, and the rules an answer has to meet.
+ *
+ * <p>A form is written as data, not as code -- a table of field records, which is
+ * to say a value MainFrame can already save, open and pass down a pipe. The same
+ * definition therefore drives the screen a person fills in and the check a script
+ * runs over a file, so the two cannot drift apart.
+ *
+ * <p>Nothing here reads or prints anything. {@link FormScreen} does the asking;
+ * this is the part that says what a good answer is, and it is the part that has
+ * to hold when there is nobody at the keyboard.
+ */
+public record Form(List<Field> fields) {
+
+    /** The types a field can hold. Deliberately fewer than the language has. */
+    private static final List<String> TYPES = List.of(
+            "string", "int", "float", "number", "bool", "size", "time", "duration",
+            "path", "mime", "table");
+
+    /** The keys a field record may use, in the order they are worth reading in. */
+    private static final List<String> KEYS = List.of(
+            "name", "label", "type", "required", "min", "max", "match", "choose", "help",
+            "default", "fields");
+
+    /**
+     * One field of a form.
+     *
+     * @param type    the type its answer will have; {@code TABLE} for a group of
+     *                repeated entries, which is what {@code entries} describes
+     * @param min     the smallest acceptable answer: a character count for text, a
+     *                value for a number or a moment, an entry count for a group
+     * @param entries the sub-form each entry of a group is filled in with, or null
+     *                when this field holds a single value
+     */
+    public record Field(
+            String name,
+            String label,
+            ValueType type,
+            boolean required,
+            Value min,
+            Value max,
+            Pattern match,
+            String matchSource,
+            List<String> choices,
+            String help,
+            Value preset,
+            Form entries) {
+
+        /** True when this field repeats: a list of details rather than one value. */
+        public boolean isGroup() { return entries != null; }
+
+        /** Text, or something that can always be read as text. */
+        public boolean isTextual() {
+            return type == ValueType.STRING || type == ValueType.PATH || type == ValueType.MIME;
+        }
+
+        /** How the label looks on screen: a field name on a terminal shouts. */
+        public String heading() { return label.toUpperCase(Locale.ROOT); }
+
+        /** The fewest entries a group will settle for. */
+        public long leastEntries() {
+            long declared = min == null ? 0 : Values.asLong(min, Span.NONE);
+            return required ? Math.max(1, declared) : declared;
+        }
+
+        /**
+         * What is wrong with {@code answer}, or null when nothing is.
+         *
+         * <p>The one place an answer is judged. The screen calls it after every
+         * line someone types, and {@code form-check} calls it on data that never
+         * went near a terminal.
+         */
+        public String problem(Value answer) {
+            Value given = answer == null ? Value.Nothing.INSTANCE : answer;
+            if (isGroup()) return groupProblem(given);
+            if (isBlank(given)) return required ? label + " is required" : null;
+            if (!type.accepts(given)) {
+                return label + " should be " + type.withArticle() + ", not "
+                        + ValueType.of(given).withArticle()
+                        + " -- give the column its type first, e.g. cast {" + name + ": "
+                        + type.display() + "}";
+            }
+            return valueProblem(given);
+        }
+
+        private String valueProblem(Value answer) {
+            String text = Values.display(answer);
+            if (choices != null) {
+                for (String choice : choices) if (choice.equalsIgnoreCase(text)) return null;
+                return label + " has to be one of: " + String.join(", ", choices);
+            }
+            if (isTextual()) {
+                int length = text.length();
+                if (min != null && length < count(min)) {
+                    return label + " needs at least " + plural(count(min), "character", "characters")
+                            + ", and that is " + plural(length, "character", "characters");
+                }
+                if (max != null && length > count(max)) {
+                    return label + " takes at most " + plural(count(max), "character", "characters")
+                            + ", and that is " + plural(length, "character", "characters");
+                }
+            } else {
+                if (min != null && Values.compare(answer, min, Span.NONE) < 0) {
+                    return label + " has to be at least " + Values.display(min);
+                }
+                if (max != null && Values.compare(answer, max, Span.NONE) > 0) {
+                    return label + " has to be at most " + Values.display(max);
+                }
+            }
+            if (match != null && !match.matcher(text).matches()) {
+                return label + " does not match " + matchSource;
+            }
+            return null;
+        }
+
+        private String groupProblem(Value answer) {
+            if (!isBlank(answer) && !ValueType.TABLE.accepts(answer)) {
+                return label + " should be a list of entries, not "
+                        + ValueType.of(answer).withArticle();
+            }
+            List<Value.Rec> rows = Values.rows(answer);
+            long least = leastEntries();
+            if (rows.size() < least) {
+                return label + " needs at least " + plural(least, "entry", "entries")
+                        + ", and there " + (rows.size() == 1 ? "is " : "are ")
+                        + plural(rows.size(), "entry", "entries");
+            }
+            if (max != null && rows.size() > count(max)) {
+                return label + " takes at most " + plural(count(max), "entry", "entries")
+                        + ", and there are " + plural(rows.size(), "entry", "entries");
+            }
+            for (int i = 0; i < rows.size(); i++) {
+                for (Field sub : entries.fields()) {
+                    String problem = sub.problem(rows.get(i).get(sub.name()));
+                    if (problem != null) return label + " entry " + (i + 1) + ": " + problem;
+                }
+            }
+            return null;
+        }
+
+        private static boolean isBlank(Value value) {
+            return value instanceof Value.Nothing
+                    || (value instanceof Value.Str text && text.value().isBlank());
+        }
+
+        private static long count(Value value) { return Values.asLong(value, Span.NONE); }
+
+        private static String plural(long n, String one, String many) {
+            return n + " " + (n == 1 ? one : many);
+        }
+    }
+
+    // ---- reading a form out of a value ------------------------------------------------
+
+    /**
+     * Reads a form definition, and refuses the whole thing if any part of it is
+     * wrong.
+     *
+     * <p>This runs before a single question is asked, which is the same promise
+     * every other command makes: a form that would fail on its last field fails
+     * before its first.
+     *
+     * @param spec a table of field records, or a list of names, or one of either
+     */
+    public static Form read(Value spec, Span span) {
+        return read(spec, span, true);
+    }
+
+    private static Form read(Value spec, Span span, boolean groupsAllowed) {
+        List<Value> items = spec instanceof Value.ListVal list ? list.items() : List.of(spec);
+        if (items.isEmpty()) {
+            throw MfError.of("E1201", "a form needs at least one field").at(span)
+                    .hint("name them and they are text fields: form [\"name\", \"email\"]")
+                    .hint("or describe one: form [{name: \"email\", required: true}]")
+                    .build();
+        }
+        List<Field> fields = new ArrayList<>(items.size());
+        SequencedSet<String> seen = new LinkedHashSet<>();
+        for (Value item : items) {
+            Field field = field(item, span, groupsAllowed);
+            if (!seen.add(field.name())) {
+                throw MfError.of("E1205", "two fields are called " + field.name()).at(span)
+                        .hint("each field becomes a column of the answer, so each needs its own name")
+                        .build();
+            }
+            fields.add(field);
+        }
+        return new Form(List.copyOf(fields));
+    }
+
+    /** The field names, which are the columns of the answer. */
+    public List<String> names() {
+        List<String> names = new ArrayList<>(fields.size());
+        for (Field field : fields) names.add(field.name());
+        return List.copyOf(names);
+    }
+
+    public Field field(String name) {
+        for (Field field : fields) if (field.name().equals(name)) return field;
+        return null;
+    }
+
+    /**
+     * Every problem with a record of answers, in field order.
+     *
+     * <p>All of them, not the first: someone fixing a file wants the whole list,
+     * not one round trip per mistake.
+     */
+    public List<String> problems(Value.Rec answers) {
+        List<String> problems = new ArrayList<>();
+        for (Field field : fields) {
+            String problem = field.problem(answers.get(field.name()));
+            if (problem != null) problems.add(problem);
+        }
+        return List.copyOf(problems);
+    }
+
+    private static Field field(Value item, Span span, boolean groupsAllowed) {
+        if (item instanceof Value.Str name) return plain(name.value(), span);
+        if (!(item instanceof Value.Rec rec)) {
+            throw MfError.of("E1202", "a field is either a name or a record, not "
+                            + ValueType.of(item).withArticle()).at(span)
+                    .hint("a name on its own asks for text: \"email\"")
+                    .hint("a record can say more: {name: \"email\", required: true}")
+                    .build();
+        }
+        for (String key : rec.fields().keySet()) {
+            if (KEYS.contains(key)) continue;
+            MfError.Builder error = MfError.of("E1203", "a field has no \"" + key + "\"").at(span);
+            String closest = Suggest.closest(key, KEYS);
+            if (closest != null) error.hint("did you mean " + closest + "?");
+            error.hint("a field can say: " + String.join(", ", KEYS));
+            throw error.build();
+        }
+
+        String name = text(rec, "name");
+        if (name == null || name.isBlank()) {
+            throw MfError.of("E1202", "every field needs a name").at(span)
+                    .hint("the name becomes a column of the answer: {name: \"email\"}")
+                    .hint("if a name is all you have to say, write just the name: \"email\"")
+                    .build();
+        }
+        String label = text(rec, "label");
+        if (label == null || label.isBlank()) label = name.replace('-', ' ').replace('_', ' ');
+
+        // A key holding nothing is a key that is not there. That matters because a
+        // form read back out of a file has every column on every row, and the ones
+        // it did not use are nothing.
+        Value nested = present(rec, "fields");
+        String declared = text(rec, "type");
+        ValueType type = type(declared, nested != null, name, span);
+        Form entries = null;
+        if (type == ValueType.TABLE) {
+            if (nested == null) {
+                throw MfError.of("E1207", name + " is a table of entries, but does not say "
+                                + "what one entry holds").at(span)
+                        .hint("add the fields of an entry: "
+                                + "{name: \"" + name + "\", fields: [\"kind\", \"value\"]}")
+                        .build();
+            }
+            if (!groupsAllowed) {
+                throw MfError.of("E1207", name + " is a group of entries inside another group").at(span)
+                        .hint("one level of entries is as deep as a form goes, because a person "
+                                + "fills one in a line at a time")
+                        .hint("ask for the inner list as its own field instead")
+                        .build();
+            }
+            entries = read(nested, span, false);
+        }
+
+        boolean required = truthy(rec, "required");
+        Value min = present(rec, "min");
+        Value max = present(rec, "max");
+        Pattern match = null;
+        String matchSource = text(rec, "match");
+        List<String> choices = choices(rec, name, type, span);
+        String help = text(rec, "help");
+        Value preset = present(rec, "default");
+
+        if (matchSource != null) {
+            if (type != ValueType.STRING && type != ValueType.PATH && type != ValueType.MIME) {
+                throw MfError.of("E1206", name + " is " + type.withArticle()
+                                + ", so a pattern cannot be matched against it").at(span)
+                        .hint("match works on string, path and mime fields")
+                        .hint("a code with leading zeros or spacing rules is text, not a number "
+                                + "-- say type: \"string\" and keep the pattern")
+                        .build();
+            }
+            try {
+                match = Pattern.compile(matchSource);
+            } catch (PatternSyntaxException e) {
+                throw MfError.of("E1206", "the pattern on " + name + " is not a valid "
+                                + "regular expression: " + matchSource).at(span)
+                        .hint("the whole answer has to match it, so no anchors are needed")
+                        .hint(firstLine(e.getMessage()))
+                        .build();
+            }
+        }
+        checkBound(min, "min", name, type, span);
+        checkBound(max, "max", name, type, span);
+        if (min != null && max != null && Values.compare(min, max, span) > 0) {
+            throw MfError.of("E1206", "min on " + name + " is larger than its max, "
+                            + "so nothing could satisfy it").at(span)
+                    .hint("min is " + Values.display(min) + " and max is " + Values.display(max))
+                    .build();
+        }
+
+        Field field = new Field(name, label, type, required, min, max, match, matchSource,
+                choices, help, preset, entries);
+        if (preset != null) {
+            String problem = field.problem(preset);
+            if (problem != null) {
+                throw MfError.of("E1206", "the default for " + name
+                                + " breaks its own rules: " + problem).at(span)
+                        .hint("a default is offered as an answer, so it has to be one")
+                        .build();
+            }
+        }
+        return field;
+    }
+
+    private static Field plain(String name, Span span) {
+        if (name.isBlank()) {
+            throw MfError.of("E1202", "a field cannot be named nothing at all").at(span)
+                    .hint("a name becomes a column of the answer, e.g. \"email\"")
+                    .build();
+        }
+        return new Field(name, name.replace('-', ' ').replace('_', ' '), ValueType.STRING,
+                false, null, null, null, null, null, null, null, null);
+    }
+
+    private static ValueType type(String declared, boolean hasEntries, String name, Span span) {
+        if (declared == null || declared.isBlank()) {
+            return hasEntries ? ValueType.TABLE : ValueType.STRING;
+        }
+        ValueType type = switch (declared) {
+            case "string" -> ValueType.STRING;
+            case "int" -> ValueType.INT;
+            case "float" -> ValueType.FLOAT;
+            case "number" -> ValueType.NUMBER;
+            case "bool" -> ValueType.BOOL;
+            case "size" -> ValueType.SIZE;
+            case "time" -> ValueType.TIME;
+            case "duration" -> ValueType.DURATION;
+            case "path" -> ValueType.PATH;
+            case "mime" -> ValueType.MIME;
+            case "table" -> ValueType.TABLE;
+            default -> null;
+        };
+        if (type == null) {
+            MfError.Builder error = MfError.of("E1204",
+                    "\"" + declared + "\" is not a type a field can hold").at(span);
+            String closest = Suggest.closest(declared, TYPES);
+            if (closest != null) error.hint("did you mean " + closest + "?");
+            error.hint("a field holds one of: " + String.join(", ", TYPES));
+            throw error.build();
+        }
+        if (hasEntries && type != ValueType.TABLE) {
+            throw MfError.of("E1207", name + " is " + type.withArticle()
+                            + ", so it has no entries to describe").at(span)
+                    .hint("a repeated list of details is type: \"table\", "
+                            + "and fields says what one entry holds")
+                    .hint("or drop fields and keep it one " + type.display())
+                    .build();
+        }
+        return type;
+    }
+
+    private static List<String> choices(Value.Rec rec, String name, ValueType type, Span span) {
+        Value given = present(rec, "choose");
+        if (given == null) return null;
+        if (type != ValueType.STRING) {
+            throw MfError.of("E1206", name + " is " + type.withArticle()
+                            + ", so it cannot offer a list to choose from").at(span)
+                    .hint("choose works on string fields, which is what a menu picks")
+                    .build();
+        }
+        List<Value> items = given instanceof Value.ListVal list ? list.items() : List.of(given);
+        if (items.isEmpty()) {
+            throw MfError.of("E1206", "the list to choose from on " + name + " is empty").at(span)
+                    .hint("give it something to pick: choose: [\"phone\", \"email\"]")
+                    .build();
+        }
+        List<String> choices = new ArrayList<>(items.size());
+        for (Value item : items) {
+            if (item instanceof Value.Rec || item instanceof Value.ListVal) {
+                throw MfError.of("E1206", "the list to choose from on " + name
+                                + " holds " + ValueType.of(item).withArticle()).at(span)
+                        .hint("a menu offers one line each, so every choice is a single value")
+                        .build();
+            }
+            choices.add(Values.display(item));
+        }
+        return List.copyOf(choices);
+    }
+
+    /**
+     * A bound has to be comparable with what the field holds: a count of
+     * characters or entries where that is what a bound means, and otherwise a
+     * value of the field's own type.
+     */
+    private static void checkBound(Value bound, String key, String name, ValueType type, Span span) {
+        if (bound == null || bound instanceof Value.Nothing) return;
+        boolean counts = type == ValueType.TABLE || type == ValueType.STRING
+                || type == ValueType.PATH || type == ValueType.MIME;
+        if (counts) {
+            if (bound instanceof Value.Int) return;
+            throw MfError.of("E1206", key + " on " + name + " counts "
+                            + (type == ValueType.TABLE ? "entries" : "characters")
+                            + ", so it is a whole number, not "
+                            + ValueType.of(bound).withArticle()).at(span)
+                    .hint("write it plainly: " + key + ": 2")
+                    .build();
+        }
+        if (type.accepts(bound)) return;
+        throw MfError.of("E1206", key + " on " + name + " should be " + type.withArticle()
+                        + ", not " + ValueType.of(bound).withArticle()).at(span)
+                .hint("a bound is compared against the answer, so it has the same type")
+                .hint("e.g. " + key + ": " + example(type))
+                .build();
+    }
+
+    private static String example(ValueType type) {
+        return switch (type) {
+            case INT, NUMBER, FLOAT -> "18";
+            case SIZE -> "4mb";
+            case TIME -> "2026-01-01";
+            case DURATION -> "7d";
+            default -> "a value of that type";
+        };
+    }
+
+    /** A key that is there and holds something, or null. */
+    private static Value present(Value.Rec rec, String key) {
+        Value value = rec.get(key);
+        return value == null || value instanceof Value.Nothing ? null : value;
+    }
+
+    private static String text(Value.Rec rec, String key) {
+        Value value = present(rec, key);
+        return value == null ? null : Values.display(value);
+    }
+
+    private static boolean truthy(Value.Rec rec, String key) {
+        Value value = rec.get(key);
+        return value != null && Values.truthy(value);
+    }
+
+    private static String firstLine(String message) {
+        if (message == null) return "check the pattern";
+        int newline = message.indexOf('\n');
+        return newline < 0 ? message : message.substring(0, newline);
+    }
+}

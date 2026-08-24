@@ -27,6 +27,10 @@ final class Mf {
     }
 
     Mf(Path cwd, Path indexDirectory) {
+        this(cwd, indexDirectory, "");
+    }
+
+    private Mf(Path cwd, Path indexDirectory, String typed) {
         // Keep the trash, history and indexes inside the test's own directory.
         System.setProperty("mainframe.home", cwd.resolve(".mainframe").toString());
         Renderer renderer = new Renderer(
@@ -34,8 +38,20 @@ final class Mf {
                 new PrintStream(err, true, StandardCharsets.UTF_8),
                 false);
         this.session = new Session(renderer, new IndexStore(indexDirectory),
-                new BufferedReader(new StringReader("")), cwd);
+                new BufferedReader(new StringReader(typed)), cwd);
         this.interpreter = new Interpreter(session, Registry.standard());
+    }
+
+    /**
+     * A session with somebody at the keyboard, answering prompts with these
+     * lines. The input runs out at the end, which is what Ctrl-D looks like.
+     */
+    static Mf typing(Path cwd, String... lines) {
+        StringBuilder typed = new StringBuilder();
+        for (String line : lines) typed.append(line).append('\n');
+        Mf mf = new Mf(cwd, cwd.resolve(".indexes"), typed.toString());
+        mf.session.interactive(true);
+        return mf;
     }
 
     Session session() { return session; }
