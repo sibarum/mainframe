@@ -2,6 +2,7 @@ package dev.mainframe.panel;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -249,5 +250,93 @@ class PanelTest {
         assertTrue(Values.equal(screen, Json.parse(json, Span.NONE)), json);
         // And it is source MainFrame can read, like everything else it writes.
         assertTrue(Parser.parse(Values.source(screen)) != null);
+    }
+
+    // ---- fitting the room ----------------------------------------------------------------
+
+    /**
+     * A form is laid out for the room the editor has <em>now</em>, not for the room it had when the form started.
+     *
+     * <p>Which is what makes a window draggable while a form is up. The editor reports a resize, MainFrame lays
+     * the screen out again, and because a resize carries the screen's values like any other event, what had been
+     * typed is still there afterwards. Nothing here is the editor's decision: an editor may not reflow a screen,
+     * having been given cells rather than a paragraph.
+     */
+    @Test
+    void aFormIsLaidOutAgainForTheRoomThereIsNow() {
+        FakeEditor editor = FakeEditor.rich()               // 90 columns to begin with
+                .resizesTo(24, 60, "client", "Acme")        // and then the window is dragged narrower
+                .submits("client", "Acme", "office", "berlin");
+        Value.Rec answers = show(editor, VISIT);
+
+        assertEquals(2, editor.screenCount(), "a resize gets a new screen, not a reflowed one");
+        assertTrue(cols(editor.screen(1)) < cols(editor.screen(0)),
+                "the second screen is laid out narrower: " + cols(editor.screen(0))
+                        + " then " + cols(editor.screen(1)));
+        assertEquals("Acme", editor.entry(1, "client"), "what was typed survives the resize");
+        assertEquals("Acme", Values.display(answers.get("client")));
+    }
+
+    /**
+     * A hint too long for the room is wrapped, not written through whatever is to the right of it.
+     *
+     * <p>The room being a list of details, which draws a frame around itself: prose is the only thing on a screen
+     * whose length MainFrame does not choose, so it is the only thing that can overrun. What that looked like, on
+     * the display that found it, was the frame's own right edge printed through the middle of a word.
+     */
+    @Test
+    void aHintTooLongForTheFrameIsWrappedInsideIt() {
+        FakeEditor editor = FakeEditor.rich().cancels();
+        show(editor, """
+                [{"name": "expenses", "type": "table",
+                  "help": "every expense this visit is claiming for, itemised, with the amount \
+                in whole pounds and a description somebody in accounts will recognise a month from now",
+                  "fields": [{"name": "what"}, {"name": "amount", "type": "int"}]}]
+                """);
+
+        Value.Rec box = part(editor.screen(0), "box");
+        assertNotNull(box, "a list of details draws a frame around itself");
+        int edge = at(box, 1) + wide(box) - 1;
+        int first = at(box, 0) + 1;
+        int last = at(box, 0) + high(box) - 2;
+        boolean wrapped = false;
+        for (Value part : ((Value.ListVal) editor.screen(0).get("parts")).items()) {
+            Value.Rec record = (Value.Rec) part;
+            if (record.get("box") != null || !(record.get("text") instanceof Value.Str text)) continue;
+            int row = at(record, 0);
+            // The form's own rules run the whole width, above and below the frame; what is being checked is what
+            // is written *inside* it.
+            if (row < first || row > last) continue;
+            int ends = at(record, 1) + text.value().length() - 1;
+            assertTrue(ends < edge, "this ran through the frame at column " + edge + ": "
+                    + Values.display(record));
+            if ("hint".equals(Values.display(record.get("style")))) wrapped = true;
+        }
+        assertTrue(wrapped, "and the hint is in there rather than dropped: " + editor.parts(0));
+    }
+
+    /** How wide MainFrame said it laid a screen out. */
+    private static int cols(Value.Rec screen) {
+        return (int) ((Value.Int) ((Value.Rec) screen.get("size")).get("cols")).value();
+    }
+
+    private static Value.Rec part(Value.Rec screen, String kind) {
+        for (Value part : ((Value.ListVal) screen.get("parts")).items()) {
+            if (((Value.Rec) part).get(kind) != null) return (Value.Rec) part;
+        }
+        return null;
+    }
+
+    /** One coordinate of a part's {@code at}: 0 for the row, 1 for the column. */
+    private static int at(Value.Rec part, int axis) {
+        return (int) ((Value.Int) ((Value.ListVal) part.get("at")).items().get(axis)).value();
+    }
+
+    private static int high(Value.Rec box) {
+        return (int) ((Value.Int) ((Value.ListVal) box.get("box")).items().get(0)).value();
+    }
+
+    private static int wide(Value.Rec box) {
+        return (int) ((Value.Int) ((Value.ListVal) box.get("box")).items().get(1)).value();
     }
 }

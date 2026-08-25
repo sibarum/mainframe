@@ -1038,6 +1038,16 @@ A host embedding MainFrame attaches one with `.editor(...)`; the command line
 speaks it with `--panel`, where standard output carries nothing but messages —
 even ordinary command output leaves as `print`.
 
+The first display MainFrame borrows is its own: the console in
+[mainframe-vexel-gui](mainframe-vexel-gui/README.md) is a conforming editor, so a
+`form` in that window goes up as a screen with every field on view, and a
+destructive command asks for its yes on one. It was written against the record
+rather than against an object — it parses cells and part kinds out of a screen
+message exactly as an editor on the end of a pipe does — which is how the protocol
+came to be tested rather than only specified. What that turned up was worth the
+trip: `choice` should be claimed by nobody who has nowhere to open a list, and a
+part that renders itself down into two rows has to be counted as two.
+
 ## Commands
 
 | | |

@@ -22,8 +22,10 @@ import dev.mainframe.value.Values;
  */
 final class FakeEditor implements Editor {
 
-    private final Hello hello;
+    private Hello hello;
     private final Deque<String> events = new ArrayDeque<>();
+    /** What room this editor has once each queued event has gone, or null where it does not change. */
+    private final List<Hello> rooms = new ArrayList<>();
     private final List<Value.Rec> screens = new ArrayList<>();
     private final List<String> printed = new ArrayList<>();
 
@@ -43,6 +45,7 @@ final class FakeEditor implements Editor {
     /** Queues a message exactly as it would arrive down the wire. */
     FakeEditor sends(String json) {
         events.add(json);
+        rooms.add(null);
         return this;
     }
 
@@ -59,6 +62,20 @@ final class FakeEditor implements Editor {
 
     FakeEditor cancels() { return sends("{\"event\": {\"did\": \"cancel\", \"key\": \"F3\"}}"); }
 
+    /**
+     * Queues a resize, as an editor reports one: the window is a different size now, and the values that were on
+     * the screen come back with the event like they do with any other.
+     *
+     * <p>The new room takes effect when the event is sent, which is what a window being dragged does -- MainFrame
+     * asks {@link #hello} again while laying out the next screen, and gets the new answer.
+     */
+    FakeEditor resizesTo(int rows, int cols, String... fields) {
+        sends("{\"event\": {\"did\": \"resize\", \"fields\": " + record(fields) + "}}");
+        rooms.remove(rooms.size() - 1);
+        rooms.add(new Hello(hello.name(), hello.protocol(), rows, cols, hello.can()));
+        return this;
+    }
+
     @Override public Hello hello() { return hello; }
 
     @Override
@@ -68,7 +85,10 @@ final class FakeEditor implements Editor {
         Value sent = Json.parse(Values.toJson(screen.message(), 0), Span.NONE);
         screens.add((Value.Rec) ((Value.Rec) sent).get("screen"));
         if (events.isEmpty()) return Event.gone();
-        return Event.read(Json.parse(events.removeFirst(), Span.NONE));
+        Event answer = Event.read(Json.parse(events.removeFirst(), Span.NONE));
+        Hello room = rooms.remove(0);
+        if (room != null) hello = room;
+        return answer;
     }
 
     @Override

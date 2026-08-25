@@ -240,7 +240,7 @@ public final class MainFrame {
      * blanks that nothing checked.
      */
     static void requireSomebodyToAsk(Session session, String who) {
-        if (session.interactive()) return;
+        if (session.somebodyToAsk()) return;
         throw MfError.of("E1209", who + " has nobody to ask")
                 .hint("a form reads its answers from the terminal, and there is not one here")
                 .hint("say so with MainFrame.builder().interactive(true) if there is")

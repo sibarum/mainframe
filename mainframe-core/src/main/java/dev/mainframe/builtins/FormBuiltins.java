@@ -74,7 +74,8 @@ public final class FormBuiltins {
         return Cmd.of(signature, args -> {
             Form form = Form.read(args.value(0), args.span());
             Value.Rec starting = merged(prefill(args), starting(args));
-            if (!args.session().interactive()) {
+            // Somebody to ask, which a window is even though its session is not interactive.
+            if (!args.session().somebodyToAsk()) {
                 throw args.fail("E1209", "form has nobody to ask")
                         .hint("it reads the answers from the terminal, and there is not one here")
                         .hint("build the record instead, e.g. echo {name: \"Ada\", email: \"ada@x.io\"}")

@@ -39,17 +39,26 @@ public final class FormPanel {
     private static final int LEFT = 3;
     private static final int ENTRY_COLUMN = 21;
     private static final int MIN_WIDTH = 56;
-    private static final int MAX_WIDTH = 96;
 
-    /** Prefixes for the two things a click can mean. */
+    /**
+     * The widest a form is laid out, however much room the editor says it has.
+     *
+     * <p>A cap rather than a fraction, because what a form is mostly deciding with its width is how long an entry
+     * field is, and past a certain length a field is harder to read rather than easier. An editor with more room
+     * than this is told so and may do as it likes with the rest — the protocol says as much.
+     */
+    private static final int MAX_WIDTH = 120;
+
+    /** Prefixes for the things a click can mean. Prefixed so a field can be called anything at all. */
     private static final String ADD = "add:";
     private static final String DROP = "drop:";
+    private static final String SUBMIT = "do:submit";
+    private static final String CANCEL = "do:cancel";
 
     private final Form form;
     private final Editor editor;
     private final Path from;
     private final String title;
-    private final int width;
 
     private int nextId = 1;
 
@@ -58,7 +67,32 @@ public final class FormPanel {
         this.editor = editor;
         this.from = from;
         this.title = title == null || title.isBlank() ? "form" : title;
-        this.width = Math.max(MIN_WIDTH, Math.min(editor.hello().cols(), MAX_WIDTH));
+    }
+
+    /**
+     * How wide to lay this screen out, asked afresh every time one is painted.
+     *
+     * <p>Asked afresh rather than settled once, because an editor's room is not a constant: a window gets
+     * dragged. An editor that reports a {@code resize} gets the next screen laid out for what it has now, and one
+     * that does not is asked the same question and gives the same answer, so nothing has to know which kind it is
+     * talking to.
+     */
+    private int width() {
+        return Math.max(MIN_WIDTH, Math.min(editor.hello().cols(), MAX_WIDTH));
+    }
+
+    /**
+     * How much room a line of prose under a field has.
+     *
+     * <p>Four columns spare on the right: three to clear the frame that a list of details draws around it, and one
+     * more so the text does not sit against it. Prose that touches a border reads as prose that has overrun.
+     *
+     * <p>Prose is the only thing here whose length MainFrame does not choose — a label is as long as
+     * the field is called and an entry is as wide as it was told, but a hint is however long somebody wrote it —
+     * so it is the only thing that has to be fitted rather than placed.
+     */
+    private int room() {
+        return Math.max(12, width() - ENTRY_COLUMN - 4);
     }
 
     /**
@@ -92,13 +126,19 @@ public final class FormPanel {
             problems = absorb(event, answers, asTyped);
             if (event.focus() != null) focus = event.focus();
 
+            // A submit is a submit whether it arrived as a key or as somebody pressing the button that says so.
+            // Keeping the two apart until here is what lets the buttons be ordinary parts: MainFrame names them,
+            // the editor reports which was pressed, and neither has to know they are special.
+            boolean submitted = event.is(Event.SUBMIT);
             if (event.is(Event.CLICK)) {
                 String clicked = event.on() == null ? "" : event.on();
-                if (clicked.startsWith(ADD)) focus = add(clicked.substring(ADD.length()), answers);
-                else if (clicked.startsWith(DROP)) focus = drop(clicked.substring(DROP.length()), answers);
-                continue;
+                if (clicked.equals(CANCEL)) return null;
+                else if (clicked.equals(SUBMIT)) submitted = true;
+                else if (clicked.startsWith(ADD)) { focus = add(clicked.substring(ADD.length()), answers); continue; }
+                else if (clicked.startsWith(DROP)) { focus = drop(clicked.substring(DROP.length()), answers); continue; }
+                else continue;                      // a name nothing here knows; nothing to do about it
             }
-            if (!event.is(Event.SUBMIT)) continue;   // a change, a resize, something new
+            if (!submitted) continue;               // a change, a resize, something new
 
             for (Field field : form.fields()) {
                 if (problems.containsKey(field.name())) continue;
@@ -185,6 +225,7 @@ public final class FormPanel {
         Screen screen = new Screen(nextId++).title(title.toUpperCase(Locale.ROOT));
         if (focus != null) screen.focus(focus);
 
+        int width = width();
         screen.text(1, LEFT, title.toUpperCase(Locale.ROOT), "title");
         screen.text(2, LEFT, "=".repeat(width - LEFT), "frame");
         int row = 4;
@@ -195,13 +236,25 @@ public final class FormPanel {
             row++;
         }
         if (!carried.isEmpty()) {
-            screen.text(row++, LEFT, "carried through untouched: "
-                    + String.join(", ", carried.keySet()), "hint");
+            for (String line : wrapped("carried through untouched: "
+                    + String.join(", ", carried.keySet()), width - LEFT - 1)) {
+                screen.text(row++, LEFT, line, "hint");
+            }
         }
         screen.text(row, LEFT, "=".repeat(width - LEFT), "frame");
-        screen.text(row + 1, LEFT, "F12 Submit    F3 Cancel", "status");
         screen.key("F12", Event.SUBMIT, "Submit");
         screen.key("F3", Event.CANCEL, "Cancel");
+        // Buttons where the key line used to be, and the key line only where there can be no buttons. A form whose
+        // only way out is a function key is a form that cannot be finished on a keyboard that has none, which is
+        // most of them -- so the keys stay listed, for whoever has them, and stop being the way. Never both at
+        // once: they want the same cells, and an editor that places characters where it was told would render the
+        // two through each other.
+        if (editor.hello().can("action")) {
+            screen.action(row + 1, LEFT, SUBMIT, "Submit", "F12");
+            screen.action(row + 1, LEFT + 10, CANCEL, "Cancel", "F3");
+        } else {
+            screen.text(row + 1, LEFT, "F12 Submit    F3 Cancel", "status");
+        }
         return screen;
     }
 
@@ -217,13 +270,53 @@ public final class FormPanel {
         } else {
             screen.entry(row, ENTRY_COLUMN, name, entryWidth(), value, field.type().display());
         }
-        if (field.required()) screen.text(row, width - 8, "required", "hint");
+        if (field.required()) screen.text(row, width() - 8, "required", "hint");
 
-        String rules = field.rules();
-        if (!rules.isEmpty()) screen.text(++row, ENTRY_COLUMN, rules, "hint");
-        String problem = problems.get(name);
-        if (problem != null) screen.text(++row, ENTRY_COLUMN, problem, "error");
+        // The deepest row written rather than the row this counted to, because a
+        // part is allowed to take more room than it was placed at: a choice an
+        // editor cannot show renders itself down to the options and an entry
+        // underneath them, which is two rows out of one. Counting locally worked
+        // for as long as every part was one row tall, and stopped silently the
+        // first time one was not -- the next field landed on this one.
+        row = Math.max(row, screen.rows());
+        row = note(screen, field.rules(), "hint", row);
+        row = note(screen, problems.get(name), "error", row);
+        return Math.max(row, screen.rows());
+    }
+
+    /**
+     * A line of prose under a field, on as many rows as it takes.
+     *
+     * <p>Wrapped rather than written and hoped for. A hint is the one thing on the screen whose length nobody
+     * chose — {@code help} is however long it was written — and a screen is cells, so a line too long for the
+     * room does not run on: it runs <em>through</em> whatever is to the right of it, which on a list of details is
+     * the frame around the list.
+     */
+    private int note(Screen screen, String text, String style, int row) {
+        if (text == null || text.isEmpty()) return row;
+        for (String line : wrapped(text, room())) {
+            screen.text(++row, ENTRY_COLUMN, line, style);
+        }
         return row;
+    }
+
+    /**
+     * {@code text} broken into lines of at most {@code room} characters, at spaces where there is one.
+     *
+     * <p>A word longer than the room is broken rather than allowed to overhang, because a path or a URL is
+     * exactly the sort of thing that turns up in a hint and exactly the sort of thing that has no spaces in it.
+     */
+    private static List<String> wrapped(String text, int room) {
+        List<String> lines = new ArrayList<>();
+        String rest = text.trim();
+        while (rest.length() > room) {
+            int at = rest.lastIndexOf(' ', room);
+            if (at <= 0) at = room;
+            lines.add(rest.substring(0, at).stripTrailing());
+            rest = rest.substring(at).stripLeading();
+        }
+        if (!rest.isEmpty() || lines.isEmpty()) lines.add(rest);
+        return lines;
     }
 
     /**
@@ -233,6 +326,7 @@ public final class FormPanel {
     private int entries(Screen screen, Field field, Map<String, Value> answers,
                         Map<String, String> problems, int row) {
         String name = field.name();
+        int width = width();
         List<Value.Rec> rows = Values.rows(answers.getOrDefault(name, Value.Nothing.INSTANCE));
         int top = row;
         boolean boxed = editor.hello().can("box");
@@ -241,13 +335,16 @@ public final class FormPanel {
         // is a label like any other. Never both, or they land on the same cells.
         if (!boxed) screen.text(row, LEFT, field.heading(), "label");
         if (field.required()) screen.text(row, width - 8, "required", "hint");
-        String rules = field.rules();
-        if (!rules.isEmpty()) screen.text(++row, ENTRY_COLUMN, rules, "hint");
+        row = note(screen, field.rules(), "hint", row);
 
         for (int i = 0; i < rows.size(); i++) {
             row++;
-            screen.text(row, ENTRY_COLUMN, "[" + (i + 1) + "] " + line(rows.get(i)), "plain");
-            if (editor.hello().can("action")) {
+            boolean removable = editor.hello().can("action");
+            // Elided rather than wrapped: this is a row of a table, and a table whose rows are two lines high is
+            // harder to read than one that says there is more.
+            screen.text(row, ENTRY_COLUMN, elided("[" + (i + 1) + "] " + line(rows.get(i)),
+                    width - ENTRY_COLUMN - (removable ? 11 : 3)), "plain");
+            if (removable) {
                 // The thing a printed form cannot offer: somewhere to click to
                 // take one back out again.
                 screen.action(row, width - 9, DROP + name + ":" + (i + 1), "remove", null);
@@ -263,11 +360,12 @@ public final class FormPanel {
             // shown and left alone rather than half-offered.
             screen.text(row, ENTRY_COLUMN, "(this editor cannot add entries)", "hint");
         }
-        String problem = problems.get(name);
-        if (problem != null) screen.text(++row, ENTRY_COLUMN, problem, "error");
+        row = note(screen, problems.get(name), "error", row);
 
         if (boxed) screen.box(top, LEFT - 1, row - top + 2, width - LEFT - 1, field.heading());
-        return row;
+        // The frame's bottom edge is one row below the last thing inside it, so the
+        // same rule as in one(): what was written, not what was counted.
+        return Math.max(row, screen.rows());
     }
 
     private static String line(Value.Rec entry) {
@@ -280,7 +378,13 @@ public final class FormPanel {
         return value == null || value instanceof Value.Nothing ? "" : Values.display(value);
     }
 
-    private int entryWidth() { return Math.max(12, width - ENTRY_COLUMN - 10); }
+    /** {@code text}, cut to {@code room} with an ellipsis if it will not fit. */
+    private static String elided(String text, int room) {
+        int most = Math.max(4, room);
+        return text.length() <= most ? text : text.substring(0, most - 3) + "...";
+    }
+
+    private int entryWidth() { return Math.max(12, width() - ENTRY_COLUMN - 10); }
 
     // ---- the same two helpers the printed form uses ---------------------------------------
 

@@ -117,7 +117,8 @@ calculator  true        a keypad, a tape, and a plotter for anything with a vari
 ```
 
 `--launch <app>` comes up with one already open, `--capture [out.png]` writes a
-headless still, and a bare number is a frame cap.
+headless still, `--capture-panel [out.png]` writes one of a data entry screen,
+and a bare number is a frame cap.
 
 **Menu entries submit commands.** `ConsoleContext.run` echoes the line into the
 scrollback, so a menu that changes the environment has taught you the command
@@ -126,23 +127,103 @@ can be scripted, piped and put in a file, because it was never anything but a
 command. `ProfileApp` is the worked example: its commands, its menu and its
 header badge are all contributed through this interface and nothing else.
 
-## Data entry without drawing a screen
+## Data entry, two ways of asking
 
-`ConsoleContext.form` takes a MainFrame `Form` — a list of fields — prints the
-questions into the scrollback, and reads the answers off the command line. You
-get `!back`, `!cancel`, `!clear`, the review step, and per-field validation, and
-you did not draw anything.
+`ConsoleContext.form` takes a MainFrame `Form` — a list of fields — and asks for
+it. You did not draw anything either way.
 
 ```java
 Value.Rec answers = console.form(Profile.definition(), starting, "New profile");
 ```
+
+With a window there is a display to borrow, so the whole form goes up at once as
+a screen with every field on view. Without one — the headless capture, a test —
+the questions are printed into the scrollback and the answers read off the
+command line, which is where `!back`, `!cancel`, `!clear` and the review step
+come from.
+
+Same `Form` both ways, and that is the point: it still says what a good answer
+is, `Field.read` still says what typed text means, and the record at the end is
+the same record. Only the asking differs.
+
+### How a screen behaves
+
+The rule the whole thing is built to: **everything can be done from the keyboard,
+nothing surprising can be done by accident, and the screen says which is which as
+you go.**
+
+| | |
+|---|---|
+| **Tab** / Shift+Tab | move between fields **and buttons**, wrapping. Landing on a button does not press it. |
+| **Enter** | on a field, the next field. On a button, press it. |
+| **Esc** | give up. |
+| **Space** | presses a focused button, and is otherwise a space. |
+| arrows, Home, End, Backspace, Delete | inside the field, as anywhere. |
+| a click | moves the caret, to the character clicked. It is the only pointer gesture that moves anything. |
+| the pointer resting on something | lights it up, and moves nothing. |
+
+Two things fall out of that and both are deliberate. Enter never submits a form
+from a field, so a stray one cannot send a half-filled screen — but the buttons
+are in the Tab ring and Submit is the last thing on the screen, so Enter pressed
+enough times walks to Submit and then presses it. A form can be filled in and
+sent without the hands leaving the keys, without anything having to be learnt.
+And the function keys still work, and are still what the screen lists in `keys` —
+but nothing depends on them, because a keyboard without an F12 is the ordinary
+kind.
+
+The screen shows its own state rather than relying on a legend. The caret is a
+block of reversed phosphor that blinks, and holds solid while you type; a focused
+button is reversed the same way, being the same idea — where the next keystroke
+goes; the pointer's highlight is a lit background, with an underline on a button
+to say it can be pressed. Under the screen, in the editor's own row rather than in
+the screen MainFrame described, one line says what Tab, Enter and Esc will do
+**now** — "Enter next field" on a field, "Enter press Submit" on the button. What
+Enter is about to do should never have to be worked out.
+
+### Fitting the window
+
+The panel measures the tube and says how many rows and columns it has, so a form
+is laid out for the window somebody actually has rather than for a number in a
+source file. Drag the window and it reports a `resize`; MainFrame lays the screen
+out again at the new size and the values on it come back with the event, so
+nothing typed is lost in the exchange. An editor must never reflow a screen it was
+given — those cells were placed deliberately — which is why the answer is a new
+screen rather than a rearranged one.
+
+A form uses up to 120 columns and no more: past a certain length an entry field is
+harder to read, not easier, and the protocol says plainly that an editor with more
+room than the screen asked for may do as it likes with the rest. Between the
+report and the new screen there is a frame where the old one is the wrong size for
+its room, and for that frame the panel scrolls rather than clipping.
+
+The one thing on a screen whose length MainFrame does not choose is prose — a
+field's `help` is however long somebody wrote it — so that is the one thing
+wrapped to fit rather than placed. A hint too long for a list of details used to be
+written straight through the frame drawn around it.
+
+
+**The screen is the protocol, not a widget.** The panel is an implementation of
+[`PROTOCOL.md`](../PROTOCOL.md) — MainFrame describes a screen in character cells
+and waits, this window paints it and reports what happened to it, and it holds no
+meaning at all: it does not know what a form is, and adding a feature to MainFrame
+must never mean editing it. Which cuts both ways, and the useful way is the second
+one: anything MainFrame learns to put on a screen appears here for free, and
+`mainframe --panel` already speaks the same thing down a pipe.
+
+It says what it can do rather than what version it is, and it deliberately says
+less than it could. No `choice`, because a dropdown is a thing that opens and a
+tube has nowhere to open it into — so MainFrame writes the options above the field
+as text and sends a plain entry, which is both readable and what a 5250 did with a
+choice. It does claim `resize`, because it measures its own room and reports one
+when the room changes. An editor that claims what it cannot do well is worse than
+one that lets MainFrame render down.
 
 ## Packages
 
 | Package | What is in it |
 | --- | --- |
 | `dev.mainframe.gui.app` | `ConsoleApp`, `ConsoleContext`, `ProjectScope` — the seams. Knows nothing about the window. |
-| `dev.mainframe.gui.console` | `Console`, `ConsoleSpec`, and the machinery behind them: the ANSI translation, the scrollback ring, the prompt pipe, the phosphor palette. |
+| `dev.mainframe.gui.console` | `Console`, `ConsoleSpec`, and the machinery behind them: the ANSI translation, the scrollback ring, the prompt pipe, the panel, the phosphor palette. |
 | `dev.mainframe.gui.profile` | Environment profiles as a `ConsoleApp`: toolchains, said once and applied whole. |
 | `dev.mainframe.gui.desktop` | `Desktop` — the standalone `main()`. |
 

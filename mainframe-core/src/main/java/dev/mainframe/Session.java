@@ -85,6 +85,24 @@ public final class Session {
     public boolean interactive() { return interactive; }
     public void interactive(boolean value) { this.interactive = value; }
 
+    /**
+     * Whether there is anybody to ask a question of.
+     *
+     * <p>There are two ways there can be, and they are not the same way twice.
+     * {@link #interactive} says this process's own input belongs to a person,
+     * which is what a terminal means; an attached {@link #editor} says somebody
+     * lent MainFrame a display, which is what a window means. A window is not a
+     * terminal -- handing an external program the process's stdio in a window
+     * sends it somewhere nobody can see, which is why a windowed session is
+     * deliberately not interactive -- so a session can have nobody at its input
+     * and still have somebody in front of it.
+     *
+     * <p>Everything that stops when nobody is there asks this rather than either
+     * one on its own: a form, a confirmation, anything that cannot be answered by
+     * guessing.
+     */
+    public boolean somebodyToAsk() { return interactive || editor != null; }
+
     /** The text currently being run, so errors can point at the right line. */
     public String source() { return source; }
     public void source(String value) { this.source = value == null ? "" : value; }
@@ -95,11 +113,26 @@ public final class Session {
      * the user to pass --yes.
      */
     public boolean confirm(String question) {
+        return confirm(question, java.util.List.of());
+    }
+
+    /**
+     * The same question, with the lines that say what is about to happen.
+     *
+     * <p>{@code detail} is for the display and not for the transcript: a printed
+     * confirmation has those lines above it already, because the caller wrote them
+     * out before asking, whereas a screen replaces what was on the glass and has to
+     * carry them itself. So the printed path ignores them and the panel shows them,
+     * and neither one says anything twice.
+     */
+    public boolean confirm(String question, java.util.List<String> detail) {
         if (assumeYes) return true;
+        // The editor before the terminal, and before the question of whether there
+        // is one: a window is somebody to ask even though its session is not
+        // interactive. With an editor attached standard input is the protocol, so
+        // reading a line from it would eat the editor's next message.
+        if (editor != null) return dev.mainframe.panel.Panels.confirm(editor, question, detail);
         if (!interactive) return false;
-        // With an editor attached, standard input is the protocol -- reading a
-        // line from it would eat the editor's next message.
-        if (editor != null) return dev.mainframe.panel.Panels.confirm(editor, question);
         renderer.out().print(question + " " + renderer.dim("[y/N]") + " ");
         renderer.out().flush();
         String answer = readLine();

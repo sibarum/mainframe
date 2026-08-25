@@ -52,6 +52,7 @@ import java.util.List;
  * <pre>{@code
  * mvn -pl mainframe-vexel-gui compile exec:exec
  * mvn -pl mainframe-vexel-gui compile exec:exec "-Dapp.args=--capture" "-Dapp.args2=console.png"
+ * mvn -pl mainframe-vexel-gui compile exec:exec "-Dapp.args=--capture-panel" "-Dapp.args2=panel.png"
  * }</pre>
  *
  * Needs {@code --enable-native-access=ALL-UNNAMED}.
@@ -90,7 +91,8 @@ public final class Desktop {
      *
      * @param appName where this application's settings live — its profiles, and where its windows were left
      * @param title   what the console's title bar and the taskbar call it
-     * @param args    {@code --capture [out.png]} for a headless still; {@code --launch <app>} to come up with
+     * @param args    {@code --capture [out.png]} or {@code --capture-panel [out.png]} for a headless still;
+     *                {@code --launch <app>} to come up with
      *                one already open; else an optional frame cap
      */
     public static void run(String appName, String title, Apps apps, String[] args) throws Exception {
@@ -98,6 +100,13 @@ public final class Desktop {
 
         if (args.length >= 1 && args[0].equals("--capture")) {
             capture(appName, apps, args.length >= 2 ? args[1] : "console.png");
+            return;
+        }
+        // --capture-panel: the same still, of a data entry screen. Its own argument rather than a second PNG out
+        // of --capture, because a screen only exists while something is waiting for an answer, so capturing one
+        // means running a line that asks and stopping while it is asking.
+        if (args.length >= 1 && args[0].equals("--capture-panel")) {
+            capturePanel(appName, apps, args.length >= 2 ? args[1] : "panel.png");
             return;
         }
 
@@ -165,6 +174,29 @@ public final class Desktop {
         }
         console.gui().close();
         System.out.println("clean shutdown");
+    }
+
+    /**
+     * Render a data entry screen headlessly, and stop while it is still asking.
+     *
+     * <p>The form is stated here rather than read from anywhere because this is a look at the display and not a
+     * test of a form: what it has to have is one of everything the protocol carries — a required field, a plain
+     * one, a list to choose from — so that a cell in the wrong column shows up in the picture.
+     */
+    private static void capturePanel(String appName, Apps apps, String path) throws Exception {
+        Settings settings = Settings.open(appName);
+        WindowMemory unused = new WindowMemory(settings);
+        try (Console console = new Console(ConsoleSpec.builder()
+                .app(new ProfileApp(new ProfileStore(settings)))
+                .apps(apps.of(settings, unused))
+                .build())) {
+            console.start(Path.of("").toAbsolutePath());
+            console.capturePanel("form [{name: \"name\", label: \"Full name\", required: true}, "
+                    + "{name: \"email\", help: \"where the receipt goes\"}, "
+                    + "{name: \"tier\", choose: [\"free\", \"team\", \"enterprise\"]}] "
+                    + "--title=\"New customer\"", path);
+        }
+        System.out.println("captured " + path);
     }
 
     /**

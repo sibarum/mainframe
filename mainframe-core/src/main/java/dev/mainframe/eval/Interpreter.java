@@ -171,16 +171,28 @@ public final class Interpreter {
 
         if (signature.effect() == Signature.Effect.DESTRUCTIVE
                 && !args.flag("yes") && !session.assumeYes()) {
-            if (!session.interactive()) {
+            // Somebody to ask, rather than an interactive session: a windowed session is deliberately not
+            // interactive -- see Session.somebodyToAsk -- and refusing to ask a person who is sitting there
+            // looking at a screen is the one thing this gate must not do.
+            if (!session.somebodyToAsk()) {
                 throw MfError.of("E302", signature.name() + " can lose data, so it will not run unattended")
                         .at(args.span())
                         .hint("add --yes once you are sure, or --dry-run to see the "
                                 + (plan.size() == 1 ? "one thing" : plan.size() + " things") + " it would do")
                         .build();
             }
+            // Written out and carried to the question, in one pass. The transcript wants them because they are
+            // what was about to happen; a screen wants them because a screen replaces what was on the glass, so a
+            // confirmation that only asked would be asking about something no longer in front of anybody.
             session.out().info(session.out().yellow("about to ") + plan.summary() + ":");
-            for (Plan.Step step : plan.steps()) session.out().note("  " + step.description());
-            if (!session.confirm("go ahead?")) {
+            List<String> detail = new ArrayList<>(plan.size() + 1);
+            detail.add("about to " + plan.summary() + ":");
+            for (Plan.Step step : plan.steps()) {
+                String line = "  " + step.description();
+                session.out().note(line);
+                detail.add(line);
+            }
+            if (!session.confirm("go ahead?", detail)) {
                 session.out().note("cancelled -- nothing was changed");
                 return Value.Nothing.INSTANCE;
             }

@@ -6,11 +6,13 @@ import dev.mainframe.Session;
 import dev.mainframe.eval.Interpreter;
 import dev.mainframe.eval.Registry;
 import dev.mainframe.form.Form;
+import dev.mainframe.form.FormPanel;
 import dev.mainframe.form.FormScreen;
 import dev.mainframe.fs.IndexStore;
 import dev.mainframe.gui.app.ConsoleApp;
 import dev.mainframe.gui.app.ConsoleContext;
 import dev.mainframe.lang.Parser;
+import dev.mainframe.panel.Editor;
 import dev.mainframe.ui.Renderer;
 import dev.mainframe.value.Value;
 
@@ -68,9 +70,10 @@ final class ConsoleShell implements AutoCloseable {
      * @param onExit  called when the {@code exit} builtin runs, to put the window away
      * @param apps    what is plugged into this console; their commands are added to the registry here, in order
      * @param context what those apps are handed — the console, as they are allowed to see it
+     * @param display the screen MainFrame may borrow, or null when this console has no window to put one on
      */
     ConsoleShell(Scrollback scrollback, Path cwd, Runnable onExit, List<ConsoleApp> apps,
-                 ConsoleContext context) {
+                 ConsoleContext context, Editor display) {
         this.scrollback = scrollback;
         this.onExit = onExit;
 
@@ -82,6 +85,10 @@ final class ConsoleShell implements AutoCloseable {
         this.session = new Session(new Renderer(out, err, true), IndexStore.inState(),
                 new BufferedReader(pipe), cwd);
         session.interactive(false);
+        // The display MainFrame borrows, when this console has one. A window that has never been opened has
+        // nobody at it, so it attaches none -- and the printed form and the ordinary refusals stand, which is
+        // what the headless capture path and the tests want.
+        session.editor(display);
 
         Registry registry = Registry.standard();
         this.launcher = new LaunchCommands(apps, context);
@@ -124,6 +131,11 @@ final class ConsoleShell implements AutoCloseable {
         jobs.execute(() -> run(source));
     }
 
+    /** Lend MainFrame a display after the fact — what the panel capture uses, having no window to infer it from. */
+    void display(Editor editor) {
+        session.editor(editor);
+    }
+
     /**
      * Whether the shell is waiting to be told something rather than to be given a command -- a form asking for a
      * field, or a destructive command asking for a yes.
@@ -150,15 +162,22 @@ final class ConsoleShell implements AutoCloseable {
     }
 
     /**
-     * Show a form and collect the answers. Job thread only, because it blocks on the command line.
+     * Show a form and collect the answers. Job thread only, because it blocks either way.
      *
-     * <p>Straight to {@link FormScreen} rather than through the {@code form} builtin, which refuses a
-     * non-interactive session. That refusal is right for the general command -- it cannot know whether anyone is
-     * there -- and wrong here, because this window <em>is</em> who is there. The session stays non-interactive so
-     * that an external program's output keeps coming back to this pane instead of to whatever launched the JVM.
+     * <p>Two ways of asking, one {@link Form}. With a display attached the whole form goes up at once and the
+     * person moves about it; without one the questions are printed downwards and the answers read off the command
+     * line. Same fields, same rules, same record at the end — {@link Form} says what a good answer is and
+     * {@code Field.read} says what typed text means, whichever way the asking went.
+     *
+     * <p>Straight to the two screens rather than through the {@code form} builtin, which wants a signature and an
+     * {@code Args}. The builtin's own refusal — "form has nobody to ask" — is right for the general command and
+     * wrong here, because this window <em>is</em> who is there.
      */
     Value.Rec form(Form definition, Value.Rec starting, String title) {
-        return FormScreen.show(definition, starting, title, true, session);
+        Editor editor = session.editor();
+        return editor != null
+                ? FormPanel.show(definition, starting, title, editor, session.cwd())
+                : FormScreen.show(definition, starting, title, true, session);
     }
 
     /**

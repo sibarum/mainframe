@@ -109,6 +109,10 @@ public final class Console implements AutoCloseable, ConsoleContext {
     private final Node clock;
     private final Node message;
     private final TextField prompt;
+    /** The command line's row, hidden while a screen is up: in panel mode the screen is where typing goes. */
+    private final Node commandRow;
+    /** This window as a display MainFrame can borrow. See {@link Panel}. */
+    private final Panel panel;
     private final Scrollback scrollback;
     private final TitleBar titleBar;
     private final Subscription clicks;
@@ -172,6 +176,17 @@ public final class Console implements AutoCloseable, ConsoleContext {
                 .scrollLock(LayoutEnums.ScrollLock.BOTTOM);
         this.scrollback = new Scrollback(gui, output, ansi);
 
+        // ---- the panel -----------------------------------------------------------------
+        // A screen MainFrame describes goes here, in the slot the scrollback stands in, because the two are never
+        // both wanted: while a screen is up, a screen is what this window is doing. Swapped by visibility rather
+        // than by re-parenting — a hidden child is not placed, not measured and not counted toward the gaps, which
+        // makes visibility the correct way to swap two things sharing one grow(1) slot.
+        Node glass = gui.column().width(Length.FILL).height(Length.grow(1))
+                .gap(Length.ZERO)
+                .scroll(true, true)
+                .visible(false);
+        this.panel = new Panel(gui, glass, ansi, scrollback, this::curtain, this::busy);
+
         // ---- the entry field ----------------------------------------------------------
         Node command = glyphs("Command", theme.color(Role.INK)).width(Length.AUTO);
         Node arrow = glyphs("===>", theme.color(Phosphor.HOT)).width(Length.AUTO);
@@ -184,7 +199,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
                 .background(theme.color(Role.NONE))
                 .corner(Length.ZERO)
                 .font(1).textSize(Length.rem(0.8125f)).textColor(theme.color(Phosphor.HOT));
-        Node commandRow = gui.row().width(Length.FILL).height(Length.rem(1.9f)).gap(Length.em(0.6f))
+        this.commandRow = gui.row().width(Length.FILL).height(Length.rem(1.9f)).gap(Length.em(0.6f))
                 .children(command, arrow, prompt.node());
 
         // ---- the message line ------------------------------------------------------------
@@ -202,7 +217,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
                 .gap(Length.rem(0.35f))
                 .lit(theme.lit())
                 .elevation(Length.rem(1.25f))
-                .children(header, rule, clearance, output, commandRow, message);
+                .children(header, rule, clearance, output, glass, commandRow, message);
         Node frame = gui.column().width(Length.FILL).height(Length.grow(1))
                 .padding(GUTTER)
                 .children(tube);
@@ -257,7 +272,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
                     .onClosed(this::onClosed));
         }
         handle.show();
-        gui.focus(prompt.node());
+        gui.focus(panel.up() ? panel.node() : prompt.node());
     }
 
     /**
@@ -286,7 +301,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
                 // already set the range the restored factor is clamped into.
                 memory.watch(spec.windowName(), app.window(), gui);
         }
-        gui.focus(prompt.node());
+        gui.focus(panel.up() ? panel.node() : prompt.node());
     }
 
     /**
@@ -308,7 +323,9 @@ public final class Console implements AutoCloseable, ConsoleContext {
         if (shell != null) {
             return;
         }
-        shell = new ConsoleShell(scrollback, cwd, this::dismiss, spec.apps(), this);
+        // The panel goes to the session only when there is a window to put a screen on. Both ways in --
+        // show() and adopt() -- set the host before starting, so this is the one place that has to know.
+        shell = new ConsoleShell(scrollback, cwd, this::dismiss, spec.apps(), this, host == null ? null : panel);
         greet(cwd);
         for (ConsoleApp app : spec.apps()) {
             app.started(this);
@@ -333,6 +350,58 @@ public final class Console implements AutoCloseable, ConsoleContext {
     }
 
     /** True while a command is running — the capture path waits on this. */
+
+    /**
+     * Render a screen headlessly: borrow this display, run {@code line} until it asks for something, and write the
+     * PNG of whatever it put up.
+     *
+     * <p>The same argument as {@link #capture}, for the half of the window that argument did not reach. A panel is
+     * the one thing here whose look cannot be checked by reading the code — a cell in the wrong column is invisible
+     * in a source file and obvious in a picture — and it is also the one thing the ordinary capture cannot show,
+     * because a screen only exists while something is waiting for an answer.
+     *
+     * <p>Nobody answers it. The job thread is left parked on the screen and {@link Panel#close} lets it go on the
+     * way out, which is the same cancel a closed window gives; a capture is a look at a display and not a session.
+     */
+    public void capturePanel(String line, String path) throws java.io.IOException {
+        if (shell == null) {
+            return;
+        }
+        // Attached even though there is no window. Everywhere else this console decides for itself whether anybody
+        // is there; here the caller is saying so, and a capture that had to open a window would not be headless.
+        shell.display(panel);
+        submit(line);
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (!panel.up() && System.nanoTime() < deadline) {
+            tick();
+            settle();
+        }
+        // One picture before the one that counts, and it is not waste. Nothing lays this tree out until something
+        // draws it, and the panel learns the size of the tube by measuring rows that have been laid out -- so the
+        // first render is what tells it how big the window is, and the screen it was holding at the time was laid
+        // out for a guess. Drawing once, letting the correction happen, and drawing again is what makes a capture a
+        // picture of the same screen a person would be looking at.
+        tick();
+        capture(path);
+        int quiet = 0;
+        while (quiet < 4 && System.nanoTime() < deadline) {
+            tick();
+            quiet = panel.settled() ? quiet + 1 : 0;
+            settle();
+        }
+        tick();
+        capture(path);
+        panel.close();
+    }
+
+    /** A frame's worth of waiting, for the loops that are standing in for a frame loop. */
+    private static void settle() {
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
     public boolean busy() {
         return shell != null && shell.busy();
     }
@@ -472,7 +541,8 @@ public final class Console implements AutoCloseable, ConsoleContext {
      * same target.
      */
     private Subscription focusFollowsWindow() {
-        return gui.bus().subscribe(gui.clicks(), event -> gui.focus(prompt.node()));
+        return gui.bus().subscribe(gui.clicks(),
+                event -> gui.focus(panel.up() ? panel.node() : prompt.node()));
     }
 
     /**
@@ -570,6 +640,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
             return;
         }
         scrollback.flush();
+        panel.flush();
         set(location, fitted(where()), () -> shownLocation, s -> shownLocation = s);
         set(badge, spec.badge(), () -> shownBadge, s -> shownBadge = s);
         set(clock, stamp(), () -> shownClock, s -> shownClock = s);
@@ -607,6 +678,33 @@ public final class Console implements AutoCloseable, ConsoleContext {
         message.text(text)
                 .background(theme.color(failed ? Role.DANGER : Role.NONE))
                 .textColor(theme.color(failed ? Role.ON_DANGER : Role.DIM));
+    }
+
+    /**
+     * This window as MainFrame's display, for the shell to hand to the session.
+     *
+     * <p>Package-private on purpose: an application plugged into this console gets {@link ConsoleContext#form},
+     * which states a {@link Form} and has no screen in it. The panel is how that question gets asked, not
+     * something an app is asked to drive.
+     */
+    Panel panel() {
+        return panel;
+    }
+
+    /**
+     * Raise or lower the curtain on the rest of the window.
+     *
+     * <p>The scrollback and the command line go away together while a screen is up, because a 3270 screen was the
+     * whole display and because a command line under a screen is a second place the caret could be. What is left
+     * is the header, the screen, and the message line — which is the arrangement this window already had, with
+     * one thing swapped for another in the same slot.
+     */
+    private void curtain(boolean up) {
+        output.visible(!up);
+        commandRow.visible(!up);
+        if (!up) {
+            gui.focus(prompt.node());
+        }
     }
 
     /** Write {@code text} onto {@code node} only if it is not already what the node says. */
@@ -745,7 +843,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
             }
             memory.watch(spec.windowName(), created, gui);
         }
-        gui.focus(prompt.node());
+        gui.focus(panel.up() ? panel.node() : prompt.node());
     }
 
     /**
@@ -770,6 +868,9 @@ public final class Console implements AutoCloseable, ConsoleContext {
     @Override
     public void close() {
         clicks.close();
+        // Before the shell: a job thread parked on a screen has to be told the display went away, or the
+        // shutdown waits on a person who is no longer being shown anything.
+        panel.close();
         if (shell != null) {
             shell.close();
             shell = null;
