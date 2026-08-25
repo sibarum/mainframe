@@ -1,10 +1,12 @@
 package dev.mainframe.gui.desktop;
 
+import dev.mainframe.gui.app.ConsoleApp;
 import dev.mainframe.gui.app.ProjectScope;
 import dev.mainframe.gui.console.Console;
 import dev.mainframe.gui.console.ConsoleSpec;
 import dev.mainframe.gui.profile.ProfileApp;
 import dev.mainframe.gui.profile.ProfileStore;
+import dev.mainframe.value.Values;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -32,9 +34,20 @@ import java.util.List;
  * proof that it is a program: {@code Desktop} is a hundred lines of platform plumbing and one
  * {@link Console#adopt} call, and what comes up is MainFrame, in a window, on its own.
  *
- * <p>It is also where the direction points. The list of things MainFrame can open is a {@code ConsoleApp} list,
- * and {@code launch} is already the command that opens one; an editor becoming something MainFrame opens rather
- * than something that opens MainFrame is a matter of which side of that list it ends up on, not a rewrite.
+ * <h2>Booting one with your own apps in it</h2>
+ * {@link #run} is the same boot with a list of {@link ConsoleApp}s handed in, which is what an application looks
+ * like when MainFrame is the program rather than a panel inside one. A whole application is then this:
+ *
+ * <pre>{@code
+ * public static void main(String[] args) throws Exception {
+ *     Desktop.run("calculator", "MainFrame",
+ *             (settings, memory) -> List.of(new Calculator(memory)), args);
+ * }
+ * }</pre>
+ *
+ * MainFrame comes up, {@code apps} lists what is in it, and {@code launch "calculator"} opens the calculator in
+ * a window of its own. Nothing in that application owns a frame loop, a window memory or an input backend —
+ * those are here, once.
  *
  * <pre>{@code
  * mvn -pl mainframe-vexel-gui compile exec:exec
@@ -45,35 +58,72 @@ import java.util.List;
  */
 public final class Desktop {
 
-    /** Where this application's own settings live: profiles, and where the window was left. */
+    /** Where a plain MainFrame's own settings live: profiles, and where the window was left. */
     private static final String APP = "mainframe";
+
+    /**
+     * What to plug into a booting console, given the two things an app usually needs and cannot make for
+     * itself: the application's settings file, and the window memory every window on this desk shares.
+     *
+     * <p>A function rather than a plain list because both of those are made by {@link #run} — one
+     * {@link Settings} for the whole application, because two instances over the same file each hold their own
+     * copy of it and the second one to save would drop whatever the first had added.
+     */
+    @FunctionalInterface
+    public interface Apps {
+        List<ConsoleApp> of(Settings settings, WindowMemory memory);
+    }
 
     private Desktop() {
     }
 
+    /** MainFrame on its own, with nothing but the shell and its profiles in it. */
     public static void main(String[] args) throws Exception {
+        run(APP, "MainFrame", (settings, memory) -> List.of(), args);
+    }
+
+    /**
+     * Boot MainFrame as the main window of an application called {@code appName}, with {@code apps} plugged in.
+     *
+     * <p>Profiles come as standard and do not have to be asked for: a shell that starts programs wants to be
+     * able to say which toolchain it starts them with, wherever it is running.
+     *
+     * @param appName where this application's settings live — its profiles, and where its windows were left
+     * @param title   what the console's title bar and the taskbar call it
+     * @param args    {@code --capture [out.png]} for a headless still; {@code --launch <app>} to come up with
+     *                one already open; else an optional frame cap
+     */
+    public static void run(String appName, String title, Apps apps, String[] args) throws Exception {
         args = java.util.Arrays.stream(args).filter(s -> !s.isBlank()).toArray(String[]::new);
 
         if (args.length >= 1 && args[0].equals("--capture")) {
-            capture(args.length >= 2 ? args[1] : "console.png");
+            capture(appName, apps, args.length >= 2 ? args[1] : "console.png");
             return;
+        }
+
+        // --launch <app>: come up with that app's window already open, as a shortcut on a desk would. It runs
+        // the ordinary command rather than calling launch() behind the shell's back, so it is echoed into the
+        // scrollback like any other line and a name nothing answers to is refused the way it always is.
+        String launch = "";
+        if (args.length >= 2 && args[0].equals("--launch")) {
+            launch = args[1];
+            args = java.util.Arrays.copyOfRange(args, 2, args.length);
         }
 
         int maxFrames = args.length > 0 ? Integer.parseInt(args[0]) : 0;
         Path cwd = Path.of("").toAbsolutePath();
 
-        // One Settings for the whole application, shared rather than opened twice: two instances over the same
-        // file each hold their own copy of it, so the second one to save would drop whatever the first added.
-        Settings settings = Settings.open(APP);
+        Settings settings = Settings.open(appName);
         WindowMemory memory = new WindowMemory(settings);
         ProfileApp profiles = new ProfileApp(new ProfileStore(settings));
 
         Console console = new Console(ConsoleSpec.builder()
-                .title("MainFrame")
+                .title(title)
                 .memory(memory)
                 .app(profiles)
                 // The header says which toolchain the next command will find, where a 5250 kept its library list.
                 .badge(profiles::badge)
+                .apps(apps.of(settings, memory))
                 // Nothing is hosting this, so there is no project — and saying so is better than inventing one.
                 // A project is chosen deliberately; the directory a process happened to start in is not a
                 // choice, and writing a project file into it because someone typed --project would be a
@@ -96,6 +146,9 @@ public final class Desktop {
             // The console takes the main window: its title bar commands it, its placement is remembered under
             // its own name, and closing it is quitting.
             console.adopt(app, cwd);
+            if (!launch.isEmpty()) {
+                console.run("launch " + Values.quoted(launch));
+            }
 
             TactrollerInputBridge bridge = input == null ? null : new TactrollerInputBridge(input,
                     console.gui().bus());
@@ -122,10 +175,12 @@ public final class Desktop {
      * checks. This doubles as a smoke test of the whole path — session, job thread, line sink, scrollback,
      * layout — with no window at all.
      */
-    private static void capture(String path) throws Exception {
-        Settings settings = Settings.open(APP);
+    private static void capture(String appName, Apps apps, String path) throws Exception {
+        Settings settings = Settings.open(appName);
+        WindowMemory unused = new WindowMemory(settings);
         try (Console console = new Console(ConsoleSpec.builder()
                 .app(new ProfileApp(new ProfileStore(settings)))
+                .apps(apps.of(settings, unused))
                 .build())) {
             console.start(Path.of("").toAbsolutePath());
             for (String line : List.of("version", "ls | where kind == \"file\" | select name size ext",

@@ -53,13 +53,14 @@ some commands, some menu entries, and — when it has one — a window to open.
 
 ```java
 public final class EditorApp implements ConsoleApp {
-    public String name()      { return "editor"; }
+    public String name()        { return "editor"; }
     public boolean launchable() { return true; }
 
     public void commands(Registry registry, ConsoleContext console) {
         registry.add(editCommand());     // a real MainFrame builtin
     }
     public void launch(ConsoleContext console) { raiseTheEditorWindow(); }
+    public void tick() { myWindow.tick(); }      // frame loop, once per frame
 }
 ```
 
@@ -68,6 +69,39 @@ argument checking, same `help`, same `--dry-run`, same errors — because they
 *are* built-in ones. `apps` lists what is plugged in and `launch "editor"` opens
 one, so an application that has a window is reachable from the command line
 without the console knowing what it is.
+
+`launch` does the thread hop for you: a command body runs on the shell's job
+thread, and `launch` queues your `launch(…)` onto the frame loop before calling
+it. `tick()` is called by the console rather than by whoever embedded it —
+plugging an app in has to be the whole of wiring it up.
+
+## MainFrame as the program
+
+`Desktop.run` is the same boot the standalone console uses, with your apps handed
+in. A whole application is then this:
+
+```java
+public static void main(String[] args) throws Exception {
+    Desktop.run("calculator", "MainFrame",
+            (settings, memory) -> List.of(new Calculator(memory)), args);
+}
+```
+
+MainFrame comes up as the main window, `apps` lists what is in it, and
+`launch "calculator"` opens the calculator in a window of its own — which in turn
+opens its own plot and history windows, so the window list is a tree rather than
+a list. Nothing in that application owns a frame loop, a window memory, an input
+backend or a clipboard; those are in `Desktop`, once.
+
+```
+~ > apps
+name        launchable  summary
+profiles    false       named sets of environment variables and binary directories
+calculator  true        a keypad, a tape, and a plotter for anything with a variable in it
+```
+
+`--launch <app>` comes up with one already open, `--capture [out.png]` writes a
+headless still, and a bare number is a frame cap.
 
 **Menu entries submit commands.** `ConsoleContext.run` echoes the line into the
 scrollback, so a menu that changes the environment has taught you the command

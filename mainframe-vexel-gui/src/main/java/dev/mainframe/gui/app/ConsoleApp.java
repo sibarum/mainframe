@@ -70,6 +70,19 @@ public interface ConsoleApp {
     default void menu(MenuSink menu, ConsoleContext console) {
     }
 
+    /**
+     * Frame loop, once per frame, for as long as the console is being ticked.
+     *
+     * <p>An app with a window of its own has a queue to drain and state to publish, and this is where. It is
+     * here rather than being the host's job because an app that only works when whoever embedded it remembered
+     * to call something is an app that will be embedded wrong: plugging one in has to be the whole of it.
+     *
+     * <p>Called whether or not the app's window is open, and before it has ever been opened — so the common
+     * body is a null check and a drain.
+     */
+    default void tick() {
+    }
+
     /** Whether {@link #launch} would do anything. A greyed line in a launcher beats an absent one. */
     default boolean launchable() {
         return false;

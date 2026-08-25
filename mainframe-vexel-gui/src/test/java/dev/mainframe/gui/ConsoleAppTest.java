@@ -42,10 +42,29 @@ final class ConsoleAppTest {
         final CountDownLatch ran = new CountDownLatch(1);
         volatile Path sawCwd;
         volatile boolean guiTaskRun;
+        volatile int ticks;
+        /** Whether this one claims to have a window. Off by default: most apps are only commands. */
+        volatile boolean hasWindow;
+        volatile int launched;
 
         @Override
         public String name() {
             return "recorder";
+        }
+
+        @Override
+        public void tick() {
+            ticks++;
+        }
+
+        @Override
+        public boolean launchable() {
+            return hasWindow;
+        }
+
+        @Override
+        public void launch(ConsoleContext console) {
+            launched++;
         }
 
         @Override
@@ -123,6 +142,50 @@ final class ConsoleAppTest {
             // Showing a console that is already up raises it; it must not greet again or double its commands.
             assertEquals(List.of("commands", "started"), recorder.events);
         }
+    }
+
+    @Test
+    void anAppIsTickedByTheConsoleRatherThanByTheHost() {
+        Recorder recorder = new Recorder();
+        try (Console console = console(recorder)) {
+            console.start(Path.of("").toAbsolutePath());
+            // Not before the console is ticked: an app that is ticked from its own constructor would be running
+            // before the frame loop it belongs to exists.
+            assertEquals(0, recorder.ticks);
+            console.tick();
+            console.tick();
+            assertEquals(2, recorder.ticks, "plugging an app in has to be the whole of wiring it up");
+        }
+    }
+
+    @Test
+    void launchRefusesWhatItCannotOpenRatherThanFailingQuietly() throws Exception {
+        Recorder recorder = new Recorder();
+        recorder.hasWindow = true;
+        try (Console console = console(recorder)) {
+            console.start(Path.of("").toAbsolutePath());
+
+            // There is no window system here, so launch has nothing to open onto. What must not happen is the
+            // app's launch() running anyway: it would build a window with no loop to draw it.
+            console.submit("launch \"recorder\"");
+            settle(console);
+            assertEquals(0, recorder.launched, "launch ran with no application behind the console");
+
+            // A name nothing answers to is refused before any of that is considered.
+            console.submit("launch \"nothing-by-that-name\"");
+            settle(console);
+            assertEquals(0, recorder.launched);
+        }
+    }
+
+    /** Wait for the job thread to finish whatever was submitted, then service the frame it asked for. */
+    private static void settle(Console console) throws InterruptedException {
+        long deadline = System.nanoTime() + TIMEOUT_SECONDS * 1_000_000_000L;
+        Thread.sleep(20);
+        while (console.busy() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        console.tick();
     }
 
     @Test

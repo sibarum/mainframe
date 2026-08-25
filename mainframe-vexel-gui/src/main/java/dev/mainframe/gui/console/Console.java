@@ -281,7 +281,10 @@ public final class Console implements AutoCloseable, ConsoleContext {
             if (memory.maximized(spec.windowName())) {
                 app.window().maximize();
             }
-            memory.watch(spec.windowName(), app.window());
+            // Watched with its tree, so the UI zoom is remembered too: Ctrl+= is the same kind of decision as
+                // dragging the window bigger, and losing it on quit is the same loss. The constructor has
+                // already set the range the restored factor is clamped into.
+                memory.watch(spec.windowName(), app.window(), gui);
         }
         gui.focus(prompt.node());
     }
@@ -564,6 +567,11 @@ public final class Console implements AutoCloseable, ConsoleContext {
         if (task != null) {
             task.run();
         }
+        // The apps last, and after the queue: a launch serviced above opens its window on this frame, so the
+        // app that owns it gets its first tick on the same frame rather than one later.
+        for (ConsoleApp app : spec.apps()) {
+            app.tick();
+        }
     }
 
     /**
@@ -717,7 +725,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
             } else {
                 memory.restoreBounds(spec.windowName(), created, spec.width(), spec.height());
             }
-            memory.watch(spec.windowName(), created);
+            memory.watch(spec.windowName(), created, gui);
         }
         gui.focus(prompt.node());
     }
