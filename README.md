@@ -21,23 +21,42 @@ There is a guided tour in [`examples/tour.mf`](examples/tour.mf):
 mainframe examples/tour.mf
 ```
 
+## What is in here
+
+Two modules, split along the line between what MainFrame *is* and what it *looks
+like on a particular machine*.
+
+| Module | What it is | Depends on |
+| --- | --- | --- |
+| [`mainframe-core`](mainframe-core) | The shell: the language, the interpreter, the commands, the embedding API. Zero runtime dependencies, native-image clean, no idea a screen exists. | nothing |
+| [`mainframe-vexel-gui`](mainframe-vexel-gui) | MainFrame as a window, on [vexelray-gui](https://github.com/sibarum/vexelray-gui): the console an application embeds, the seams it plugs its own commands and screens into, and a `main()` that boots MainFrame on its own. | `mainframe-core`, vexelray-gui |
+
+The shell is the program. Everything else — an editor, a calculator — is
+something it opens, and `mainframe-vexel-gui` is where that list lives. See
+[its README](mainframe-vexel-gui/README.md).
+
 ## Build
 
 Needs GraalVM (JDK 25) and Maven.
 
 ```bash
-mvn package
+mvn -pl mainframe-core package
 ```
 
-That produces `target/mainframe.jar`, runnable with `java -jar target/mainframe.jar`.
+That produces `mainframe-core/target/mainframe.jar`, runnable with
+`java -jar mainframe-core/target/mainframe.jar`. The shell builds on its own, on
+a machine that has never heard of vexelray, and that is meant to keep being true.
+
+A plain `mvn package` at the root builds both modules, which needs the vexelray
+stack installed locally.
 
 For the real thing — a single binary that starts instantly:
 
 ```bash
-mvn -Pnative package
+mvn -pl mainframe-core -Pnative package
 ```
 
-That produces `target/mainframe` (`mainframe.exe` on Windows) — an 18 MB binary
+That produces `mainframe-core/target/mainframe` (`mainframe.exe` on Windows) — an 18 MB binary
 that starts in about 25 ms. MainFrame has **zero runtime dependencies**, so
 there is no reflection configuration to maintain and nothing to teach
 native-image about.
@@ -445,11 +464,11 @@ The public API is the `dev.mainframe.api` package and nothing else:
 way to be sure it can carry a whole shell.
 
 There is a worked example in
-[`HostApp.java`](src/test/java/dev/mainframe/api/HostApp.java) — a task list with
+[`HostApp.java`](mainframe-core/src/test/java/dev/mainframe/api/HostApp.java) — a task list with
 a shell in it, including a `task-new` that asks for the details with a form:
 
 ```bash
-java -cp target/classes:target/test-classes dev.mainframe.api.HostApp
+java -cp mainframe-core/target/classes:mainframe-core/target/test-classes dev.mainframe.api.HostApp
 ```
 
 ## The language
@@ -643,7 +662,7 @@ between is an instant, since that is the only form that survives daylight saving
 a machine moving zones, and an index built on one computer being read on another.
 An explicit offset is honoured; without one, `2026-08-21` means your midnight.
 That is enforced rather than intended:
-[`Times`](src/main/java/dev/mainframe/value/Times.java) is the only place allowed
+[`Times`](mainframe-core/src/main/java/dev/mainframe/value/Times.java) is the only place allowed
 to turn a moment into text or text into a moment, and a test fails the build if a
 second formatter appears anywhere in `src/main/java`.
 

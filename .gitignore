@@ -1,2 +1,5 @@
 target/
 *.mfi
+# Captures written by mainframe-vexel-gui's --capture path. A screenshot meant for the docs is
+# added with git add -f.
+*.png

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.mainframe</groupId>
+    <artifactId>mainframe-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>mainframe-core</artifactId>
+  <packaging>jar</packaging>
+
+  <name>MainFrame Core</name>
+  <description>The shell that runs in GraalVM native-image. Designed so you can't mess it up.</description>
+
+  <properties>
+    <main.class>dev.mainframe.Main</main.class>
+  </properties>
+
+  <dependencies>
+    <!-- MainFrame has zero runtime dependencies on purpose: every jar is another
+         thing to teach native-image about. Tests are the only exception. -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!-- Still mainframe.jar, still mainframe(.exe). The artifact this module is *published* as gained a
+         suffix; the thing you run did not, because that name is on the command line and in muscle memory. -->
+    <finalName>mainframe</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>${main.class}</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- mvn -Pnative package  ->  mainframe-core/target/mainframe(.exe)
+
+         Declared here rather than in the parent on purpose: this is the only module native-image is ever asked
+         to compile, and a profile on the parent would have it attempt the GUI module too. -->
+    <profile>
+      <id>native</id>
+      <build>
+        <plugins>
+          <plugin>
+            <!-- native-image compiles small probe executables and runs them to
+                 measure the platform. Windows Application Control policies block a
+                 brand-new unsigned .exe under %TEMP%, so the probes are pointed at
+                 target/nitmp instead, which this plugin makes sure exists. -->
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>make-native-temp-dir</id>
+                <phase>prepare-package</phase>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <target>
+                    <mkdir dir="${project.build.directory}/nitmp"/>
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <extensions>true</extensions>
+            <executions>
+              <execution>
+                <id>build-native</id>
+                <goals><goal>compile-no-fork</goal></goals>
+                <phase>package</phase>
+              </execution>
+            </executions>
+            <configuration>
+              <imageName>mainframe</imageName>
+              <mainClass>${main.class}</mainClass>
+              <buildArgs>
+                <buildArg>--no-fallback</buildArg>
+                <buildArg>-O2</buildArg>
+                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                <buildArg>-J-Djava.io.tmpdir=${project.build.directory}/nitmp</buildArg>
+              </buildArgs>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
