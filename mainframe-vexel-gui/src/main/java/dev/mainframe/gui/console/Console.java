@@ -337,6 +337,17 @@ public final class Console implements AutoCloseable, ConsoleContext {
         return shell != null && shell.busy();
     }
 
+    /**
+     * How the last command failed, or {@code ""} once one succeeds.
+     *
+     * <p>The same string the message line shows, {@code error[CODE] what happened}. Public because a host with a
+     * status bar of its own may want to say it there too, and because it is the one fact about a finished command
+     * that is not already in the scrollback in some other form.
+     */
+    public String lastError() {
+        return shell == null ? "" : shell.lastError();
+    }
+
     /** Whether the window is up right now — polled each frame so it can be reopened next launch. */
     public boolean isOpen() {
         return primary ? host != null : handle != null && handle.open();
@@ -629,6 +640,11 @@ public final class Console implements AutoCloseable, ConsoleContext {
      * way of finding {@code launch} and {@code env}, not an alternative to them.
      */
     private void contextMenu(MenuSink menu) {
+        if (shell == null) {
+            // No session yet, so nothing on this menu would run. Reachable only if a host shows the window
+            // before starting it, which is a mistake rather than a state to render for.
+            return;
+        }
         for (ConsoleApp app : spec.apps()) {
             menu.separator();
             app.menu(menu, this);
@@ -642,7 +658,9 @@ public final class Console implements AutoCloseable, ConsoleContext {
                     menu.separator();
                     any = true;
                 }
-                menu.item("Open " + app.name(), () -> run("launch " + LaunchCommands.quoted(app.name())));
+                // The shortest line that opens it, so the menu teaches what anyone would actually type.
+                String line = shell.launchLine(app);
+                menu.item("Open " + app.name(), () -> run(line));
             }
         }
         menu.separator();

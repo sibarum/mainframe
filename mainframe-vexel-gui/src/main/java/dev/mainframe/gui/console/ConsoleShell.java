@@ -52,6 +52,7 @@ final class ConsoleShell implements AutoCloseable {
     /** The command line, as something MainFrame's forms and confirmations can read a line from. */
     private final PromptPipe pipe = new PromptPipe();
     private final Session session;
+    private final LaunchCommands launcher;
     private final Interpreter interpreter;
     private final ExecutorService jobs;
     private final AtomicBoolean busy = new AtomicBoolean();
@@ -83,11 +84,16 @@ final class ConsoleShell implements AutoCloseable {
         session.interactive(false);
 
         Registry registry = Registry.standard();
-        // The launcher first, so an app cannot quietly take the name of the command that opens it.
-        new LaunchCommands(apps, context).register(registry);
+        this.launcher = new LaunchCommands(apps, context);
+        // Three passes, and the order is the whole of the naming policy. apps and launch go on first, so an app
+        // cannot quietly take the name of the command that opens it. The apps go on next, so they can claim
+        // anything else that is still free. The name-shaped shortcuts go on last, so they fill only what is left
+        // -- which is what lets an app call its own command by its own name, as calc does.
+        launcher.core(registry);
         for (ConsoleApp app : apps) {
             app.commands(registry, context);
         }
+        launcher.shortcuts(registry);
         this.interpreter = new Interpreter(session, registry);
 
         this.jobs = Executors.newSingleThreadExecutor(r -> {
@@ -133,6 +139,14 @@ final class ConsoleShell implements AutoCloseable {
     /** Hand a typed line to whatever is asking. */
     void answer(String line) {
         pipe.offer(line);
+    }
+
+    /**
+     * The shortest line that opens {@code app} in this console -- its own name where that reached the registry,
+     * and the explicit {@code launch} otherwise. What the context menu shows.
+     */
+    String launchLine(ConsoleApp app) {
+        return launcher.lineFor(app);
     }
 
     /**

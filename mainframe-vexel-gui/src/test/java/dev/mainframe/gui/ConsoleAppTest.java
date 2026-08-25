@@ -170,12 +170,84 @@ final class ConsoleAppTest {
             console.submit("launch \"recorder\"");
             settle(console);
             assertEquals(0, recorder.launched, "launch ran with no application behind the console");
+            assertEquals("E922", code(console));
 
             // A name nothing answers to is refused before any of that is considered.
             console.submit("launch \"nothing-by-that-name\"");
             settle(console);
+            assertEquals("E920", code(console));
             assertEquals(0, recorder.launched);
         }
+    }
+
+    @Test
+    void aLaunchableAppsNameIsACommand() throws Exception {
+        Recorder recorder = new Recorder();
+        recorder.hasWindow = true;
+        try (Console console = console(recorder)) {
+            console.start(Path.of("").toAbsolutePath());
+
+            // Typing the app's name has to reach the launcher, which then refuses for want of a window system.
+            // E922 is the whole assertion: an unknown command would be a parse-time failure with another code,
+            // so this distinguishes "the shortcut exists" from "nothing by that name".
+            console.submit("recorder");
+            settle(console);
+            assertEquals("E922", code(console), "an app's name did not become a command");
+        }
+    }
+
+    @Test
+    void anAppKeepsItsOwnNameWhenItClaimedItFirst() throws Exception {
+        // An app that registers a command called exactly what the app is called. The console must not try to add
+        // a second command by that name -- the registry refuses duplicates outright, so getting this wrong is a
+        // crash on start rather than a quiet shadowing.
+        ConsoleApp claimsOwnName = new ConsoleApp() {
+            @Override
+            public String name() {
+                return "twin";
+            }
+
+            @Override
+            public boolean launchable() {
+                return true;
+            }
+
+            @Override
+            public void commands(Registry registry, ConsoleContext console) {
+                Signature signature = Signature.named("twin", "twin")
+                        .summary("the app's own command, under the app's own name")
+                        .input(ValueType.NOTHING)
+                        .output(ValueType.NOTHING)
+                        .effect(Signature.Effect.READS)
+                        .build();
+                registry.add(new Builtin() {
+                    @Override
+                    public Signature signature() {
+                        return signature;
+                    }
+
+                    @Override
+                    public Value run(Args args) {
+                        return Value.Nothing.INSTANCE;
+                    }
+                });
+            }
+        };
+        try (Console console = console(claimsOwnName)) {
+            console.start(Path.of("").toAbsolutePath());
+            // The app's own command answers, rather than the launcher's refusal.
+            console.submit("twin");
+            settle(console);
+            assertEquals("", console.lastError(), "the console shadowed a command the app had already claimed");
+        }
+    }
+
+    /** The error code off the console's last command, or {@code ""} if it succeeded. */
+    private static String code(Console console) {
+        String error = console.lastError();
+        int open = error.indexOf('[');
+        int close = error.indexOf(']');
+        return open < 0 || close < open ? error : error.substring(open + 1, close);
     }
 
     /** Wait for the job thread to finish whatever was submitted, then service the frame it asked for. */

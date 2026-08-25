@@ -66,9 +66,22 @@ public final class EditorApp implements ConsoleApp {
 
 The commands you register are indistinguishable from built-in ones — same
 argument checking, same `help`, same `--dry-run`, same errors — because they
-*are* built-in ones. `apps` lists what is plugged in and `launch "editor"` opens
-one, so an application that has a window is reachable from the command line
-without the console knowing what it is.
+*are* built-in ones. `apps` lists what is plugged in, so an application that has
+a window is reachable from the command line without the console knowing what it
+is.
+
+**Typing a program's name runs it.** Every launchable app also gets a command
+named after itself — `editor` opens the editor — so the everyday way to start
+something is its name, not a verb and a quoted string. `launch "editor"` is still
+there for scripts, where a name that came out of a variable has to be quoted
+anyway.
+
+Names are handed out in three passes, and the order is the whole policy: `apps`
+and `launch` first, so an app can't quietly take the command that opens it; then
+every app's own commands; then the name-shaped shortcuts, filling only what is
+left. So an app is free to claim its own name for something better — the
+calculator registers `calc`, which works an expression out when given one and
+opens the keypad when not.
 
 `launch` does the thread hop for you: a command body runs on the shell's job
 thread, and `launch` queues your `launch(…)` onto the frame loop before calling
@@ -87,17 +100,20 @@ public static void main(String[] args) throws Exception {
 }
 ```
 
-MainFrame comes up as the main window, `apps` lists what is in it, and
-`launch "calculator"` opens the calculator in a window of its own — which in turn
-opens its own plot and history windows, so the window list is a tree rather than
-a list. Nothing in that application owns a frame loop, a window memory, an input
-backend or a clipboard; those are in `Desktop`, once.
+MainFrame comes up as the main window, `apps` lists what is in it, and `calc`
+opens the calculator in a window of its own — which in turn opens its own plot and
+history windows, so the window list is a tree rather than a list. Nothing in that
+application owns a frame loop, a window memory, an input backend or a clipboard;
+those are in `Desktop`, once.
 
 ```
 ~ > apps
 name        launchable  summary
 profiles    false       named sets of environment variables and binary directories
 calculator  true        a keypad, a tape, and a plotter for anything with a variable in it
+
+~ > calc                    # the keypad
+~ > calc "2^10"             # 1024
 ```
 
 `--launch <app>` comes up with one already open, `--capture [out.png]` writes a
