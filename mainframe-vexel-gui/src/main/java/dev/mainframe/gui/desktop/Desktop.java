@@ -4,8 +4,6 @@ import dev.mainframe.gui.app.ConsoleApp;
 import dev.mainframe.gui.app.ProjectScope;
 import dev.mainframe.gui.console.Console;
 import dev.mainframe.gui.console.ConsoleSpec;
-import dev.mainframe.gui.profile.ProfileApp;
-import dev.mainframe.gui.profile.ProfileStore;
 import dev.mainframe.value.Values;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
@@ -13,6 +11,7 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.app.WindowInput;
 import dev.vexelray.gui.core.app.WindowMemory;
+import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.os.Decorations;
 import sibarum.tactroller.api.BackendException;
 import sibarum.tactroller.api.CoordinateSpace;
@@ -59,7 +58,7 @@ import java.util.List;
  */
 public final class Desktop {
 
-    /** Where a plain MainFrame's own settings live: profiles, and where the window was left. */
+    /** Where a plain MainFrame's own settings live: where the window was left. */
     private static final String APP = "mainframe";
 
     /**
@@ -78,7 +77,7 @@ public final class Desktop {
     private Desktop() {
     }
 
-    /** MainFrame on its own, with nothing but the shell and its profiles in it. */
+    /** MainFrame on its own, with nothing but the shell in it. */
     public static void main(String[] args) throws Exception {
         run(APP, "MainFrame", (settings, memory) -> List.of(), args);
     }
@@ -86,14 +85,11 @@ public final class Desktop {
     /**
      * Boot MainFrame as the main window of an application called {@code appName}, with {@code apps} plugged in.
      *
-     * <p>Profiles come as standard and do not have to be asked for: a shell that starts programs wants to be
-     * able to say which toolchain it starts them with, wherever it is running.
-     *
-     * @param appName where this application's settings live — its profiles, and where its windows were left
+     * @param appName where this application's settings live — where its windows were left
      * @param title   what the console's title bar and the taskbar call it
      * @param args    {@code --capture [out.png]} or {@code --capture-panel [out.png]} for a headless still;
-     *                {@code --launch <app>} to come up with
-     *                one already open; else an optional frame cap
+     *                {@code --launch <app>} to come up with one already open; {@code --run <line>} to come up
+     *                with a line of MainFrame already run; else an optional frame cap
      */
     public static void run(String appName, String title, Apps apps, String[] args) throws Exception {
         args = java.util.Arrays.stream(args).filter(s -> !s.isBlank()).toArray(String[]::new);
@@ -119,20 +115,33 @@ public final class Desktop {
             args = java.util.Arrays.copyOfRange(args, 2, args.length);
         }
 
+        // --run <line>: come up with one line of MainFrame already run.
+        //
+        // This is what a desktop shortcut and a file association need, and --launch is the special case of it
+        // that only names an app: `mainframe --run "edit ./notes.md"` is how the operating system hands a file
+        // to whichever program in here knows what to do with one. It goes through the same submit() the prompt
+        // does, so it is echoed, it is in the history, and a line that does not parse is refused on screen
+        // rather than swallowed before the window appears.
+        String startup = "";
+        if (args.length >= 2 && args[0].equals("--run")) {
+            startup = args[1];
+            args = java.util.Arrays.copyOfRange(args, 2, args.length);
+        }
+
         int maxFrames = args.length > 0 ? Integer.parseInt(args[0]) : 0;
         Path cwd = Path.of("").toAbsolutePath();
 
         Settings settings = Settings.open(appName);
         WindowMemory memory = new WindowMemory(settings);
-        ProfileApp profiles = new ProfileApp(new ProfileStore(settings));
+        // Built once and held, because both the console and the clipboard binding below need the same list:
+        // asking the Apps function twice would hand out two sets of apps, and the windows the console had
+        // registered commands against would not be the windows anything else here was talking about.
+        List<ConsoleApp> plugged = apps.of(settings, memory);
 
         Console console = new Console(ConsoleSpec.builder()
                 .title(title)
                 .memory(memory)
-                .app(profiles)
-                // The header says which toolchain the next command will find, where a 5250 kept its library list.
-                .badge(profiles::badge)
-                .apps(apps.of(settings, memory))
+                .apps(plugged)
                 // Nothing is hosting this, so there is no project — and saying so is better than inventing one.
                 // A project is chosen deliberately; the directory a process happened to start in is not a
                 // choice, and writing a project file into it because someone typed --project would be a
@@ -149,14 +158,29 @@ public final class Desktop {
             attachInput(input, app);
             // Every window this application opens gets its own backend from here — dialogs included.
             app.input(Desktop::windowInput);
+            // Dialogs, once, at the application edge, because that is the only place that has the GuiApp. An
+            // app plugged in here has real questions to ask — an editor being closed on unsaved work is the
+            // obvious one — and Modals.show throws rather than guessing if nobody installed it. Installing it
+            // for every desk means an app never has to care which arrangement it was booted in.
+            Modals dialogs = Modals.install(app);
             if (clipboard != null) {
                 bindClipboard(console.gui(), clipboard);
+                // And on every window the plugged-in apps present. Each Gui carries its own clipboard, so a
+                // window that was not bound here would copy into a buffer only it can read.
+                for (ConsoleApp plug : plugged) {
+                    for (Gui window : plug.windows()) {
+                        bindClipboard(window, clipboard);
+                    }
+                }
             }
             // The console takes the main window: its title bar commands it, its placement is remembered under
             // its own name, and closing it is quitting.
             console.adopt(app, cwd);
             if (!launch.isEmpty()) {
                 console.run("launch " + Values.quoted(launch));
+            }
+            if (!startup.isEmpty()) {
+                console.run(startup);
             }
 
             TactrollerInputBridge bridge = input == null ? null : new TactrollerInputBridge(input,
@@ -168,6 +192,9 @@ public final class Desktop {
                     memory.poll();
                 });
             } finally {
+                // Drop any dialog still queued: an application on its way out must not be held up by a
+                // question there is nobody left to answer.
+                dialogs.close();
                 console.close();
                 memory.save();
             }
@@ -187,7 +214,6 @@ public final class Desktop {
         Settings settings = Settings.open(appName);
         WindowMemory unused = new WindowMemory(settings);
         try (Console console = new Console(ConsoleSpec.builder()
-                .app(new ProfileApp(new ProfileStore(settings)))
                 .apps(apps.of(settings, unused))
                 .build())) {
             console.start(Path.of("").toAbsolutePath());
@@ -211,7 +237,6 @@ public final class Desktop {
         Settings settings = Settings.open(appName);
         WindowMemory unused = new WindowMemory(settings);
         try (Console console = new Console(ConsoleSpec.builder()
-                .app(new ProfileApp(new ProfileStore(settings)))
                 .apps(apps.of(settings, unused))
                 .build())) {
             console.start(Path.of("").toAbsolutePath());

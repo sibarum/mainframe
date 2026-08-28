@@ -30,6 +30,24 @@
     <module>mainframe-vexel-gui</module>
   </modules>
 
+  <profiles>
+    <!--
+      mvn -Pdist,native package  ->  mainframe-dist/target/mainframe.exe
+
+      The third module, and the only one that is not a library: one executable with the stock shell and the
+      programs it opens in it. It is behind a profile rather than in the list above because it names
+      applications, and those live in their own repositories. Listing it as an ordinary module would mean a
+      fresh clone could not build MainFrame without first building the calculator and the editor. See
+      mainframe-dist/pom.xml.
+    -->
+    <profile>
+      <id>dist</id>
+      <modules>
+        <module>mainframe-dist</module>
+      </modules>
+    </profile>
+  </profiles>
+
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

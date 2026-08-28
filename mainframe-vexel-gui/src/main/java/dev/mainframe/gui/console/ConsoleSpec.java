@@ -24,7 +24,6 @@ import java.util.function.Supplier;
  *         .windowName("terminal").title("Terminal")
  *         .memory(memory)
  *         .project(() -> ProjectScope.at(folder, ".vtext"))
- *         .app(new ProfileApp(new ProfileStore(settings)))
  *         .app(editorCommands)
  *         .build());
  * }</pre>

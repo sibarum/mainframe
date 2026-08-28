@@ -31,7 +31,6 @@ Console console = new Console(ConsoleSpec.builder()
         .windowName("terminal").title("Terminal")
         .memory(windowMemory)
         .project(() -> ProjectScope.at(projectFolder, ".myapp"))
-        .app(new ProfileApp(new ProfileStore(settings)))
         .app(myApp)
         .build());
 
@@ -109,7 +108,6 @@ those are in `Desktop`, once.
 ```
 ~ > apps
 name        launchable  summary
-profiles    false       named sets of environment variables and binary directories
 calculator  true        a keypad, a tape, and a plotter for anything with a variable in it
 
 ~ > calc                    # the keypad
@@ -124,8 +122,8 @@ and a bare number is a frame cap.
 scrollback, so a menu that changes the environment has taught you the command
 rather than leaving you guessing at what it did — and anything the menu can do
 can be scripted, piped and put in a file, because it was never anything but a
-command. `ProfileApp` is the worked example: its commands, its menu and its
-header badge are all contributed through this interface and nothing else.
+command. An app's commands, its menu and its header badge are all contributed
+through this interface and nothing else — there is no private door.
 
 ## Data entry, two ways of asking
 
@@ -133,7 +131,11 @@ header badge are all contributed through this interface and nothing else.
 it. You did not draw anything either way.
 
 ```java
-Value.Rec answers = console.form(Profile.definition(), starting, "New profile");
+Form form = Form.read(Json.parse("""
+        [{"name": "name", "label": "Full name", "required": true},
+         {"name": "email", "help": "where the receipt goes"}]
+        """, Span.NONE), Span.NONE);
+Value.Rec answers = console.form(form, starting, "New customer");
 ```
 
 With a window there is a display to borrow, so the whole form goes up at once as
@@ -224,7 +226,6 @@ one that lets MainFrame render down.
 | --- | --- |
 | `dev.mainframe.gui.app` | `ConsoleApp`, `ConsoleContext`, `ProjectScope` — the seams. Knows nothing about the window. |
 | `dev.mainframe.gui.console` | `Console`, `ConsoleSpec`, and the machinery behind them: the ANSI translation, the scrollback ring, the prompt pipe, the panel, the phosphor palette. |
-| `dev.mainframe.gui.profile` | Environment profiles as a `ConsoleApp`: toolchains, said once and applied whole. |
 | `dev.mainframe.gui.desktop` | `Desktop` — the standalone `main()`. |
 
 ## Why the console looks like a 5250

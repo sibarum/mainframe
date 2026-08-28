@@ -42,6 +42,17 @@
       <version>${vexelray-gui.version}</version>
     </dependency>
 
+    <!-- The native file dialog, and the only native binding in here. It is what lets this editor claim `pick`
+         in the panel protocol: a form asking for a path gets the OS chooser, with its shortcuts, its network
+         places and the folder somebody was last in, which is not a thing worth reimplementing on a tube.
+         Windows and macOS only: see NativeChooser, which asks before claiming, and MainFrame draws its own
+         chooser everywhere else. -->
+    <dependency>
+      <groupId>dev.vexelray.gui</groupId>
+      <artifactId>vexelray-gui-nfd</artifactId>
+      <version>${vexelray-gui.version}</version>
+    </dependency>
+
     <!-- Input and clipboard, for the standalone boot only. An application that hosts the console already owns
          both and wires them itself (Console.gui() is public for exactly that); Desktop is the case where there
          is no application, so the module has to be able to open them. -->
@@ -72,6 +83,11 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Constructing a Console asks whether this machine has a native file dialog, which loads the NFD
+               library. Without this the JDK warns about the restricted call on every test run. -->
+          <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>

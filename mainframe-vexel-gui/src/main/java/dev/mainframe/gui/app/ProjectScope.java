@@ -28,16 +28,12 @@ import java.nio.file.Path;
  * older one ignores instead of failing. It is atomic on write, so a crash leaves the previous file rather than
  * half of this one.
  *
- * <p><b>It is meant to be committed.</b> So nothing machine-specific goes in it: this file records that the
- * project prefers the profile <em>named</em> {@code rust-nightly}, and never what that profile contains. The
- * contents are the user's, in the user's own settings, because a directory of toolchains on one machine is not a
- * directory of toolchains on another. A checkout that names a profile nobody has is told so, once, and carries
- * on.
+ * <p><b>It is meant to be committed.</b> So nothing machine-specific goes in it: a setting here names something
+ * by name and never says what it contains, because a path on one machine is not a path on another. What that
+ * name refers to belongs in the user's own settings, and a checkout naming something nobody has is told so,
+ * once, and carries on.
  */
 public final class ProjectScope {
-
-    /** The profile this project prefers, by name. */
-    private static final String PROFILE = "profile";
 
     private final Path root;
     private final String fileName;
@@ -94,24 +90,24 @@ public final class ProjectScope {
         return root != null && Files.isRegularFile(file());
     }
 
-    /** The profile this project prefers, or {@code ""} if it does not name one. */
-    public String profile() {
-        return store == null ? "" : store.getString(PROFILE, "");
+    /** What this project says about {@code key}, or {@code fallback} where it says nothing. */
+    public String get(String key, String fallback) {
+        return store == null ? fallback : store.getString(key, fallback);
     }
 
     /**
-     * Name the profile this project prefers, and write the file. An empty name clears the preference and leaves
-     * the file behind — a project file that exists with nothing in it says "this project has been configured and
-     * wants the default", which is a different statement from a file that was never written.
+     * Record something about this project and write the file. A blank value clears the key and leaves the file
+     * behind — a project file that exists with nothing in it says "this project has been configured and wants
+     * the default", which is a different statement from a file that was never written.
      */
-    public void profile(String name) {
+    public void set(String key, String value) {
         if (store == null) {
             return;
         }
-        if (name == null || name.isBlank()) {
-            store.remove(PROFILE);
+        if (value == null || value.isBlank()) {
+            store.remove(key);
         } else {
-            store.putString(PROFILE, name.trim());
+            store.putString(key, value.trim());
         }
         store.save();
     }

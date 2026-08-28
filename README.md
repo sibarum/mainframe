@@ -214,13 +214,35 @@ order  directory                 missing
 7      C:\Tools\old-sdk\bin      true
 ```
 
-Because MainFrame resolves external programs against *its own* PATH rather than
-letting the OS use the one this process inherited, `path-add` takes effect on the
-next command — and "not found" becomes an error that says where it looked.
+`path` and `path-add` describe the environment MainFrame hands to the programs it
+runs. They do not make anything runnable on their own: see below.
 
-A program embedding MainFrame can also install programs of its own, which run in
-the JVM instead of being spawned but are still written with a caret. `programs`
-lists them, and `which` says so when one stands in front of a real binary — see
+### A caret reaches this application's own programs
+
+**MainFrame starts no processes.** A `^name` stage does not search your PATH and
+never spawns anything — it reaches a program the surrounding application
+installed, in this JVM. `programs` lists what is there, and a name nobody
+installed is an error that says so rather than sending you off to check your
+PATH.
+
+```
+~ > programs
+name  summary                       usage       run-it-with
+jdk   pick the JDK this shell uses  jdk <ver>   ^jdk
+
+~ > ^jdk 25
+```
+
+The stage after the name is not read as MainFrame at all, so a program owns its
+own argument syntax. Only unquoted whitespace separates arguments; quotes group
+(and join, so `-Dmsg="hello world"` is one argument); `$name` still expands, and
+inside single quotes it does not. Backslash is not an escape, because on Windows
+it is a path separator far more often. A `|`, `;` or newline still ends the
+stage, so `^jdk --list | lines | first` works — everything else is a character in
+a word.
+
+What a caret gives up is what it always gave up: no typed arguments, no MainFrame
+`--help`, no guardrails. The program is in charge. See
 [Programs of your own](#programs-of-your-own-tool-in-process).
 
 The guardrails carry over: `path-add` refuses a directory that doesn't exist
@@ -774,12 +796,62 @@ gives back the same values it went in as.
 | `min` / `max` | characters for text, the value itself for a number or a moment, entries for a `table` |
 | `match` | a regular expression the *whole* answer has to match |
 | `choose` | a list to pick from, offered as a numbered menu |
+| `pick` | for a `path`: `file`, `folder` or `save` — offer a chooser as well as somewhere to type |
 | `help` | a line of explanation shown under the label |
 | `default` | offered as the answer, and checked against the field's own rules |
 | `fields` | for a `table`: the questions each entry is made of |
 
 A field that is only a name can be written as one, so a quick form is quick to
 write: `form ["name", "email", "phone"]`.
+
+**A path can be browsed for.** Some paths are quicker typed, and a `path` field
+always takes typing. But a JDK four directories down inside a folder with a build
+number in its name is nobody's idea of a thing to type, so `pick` says which
+question is being asked and the field offers a chooser too:
+
+```
+~/tools > form [{name: "jdk", type: "path", pick: "folder", required: true},
+...             {name: "log", type: "path", pick: "save"}]
+```
+
+```
+ JDK .......................................................... required
+   a folder to choose
+   !browse looks for one, or type the path
+ > !browse
+  CHOOSE A FOLDER  /home/ada/tools
+     1) [graalvm-jdk-25.0.1]
+     2) [jdk-21.0.5+11]
+     3) [maven-3.9.9]
+    3 things
+    a number goes there, .. goes up, a path goes straight to it
+    blank takes this folder, !cancel goes back to the field
+  pick> 2
+  CHOOSE A FOLDER  /home/ada/tools/jdk-21.0.5+11
+    no folders in here
+    a number goes there, .. goes up, a path goes straight to it
+    blank takes this folder, !cancel goes back to the field
+  pick>
+   chose /home/ada/tools/jdk-21.0.5+11
+```
+
+The three words are three different questions: `file` and `folder` want one that
+is already there, `save` wants a name that need not be. All three still come back
+as a path, because that is what they are — `pick` sits beside `choose` rather
+than beside `type` for the same reason `choose` does: both turn an entry into a
+way of picking, and neither changes what the answer is.
+
+**Nothing new had to be drawn for it.** On a display MainFrame has borrowed, an
+editor that says it has a file chooser is handed the field and left to it; every
+other editor gets a button, and behind the button is a screen of text and things
+to click. Which is the promise the [panel protocol](PROTOCOL.md) makes: adding a
+feature to MainFrame never means writing a new editor.
+
+The console window is the first editor to take that offer: on Windows and macOS
+it opens the operating system's own dialog — Ctrl+O on the field, and the key line
+under the screen says so while the caret is there. Anywhere the native dialog does
+not exist it says nothing about `pick`, and MainFrame draws the listing above
+instead. Same form, same answer, and neither half knows which one ran.
 
 **Lists of details repeat a few questions** rather than a single answer. That is
 what `type: "table"` and `fields` are: the entry is a sub-form, MainFrame asks
@@ -1081,11 +1153,16 @@ Set `MAINFRAME_HOME` to put it somewhere else.
 - No line editing, history recall or tab completion in the REPL yet. The
   signatures already describe everything completion needs; the terminal handling
   is the missing half.
-- External programs are captured, not streamed, unless the caret command is the
-  last stage of an interactive line — so a pager or an editor works, but
-  `^top | where ...` does not.
-- Environment changes last for the session only. There is no startup profile yet,
-  so nothing carries over to the next run.
+- Nothing on your PATH can be run. A caret reaches the programs the surrounding
+  application installed and nothing else — MainFrame starts no processes at all.
+  `path` and `env` still describe an environment, but for now nothing is handed
+  it.
+- A hosted program's output is captured, not streamed, unless the caret stage is
+  the last one on an interactive line. A windowed session is deliberately not
+  interactive, so a long-running program shows nothing until it finishes.
+  Streaming output is the next thing this needs.
+- Environment changes last for the session only, and nothing carries over to the
+  next run.
 - No functions or user-defined commands, and no background jobs.
 - On a terminal, a form asks for its fields downwards, because there is no cursor
   addressing to fill one in on the spot. A field cannot be jumped to by name —

@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.mainframe</groupId>
+    <artifactId>mainframe-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>mainframe-dist</artifactId>
+  <packaging>jar</packaging>
+
+  <name>MainFrame Distributable</name>
+  <description>
+    One mainframe.exe: the stock shell, and the programs it opens in it.
+  </description>
+
+  <!--
+    Why this module is not in the parent's default module list.
+
+    The other two modules are libraries and answer to nobody: mainframe-core compiles on a machine that has
+    never heard of vexelray, and mainframe-vexel-gui compiles against the graphics stack and nothing above it.
+    This one is the opposite. It is a leaf, and it names applications, so building it needs the calculator and
+    the editor installed. Listing it as an ordinary module would make a fresh clone of MainFrame unbuildable
+    without them, which trades the parent's one real invariant for a convenience. So it lives behind -Pdist,
+    and the ordinary build stays exactly what it was.
+
+    The arrow direction is the point and it is deliberate: an app depends on mainframe-vexel-gui and never the
+    reverse, and this module is the one place allowed to know both ends. Nothing in here is a library. If
+    something here turns out to be reusable it belongs in mainframe-vexel-gui instead.
+  -->
+
+  <properties>
+    <main.class>dev.mainframe.dist.Dist</main.class>
+    <calculator.version>0.1.0-SNAPSHOT</calculator.version>
+    <text-editor.version>0.1.0-SNAPSHOT</text-editor.version>
+    <!-- One token each, because a Maven property is not a command line. Blank slots are dropped. -->
+    <app.args></app.args>
+    <app.args2></app.args2>
+  </properties>
+
+  <dependencies>
+    <!-- MainFrame as a window, and the shared boot every application built this way uses. Brings
+         mainframe-core, the shell itself, in behind it. -->
+    <dependency>
+      <groupId>dev.mainframe</groupId>
+      <artifactId>mainframe-vexel-gui</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- The two programs this distributable carries. Each is an ordinary ConsoleApp out of its own
+         repository: nothing was added to either one for the sake of being shipped here. -->
+    <dependency>
+      <groupId>dev.vexelray.demo</groupId>
+      <artifactId>calculator-vexel-demo</artifactId>
+      <version>${calculator.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.vexelray.demo</groupId>
+      <artifactId>text-editor-vexel-demo</artifactId>
+      <version>${text-editor.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!-- mainframe.jar and mainframe(.exe): that name is on the command line and in muscle memory. -->
+    <finalName>mainframe</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>${main.class}</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <!-- mvn -Pdist -pl mainframe-dist compile exec:exec  ->  the same program on the JVM, for when the
+           question is whether MainFrame works rather than whether native-image can hold it. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <configuration>
+          <executable>${java.home}/bin/java</executable>
+          <classpathScope>runtime</classpathScope>
+          <arguments>
+            <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-classpath</argument>
+            <classpath/>
+            <argument>${main.class}</argument>
+            <argument>${app.args}</argument>
+            <argument>${app.args2}</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- The native backends, chosen by the host OS. The app modules declare these in profiles of their own,
+         and a profile does not travel with a dependency, so they are named again here. This is the module
+         being built, so this is where they belong. -->
+    <profile>
+      <id>platform-windows</id>
+      <activation><os><family>windows</family></os></activation>
+      <dependencies>
+        <dependency>
+          <groupId>dev.vexelray</groupId>
+          <artifactId>vexelray-os-windows</artifactId>
+          <version>${vexelray.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+        <dependency>
+          <groupId>sibarum.tactroller</groupId>
+          <artifactId>tactroller-windows</artifactId>
+          <version>${tactroller.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>platform-linux</id>
+      <activation><os><family>unix</family><name>linux</name></os></activation>
+      <dependencies>
+        <dependency>
+          <groupId>dev.vexelray</groupId>
+          <artifactId>vexelray-os-linux</artifactId>
+          <version>${vexelray.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+        <dependency>
+          <groupId>sibarum.tactroller</groupId>
+          <artifactId>tactroller-linux</artifactId>
+          <version>${tactroller.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>platform-macos</id>
+      <activation><os><family>mac</family></os></activation>
+      <dependencies>
+        <dependency>
+          <groupId>dev.vexelray</groupId>
+          <artifactId>vexelray-os-macos</artifactId>
+          <version>${vexelray.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+        <dependency>
+          <groupId>sibarum.tactroller</groupId>
+          <artifactId>tactroller-macos</artifactId>
+          <version>${tactroller.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+
+    <!-- mvn -Pdist,native package  ->  mainframe-dist/target/mainframe(.exe) -->
+    <profile>
+      <id>native</id>
+      <build>
+        <plugins>
+          <plugin>
+            <!-- native-image compiles small probe executables and runs them to measure the platform. Windows
+                 Application Control blocks a brand-new unsigned .exe under %TEMP%, so the probes are pointed
+                 at target/nitmp instead, which this makes sure exists. Same reason as mainframe-core. -->
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>make-native-temp-dir</id>
+                <phase>prepare-package</phase>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <target>
+                    <mkdir dir="${project.build.directory}/nitmp"/>
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <extensions>true</extensions>
+            <executions>
+              <execution>
+                <id>build-native</id>
+                <goals><goal>compile-no-fork</goal></goals>
+                <phase>package</phase>
+              </execution>
+            </executions>
+            <configuration>
+              <imageName>mainframe</imageName>
+              <mainClass>${main.class}</mainClass>
+              <buildArgs>
+                <buildArg>--no-fallback</buildArg>
+                <buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
+                <!-- The graphics stack and both input backends are Panama downcalls, and Win32 calls back in
+                     through an upcall stub for the window procedure. Both need FFM support switched on; the
+                     signatures themselves are registered in reachability-metadata.json. -->
+                <buildArg>-H:+ForeignAPISupport</buildArg>
+                <!-- The input backend hands each raw-input registration its own Arena.ofShared, because the
+                     window procedure that reads it runs on a different thread from the one that opened it.
+                     native-image leaves shared arenas off by default, and without this the whole application
+                     runs and then throws on the way out, when the backend closes them. -->
+                <buildArg>-H:+SharedArenaSupport</buildArg>
+                <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                <buildArg>-J-Djava.io.tmpdir=${project.build.directory}/nitmp</buildArg>
+                <!--
+                  No console window.
+
+                  native-image links a console-subsystem executable, which on Windows means the loader hands
+                  the process a console before anything runs: a black window appears next to MainFrame, and
+                  because that console owns the process group, closing it kills the application. For a CLI that
+                  is exactly right, which is why mainframe-core keeps it. This is a windowed program, so it
+                  says so at link time instead.
+
+                  /ENTRY is not optional alongside it: /SUBSYSTEM:WINDOWS makes the linker look for WinMain,
+                  and the image's entry point is an ordinary main, so the C runtime startup that calls main has
+                  to be named explicitly or the link fails with an unresolved WinMain.
+
+                  What this costs is only the console the process would have been given: output still arrives
+                  wherever the launcher provides a handle, so running it from a shell pipeline still prints.
+                  Double-clicked there is nowhere for it to go, which means a crash before the window appears
+                  is silent. Nothing here depends on it either way, because the shell writes to its own
+                  scrollback rather than to a stream. For output while developing, run the JVM arrangement:
+                  see exec:exec above.
+                -->
+                <buildArg>-H:NativeLinkerOption=/SUBSYSTEM:WINDOWS</buildArg>
+                <buildArg>-H:NativeLinkerOption=/ENTRY:mainCRTStartup</buildArg>
+              </buildArgs>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

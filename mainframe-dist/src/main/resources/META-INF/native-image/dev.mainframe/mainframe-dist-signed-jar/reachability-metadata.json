@@ -1,0 +1,1096 @@
+{
+  "reflection": [
+    {
+      "type": "sun.security.ec.ECDHKeyAgreement",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSAOperations",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSAOperations$Nonce",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSAOperations$Seed",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$Raw",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$RawECDSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$RawinP1363Format",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA1",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA1inP1363Format",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA224",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA224inP1363Format",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA256",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA256inP1363Format",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA384",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA384inP1363Format",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA512",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECDSASignature$SHA512inP1363Format",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECKeyFactory",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECKeyPairGenerator",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECOperations",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECOperations$DefaultMultiplier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECOperations$IntermediateValueException",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECOperations$PointMultiplier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECOperations$Secp256R1GeneratorMontgomeryMultiplier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECPrivateKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ECPublicKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ParametersMap",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.ParametersMap$1",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.SunEC",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.SunEC$ProviderService",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.SunEC$ProviderServiceA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyAgreement",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyAgreement$X25519",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyAgreement$X448",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyFactory",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyFactory$X25519",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyFactory$X448",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyPairGenerator",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyPairGenerator$X25519",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHKeyPairGenerator$X448",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHPrivateKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XDHPublicKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XECOperations",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.ec.XECParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.ContentInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.EncryptedPrivateKeyInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.NamedPKCS8Key",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS7",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS8Key",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS9Attribute",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS9Attribute$AttributeInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS9Attribute$Decoder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS9Attribute$Encoder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.PKCS9Attributes",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.ParsingException",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.SignerInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.SignerInfo$AlgorithmInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.SigningCertificateInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.pkcs.SigningCertificateInfo$ESSCertId",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.MGF1",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.PSSParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSACore",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSACore$BlindingParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSACore$BlindingRandomPair",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyFactory",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyFactory$Legacy",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyFactory$PSS",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyPairGenerator",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyPairGenerator$Legacy",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAKeyPairGenerator$PSS",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAPSSSignature",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAPadding",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAPrivateCrtKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAPrivateKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAPublicKeyImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$MD2withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$MD5withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA1withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA224withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA256withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA384withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSASignature$SHA512withRSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.RSAUtil$KeyType",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.SunRsaSign",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.rsa.SunRsaSignEntries",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.AbstractAlgorithmConstraints",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.AlgorithmDecomposer",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.AnchorCertificates",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ArrayUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.BitArray",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ByteArrayLexOrder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ByteArrayTagOrder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ByteArrays",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Cache",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Cache$CacheVisitor",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Cache$EqualByteArray",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ChannelBindingException",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ConsoleCallbackHandler",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ConsoleCallbackHandler$1OptionInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ConstraintsParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.CryptoAlgorithmConstraints",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.CryptoAlgorithmConstraints$CryptoHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.CurveDB",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Debug",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Debug$FormatHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DerEncoder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DerIndefLenConverter",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DerInputStream",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DerOutputStream",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DerValue",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$CertPathHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$Constraint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$Constraint$Operator",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$Constraints",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$Constraints$Holder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$DenyAfterConstraint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$DisabledConstraint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$JarHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$KeySizeConstraint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$UsageConstraint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DisabledAlgorithmConstraints$jdkCAConstraint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$CommonMatch",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$Match",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$OtherMatch",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$OtherRule",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$RegisteredDomainImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$Rule",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$Rule$Type",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$Rules",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.DomainName$Rules$RuleSet",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ECKeySizeParameterSpec",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ECParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ECUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Event",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Event$Reporter",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Event$ReporterCategory",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.FilePaths",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.GCMParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.HexDumpEncoder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.HostnameChecker",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.IOUtils",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.InternalPrivateKey",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.JarConstraintsParameters",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.KeyStoreDelegator",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.KeyUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.KnownOIDs",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.LegacyAlgorithmConstraints",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Length",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.LocalizedMessage",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ManifestDigester",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ManifestDigester$Entry",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ManifestDigester$Position",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ManifestDigester$Section",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ManifestEntryVerifier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ManifestEntryVerifier$SunProviderHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.MemoryCache",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.MemoryCache$CacheEntry",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.MemoryCache$HardCacheEntry",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.MemoryCache$QueueCacheEntry",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.MemoryCache$SoftCacheEntry",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.MessageDigestSpi2",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.NamedCurve",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.NullCache",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ObjectIdentifier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ObjectIdentifier$HugeOidNotSupportedByOldJDK",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.PBEUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.PBEUtil$PBES2Params",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Password",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Password$ConsoleHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.Pem",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.PendingException",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.PolicyUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.PropertyExpander",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.PropertyExpander$ExpandException",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.RawKeySpec",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.RegisteredDomain",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.RegisteredDomain$Type",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.ResourcesMgr",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SafeDHParameterSpec",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SecurityConstants",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SecurityProperties",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SecurityProviderConstants",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SignatureFileVerifier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SignatureUtil",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SignatureUtil$EdDSADigestAlgHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.SignatureUtil$PSSParamsHolder",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.TlsChannelBinding",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.TlsChannelBinding$TlsChannelBindingType",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.util.UntrustedCertificates",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AVA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AVAComparator",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AVAKeyword",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AccessDescription",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AlgIdDSA",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AlgIdDSA$DSAComponents",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AlgorithmId",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AuthorityInfoAccessExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.AuthorityKeyIdentifierExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.BasicConstraintsExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CRLDistributionPointsExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CRLExtensions",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CRLNumberExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CRLReasonCodeExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateAlgorithmId",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateExtensions",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateIssuerExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificatePoliciesExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificatePolicyId",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificatePolicyMap",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificatePolicySet",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateSerialNumber",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateSubjectName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateValidity",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateVersion",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.CertificateX509Key",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.DNSName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.DeltaCRLIndicatorExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.DistributionPoint",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.DistributionPointName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.EDIPartyName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.ExtendedKeyUsageExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.Extension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.FreshestCRLExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.GeneralName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.GeneralNameInterface",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.GeneralNames",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.GeneralSubtree",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.GeneralSubtrees",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.IPAddressName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.InhibitAnyPolicyExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.InvalidityDateExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.IssuerAlternativeNameExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.IssuingDistributionPointExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.KeyIdentifier",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.KeyUsageExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.NameConstraintsExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.NamedX509Key",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.NetscapeCertTypeExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.NetscapeCertTypeExtension$MapEntry",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.OCSPNoCheckExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.OIDMap",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.OIDMap$OIDInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.OIDName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.OtherName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.PKIXExtensions",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.PolicyConstraintsExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.PolicyInformation",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.PolicyMappingsExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.PrivateKeyUsageExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.RDN",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.RFC822Name",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.ReasonFlags",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.SerialNumber",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.SubjectAlternativeNameExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.SubjectInfoAccessExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.SubjectKeyIdentifierExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.URIName",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.UniqueIdentity",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.UnparseableExtension",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X400Address",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X500Name",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509CRLEntryImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509CRLImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509CRLImpl$TBSCertList",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509CRLImpl$X509IssuerSerial",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509CertImpl",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509CertInfo",
+      "unsafeAllocated": true
+    },
+    {
+      "type": "sun.security.x509.X509Key",
+      "unsafeAllocated": true
+    }
+  ]
+}
