@@ -1,8 +1,10 @@
 package dev.mainframe.gui.app;
 
 import dev.mainframe.eval.Registry;
+import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.input.MenuSink;
 
+import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
@@ -53,7 +55,7 @@ public interface ConsoleApp {
     /**
      * The session has started and greeted, and the first command can be run.
      *
-     * <p>Where an app puts the thing it wants done every time — applying a default profile, saying what it found.
+     * <p>Where an app puts the thing it wants done every time — opening a screen, saying what it found.
      * Through {@link ConsoleContext#run} rather than quietly, so the first lines of the scrollback say what was
      * done rather than leaving a session whose environment is not the one anybody would have guessed.
      */
@@ -86,6 +88,23 @@ public interface ConsoleApp {
     /** Whether {@link #launch} would do anything. A greyed line in a launcher beats an absent one. */
     default boolean launchable() {
         return false;
+    }
+
+    /**
+     * The trees this app presents in windows of its own, so the host can give them what it gives every other
+     * window on the desk: the OS clipboard, and whatever else is bound per-{@link Gui} rather than per-process.
+     *
+     * <p>Input is not on that list -- the framework attaches and pumps a backend per window from the factory
+     * the host installed, so a window opened by an app takes input without either side arranging it. The
+     * clipboard is different: each {@code Gui} carries its own, and a tree that was never handed the OS one
+     * copies into a buffer nothing else can see. That is a bug you only find by pasting between two windows of
+     * the same application, which is exactly the thing an app author is least likely to try.
+     *
+     * <p>Read once, when the console is adopted, and so listing a window here does not open it: these are trees
+     * that exist whether or not they are on screen, which is the same arrangement the console's own has.
+     */
+    default List<Gui> windows() {
+        return List.of();
     }
 
     /**

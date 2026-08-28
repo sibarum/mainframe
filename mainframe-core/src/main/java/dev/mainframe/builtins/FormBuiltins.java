@@ -67,6 +67,7 @@ public final class FormBuiltins {
                 .output(ValueType.RECORD)
                 .effect(Effect.READS)
                 .example("form [\"name\", \"email\"]")
+                .example("form [{name: \"jdk\", type: \"path\", pick: \"folder\"}]")
                 .example("form $contact --title=\"New contact\" | save contact.json")
                 .example("open contact.json | form $contact | save contact.json --force")
                 .example("form $contact --prefill=defaults | form-save defaults")

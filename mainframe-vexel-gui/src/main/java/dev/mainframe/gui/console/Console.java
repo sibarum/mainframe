@@ -185,7 +185,12 @@ public final class Console implements AutoCloseable, ConsoleContext {
                 .gap(Length.ZERO)
                 .scroll(true, true)
                 .visible(false);
-        this.panel = new Panel(gui, glass, ansi, scrollback, this::curtain, this::busy);
+        // The chooser is asked for once, here, rather than left to the panel to find: whether there is a native
+        // file dialog on this machine is what the panel says in its capabilities, and a capability worked out
+        // later than the first hello is one that was a guess before it. Nothing on a machine without one, and the
+        // panel then makes no claim -- so MainFrame draws the chooser instead, which it can.
+        this.panel = new Panel(gui, glass, ansi, scrollback, this::curtain, this::busy,
+                NativeChooser.here() ? new NativeChooser(this::ownerHandle) : null);
 
         // ---- the entry field ----------------------------------------------------------
         Node command = glyphs("Command", theme.color(Role.INK)).width(Length.AUTO);
@@ -239,6 +244,22 @@ public final class Console implements AutoCloseable, ConsoleContext {
         this.clicks = focusFollowsWindow();
         gui.onContextMenu(frame, this::contextMenu);
         claims();
+    }
+
+    /**
+     * Where a modal file dialog parents: this window, while there is one.
+     *
+     * <p>Read late rather than held, because a console constructed headless has no window at all and one shown
+     * later has a different one. Zero is a real answer and not a failure — a dialog with no parent still opens,
+     * and it is the honest thing to say on the frames before this console is on a window.
+     */
+    private long ownerHandle() {
+        AppWindow open = handle;
+        if (open != null && open.open()) {
+            return open.window().osHandle();
+        }
+        GuiApp app = host;
+        return app == null ? 0L : app.windowHandle();
     }
 
     /** This window's Gui, so the host can bind its shortcuts and its clipboard here too. */
@@ -404,6 +425,17 @@ public final class Console implements AutoCloseable, ConsoleContext {
     }
     public boolean busy() {
         return shell != null && shell.busy();
+    }
+
+    /**
+     * How many lines this console has finished, only ever going up.
+     *
+     * <p>What {@link #submit} needs to be waitable: take the count, submit, wait for it
+     * to change. {@link #busy()} cannot serve, being false both before a queued line
+     * starts and after it ends.
+     */
+    public long finished() {
+        return shell == null ? 0 : shell.finished();
     }
 
     /**

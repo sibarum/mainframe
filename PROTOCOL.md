@@ -67,7 +67,7 @@ The first line the editor sends, before anything else.
   "editor": "acme-edit 1.4",
   "protocol": 1,
   "size": {"rows": 40, "cols": 120},
-  "can": ["entry", "choice", "action", "box", "click", "resize"]
+  "can": ["entry", "choice", "action", "box", "click", "resize", "pick"]
 }}
 ```
 
@@ -171,6 +171,26 @@ An entry may also carry:
 | `hint` | a line to show beneath it |
 | `notify` | `"change"` to report every edit, not just on submit |
 | `holds` | `"string"`, `"int"`, `"size"`, `"time"`, … — a hint for the editor's own keyboard, never a rule. MainFrame validates. |
+| `pick` | `"file"`, `"folder"` or `"save"` — offer a file chooser for this entry. Only sent to an editor that claimed `pick`. |
+
+### Choosing a file
+
+`pick` is an offer, and the entry stays an entry. An editor that claimed `pick`
+opens whatever chooser it has — a native file dialog, its own file tree — and puts
+the result in the entry as text; the value comes back in `fields` like anything
+else. The three words are three different questions: `file` and `folder` want one
+that is there, `save` wants a name that need not be.
+
+```json
+{"at": [6, 20], "entry": "jdk-home", "width": 40, "value": "", "holds": "path", "pick": "folder"}
+```
+
+An editor that did *not* claim `pick` is never sent the key, and is not missing
+anything: MainFrame browses for the file itself, by sending an ordinary screen of
+`text`, `entry` and `action` parts and reading the clicks back. So a file chooser
+arrived without a single editor being touched, which is rule four and the reason
+the whole document is arranged this way. Claim `pick` when you have something
+better than that to offer, and not otherwise.
 
 ## Styles
 

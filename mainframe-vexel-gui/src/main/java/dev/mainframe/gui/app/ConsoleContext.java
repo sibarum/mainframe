@@ -28,7 +28,7 @@ public interface ConsoleContext {
      * Run {@code line} as if it had been typed, and show that it was.
      *
      * <p>It matters that this echoes: a menu that changes the environment silently leaves you guessing at what
-     * it did, whereas a menu that puts {@code profile-use jdk-21} in the scrollback has taught you the command.
+     * it did, whereas a menu that puts {@code env-set JAVA_HOME ...} in the scrollback has taught you the command.
      * It stays out of the history, though — Up is for things you typed.
      *
      * <p>Any thread. The line is queued behind whatever is already running.

@@ -1,5 +1,7 @@
 package dev.mainframe.form;
 
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -27,13 +29,14 @@ import dev.mainframe.value.Values;
  * the scrollback, a pipeline can be pasted, and a script that pipes answers in
  * behaves exactly like a person typing them.
  *
- * <p>Three words are read as instructions rather than as data: {@code !back} goes
- * to the field before, {@code !cancel} abandons the form, and {@code !clear}
- * empties a field -- or, at a list of details, the whole list. A line starting
- * with a backslash is the rest of that line taken literally, which is how one of
- * those three is entered as an answer. The end of the input -- Ctrl-D, or a script
- * running out of lines -- is a cancel, because a form that carried on with blanks
- * would be inventing data.
+ * <p>Four words are read as instructions rather than as data: {@code !back} goes
+ * to the field before, {@code !cancel} abandons the form, {@code !clear} empties a
+ * field -- or, at a list of details, the whole list -- and {@code !browse}, at a
+ * field that asks for a file, goes looking for one. A line starting with a
+ * backslash is the rest of that line taken literally, which is how one of those
+ * four is entered as an answer. The end of the input -- Ctrl-D, or a script running
+ * out of lines -- is a cancel, because a form that carried on with blanks would be
+ * inventing data.
  */
 public final class FormScreen {
 
@@ -217,6 +220,9 @@ public final class FormScreen {
                 out.info(out.dim(spaces(indent + 2) + (i + 1) + ") ") + choices.get(i));
             }
         }
+        if (field.isPicked()) {
+            out.info(out.dim(spaces(indent + 2) + "!browse looks for one, or type the path"));
+        }
         if (!blank(current)) {
             out.info(out.dim(spaces(indent + 2) + "blank keeps " + Values.display(current)
                     + (field.required() ? "" : ", !clear empties it")));
@@ -228,6 +234,23 @@ public final class FormScreen {
             String typed = line.trim();
             if (typed.equals("!cancel")) return Step.CANCEL;
             if (typed.equals("!back")) return Step.BACK;
+            if (typed.equals("!browse") && field.isPicked()) {
+                // A chooser hands back a path or nothing. Nothing is not an answer
+                // -- it is somebody deciding to type it after all -- so the field
+                // asks again with whatever it already held still offered.
+                Path chosen = Picker.ask(field.pick(),
+                        pathOf(answers.get(field.name())), session);
+                if (chosen == null) continue;
+                Value value = new Value.PathVal(chosen);
+                String problem = field.problem(value);
+                if (problem != null) {
+                    complain(indent, problem);
+                    continue;
+                }
+                answers.put(field.name(), value);
+                out.info(out.dim(spaces(indent + 2) + "chose ") + chosen);
+                return Step.DONE;
+            }
             if (typed.equals("!clear")) {
                 if (field.required()) {
                     complain(indent, field.label() + " is required, so it cannot be emptied");
@@ -395,6 +418,22 @@ public final class FormScreen {
 
     private static boolean blank(Value value) {
         return value == null || value instanceof Value.Nothing;
+    }
+
+    /**
+     * The answer as a path, for a chooser to open at, or null when there is not
+     * one to open at yet.
+     *
+     * <p>Read rather than cast, because a path field accepts text as well: a
+     * record piped in from a file holds the path as the string it was written as.
+     */
+    private static Path pathOf(Value value) {
+        if (blank(value)) return null;
+        try {
+            return Path.of(Values.display(value));
+        } catch (InvalidPathException e) {
+            return null;
+        }
     }
 
     private static int number(String text) {

@@ -58,6 +58,7 @@ final class ConsoleShell implements AutoCloseable {
     private final Interpreter interpreter;
     private final ExecutorService jobs;
     private final AtomicBoolean busy = new AtomicBoolean();
+    private final java.util.concurrent.atomic.AtomicLong finished = new java.util.concurrent.atomic.AtomicLong();
     private final Runnable onExit;
 
     private volatile Thread worker;
@@ -229,8 +230,22 @@ final class ConsoleShell implements AutoCloseable {
             // Clear the interrupt so the next command on this thread does not inherit it.
             Thread.interrupted();
             busy.set(false);
+            // Last, and after lastError is settled: something waiting on this count is
+            // waiting to read the result, and busy() alone cannot be waited on -- it is
+            // false both before a queued line starts and after it finishes.
+            finished.incrementAndGet();
         }
     }
+
+    /**
+     * How many lines have run to completion, only ever going up.
+     *
+     * <p>For anything driving the console without a keyboard. Take the count, submit,
+     * and wait for it to change: the job thread runs one line at a time in the order
+     * they arrived, so a changed count means that line is done and what it left behind
+     * -- {@link #lastError}, the scrollback, whatever it wrote -- can be read.
+     */
+    long finished() { return finished.get(); }
 
     private void report(String code, String message, String source, String hint) {
         session.out().error(MfError.of(code, message).hint(hint).build(), source);

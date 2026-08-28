@@ -72,11 +72,29 @@ final class PanelTest {
     void setUp() {
         gui = new Gui();
         gui.theme(Phosphor.THEME);
+        panel = newPanel(null);
+        job = Executors.newSingleThreadExecutor(r -> new Thread(r, "test-job"));
+    }
+
+    /**
+     * A panel on this Gui, with the file chooser it should claim -- or null for the machine that has none.
+     *
+     * <p>A whole new one rather than a setter, because whether there is a chooser is answered in {@code hello},
+     * which MainFrame asks before the first screen. An editor that could grow the capability halfway through a
+     * session would be an editor that had been guessing on the way in.
+     */
+    private Panel newPanel(Panel.Chooser chooser) {
         Ansi ansi = Ansi.of(gui.theme());
         Node host = gui.column();
-        panel = new Panel(gui, host, ansi, new Scrollback(gui, gui.column(), ansi),
-                up -> curtain.add(up), () -> busy, () -> now);
-        job = Executors.newSingleThreadExecutor(r -> new Thread(r, "test-job"));
+        seen = 0;
+        return new Panel(gui, host, ansi, new Scrollback(gui, gui.column(), ansi),
+                up -> curtain.add(up), () -> busy, chooser, () -> now);
+    }
+
+    /** Start again on a panel that has a chooser, which is the machine with a native file dialog. */
+    private void chooserIs(Panel.Chooser chooser) {
+        panel.close();
+        panel = newPanel(chooser);
     }
 
     @AfterEach
@@ -100,6 +118,9 @@ final class PanelTest {
         assertTrue(said.can("resize"), "an editor that measures its own room reports a resize");
         // And rule four: a choice it could paint but could not paint well is left to MainFrame to render down.
         assertFalse(said.can("choice"), "an editor with nowhere to open a list must not ask for one");
+        // And pick, which is the same rule answered per machine: this panel was built without a chooser, which
+        // is what a machine with no native file dialog gets. See aClaimedChooserOpens...
+        assertFalse(said.can("pick"), "an editor with no file dialog must not claim one");
     }
 
     @Test
@@ -485,6 +506,141 @@ final class PanelTest {
         assertEquals("yes", panel.focused());
         panel.entered();
         assertEquals(Boolean.TRUE, settled(again), "and yes is one deliberate move away");
+    }
+
+    /**
+     * Ctrl+V, which this editor has to do for itself.
+     *
+     * <p>A field on a screen is painted characters rather than a widget, so there is no text box underneath for
+     * a paste to land in — nothing arrives unless this file makes it arrive. What it does is what typing does:
+     * in at the caret, and the field's width is still the limit.
+     */
+    @Test
+    void pasteGoesInAtTheCaretAndStopsWhereTypingWould() throws Exception {
+        Screen screen = new Screen(4).focus("path");
+        screen.text(1, 3, "JDK", "label");
+        screen.entry(1, 12, "path", 30, "", "path");
+        screen.text(2, 3, "NOTE", "label");
+        screen.entry(2, 12, "note", 8, "", "string");
+        screen.key("F12", Event.SUBMIT, "Submit");
+
+        Future<Event> asked = ask(() -> panel.show(screen));
+        raised();
+
+        gui.clipboard().set("/opt/jdk-21");
+        panel.pasted();
+        type("/bin");                                   // and typing carries on from where the paste left off
+
+        // A field is one line, so a clipboard with more than one on it gives up the rest rather than running
+        // them together, and a field takes as much as it has room for rather than refusing the lot.
+        panel.pressed(key(Key.DOWN));
+        assertEquals("note", panel.focused());
+        gui.clipboard().set("chosen by hand\nand then some");
+        panel.pasted();
+        panel.flush();
+
+        panel.ended("F12");
+        Event answer = settled(asked);
+        assertEquals("/opt/jdk-21/bin", answer.field("path"));
+        assertEquals("chosen b", answer.field("note"), "eight cells of field take eight characters");
+    }
+
+    /** A button is not somewhere text goes, so Ctrl+V on one is nothing rather than a stray paste elsewhere. */
+    @Test
+    void pasteOnSomethingThatIsNotAFieldDoesNothing() throws Exception {
+        Screen screen = new Screen(5).focus("go");
+        screen.entry(1, 3, "name", 10, "Ada", "string");
+        screen.action(2, 3, "go", "[ Go ]", "F12");
+
+        Future<Event> asked = ask(() -> panel.show(screen));
+        raised();
+        gui.clipboard().set("Grace");
+        panel.pasted();
+        panel.flush();
+        panel.ended("Esc");
+        assertEquals("Ada", settled(asked).field("name"), "a paste with nowhere to go goes nowhere");
+    }
+
+    /**
+     * The file dialog, and the two things this editor owes MainFrame for claiming it.
+     *
+     * <p>The capability, so a form knows to send the offer instead of drawing its own chooser; and a way to the
+     * dialog that somebody could actually find, because the Browse button MainFrame draws for every other editor
+     * is exactly what claiming {@code pick} tells it to stop sending.
+     */
+    @Test
+    void aClaimedChooserOpensAndWhatItGivesBackGoesInTheField() throws Exception {
+        List<String> opened = new ArrayList<>();
+        chooserIs((pick, answer) -> {
+            opened.add(pick + " at |" + answer + "|");
+            return Path.of("/opt/jdk-21");
+        });
+        assertTrue(panel.hello().can("pick"), "an editor that has a chooser says so");
+
+        Screen screen = new Screen(9).focus("jdk");
+        screen.text(1, 3, "JDK", "label");
+        screen.entry(1, 12, "jdk", 30, "/opt", "path", "folder");
+        screen.key("F12", Event.SUBMIT, "Submit");
+
+        Future<Event> shown = ask(() -> panel.show(screen));
+        raised();
+        assertTrue(hint().contains("Ctrl+O"), "the key line names the way in: |" + hint() + "|");
+
+        panel.browsed();
+        panel.flush();
+        panel.ended("F12");
+        Event answer = settled(shown);
+
+        assertEquals(Path.of("/opt/jdk-21").toString(), answer.field("jdk"),
+                "what the dialog gave back is the answer, whole");
+        // The word off the wire and the field as it stands, both untouched: the chooser is told where to open
+        // and never told what may be chosen.
+        assertEquals(List.of("folder at |/opt|"), opened);
+    }
+
+    /** Backing out of a dialog is somebody deciding to type it after all, and not an answer of any kind. */
+    @Test
+    void backingOutOfTheChooserLeavesTheFieldExactlyAsItWas() throws Exception {
+        chooserIs((pick, answer) -> null);
+        Screen screen = new Screen(10).focus("jdk");
+        screen.entry(1, 3, "jdk", 20, "/opt", "path", "folder");
+
+        Future<Event> shown = ask(() -> panel.show(screen));
+        raised();
+        panel.browsed();
+        panel.flush();
+        panel.ended("Esc");
+        assertEquals("/opt", settled(shown).field("jdk"));
+    }
+
+    /**
+     * Two fields with nothing to offer: one that was never offered a chooser, and one offered a chooser in a
+     * word this editor has never heard of. Neither opens anything, and neither says it would — rule three, which
+     * is the same rule that skips an unknown part rather than refusing the screen.
+     */
+    @Test
+    void anOfferThisEditorCannotHonourIsNoOfferAtAll() throws Exception {
+        chooserIs((pick, answer) -> Path.of("/chosen"));
+        Screen screen = new Screen(11).focus("plain");
+        screen.entry(1, 3, "plain", 20, "as typed", "string");
+        screen.entry(2, 3, "odd", 20, "left alone", "path", "sideways");
+
+        Future<Event> shown = ask(() -> panel.show(screen));
+        raised();
+        assertFalse(hint().contains("Ctrl+O"), "a field with no offer must not advertise one: |" + hint() + "|");
+        panel.browsed();
+
+        panel.pressed(key(Key.DOWN));
+        panel.flush();
+        assertEquals("odd", panel.focused());
+        assertFalse(hint().contains("Ctrl+O"), "nor a field offering a word from the future: |" + hint() + "|");
+        panel.browsed();
+
+        panel.flush();
+        panel.ended("Esc");
+        Event answer = settled(shown);
+        assertEquals("as typed", answer.field("plain"));
+        assertEquals("left alone", answer.field("odd"));
     }
 
     // ---- driving the two threads -----------------------------------------------------------

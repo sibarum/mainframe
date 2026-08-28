@@ -1,5 +1,6 @@
 package dev.mainframe.form;
 
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,6 +34,13 @@ import dev.mainframe.value.Values;
  *
  * <p>One thing a panel can do that a printed form cannot: an entry in a list of
  * details can be taken out again, because there is somewhere to put the button.
+ *
+ * <p>A field that asks for a file is the same division of labour one turn further
+ * out. An editor with a chooser of its own is handed the offer and left to it; one
+ * without gets a button, and behind the button is {@link Picker} -- a screen
+ * MainFrame draws out of text and things to click. Either way what comes back is
+ * text in an entry, read as a path by {@link Field#read} and judged by
+ * {@link Field#problem}, so no editor had to learn what a file chooser is.
  */
 public final class FormPanel {
 
@@ -52,6 +60,7 @@ public final class FormPanel {
     /** Prefixes for the things a click can mean. Prefixed so a field can be called anything at all. */
     private static final String ADD = "add:";
     private static final String DROP = "drop:";
+    private static final String BROWSE = "pick:";
     private static final String SUBMIT = "do:submit";
     private static final String CANCEL = "do:cancel";
 
@@ -136,6 +145,10 @@ public final class FormPanel {
                 else if (clicked.equals(SUBMIT)) submitted = true;
                 else if (clicked.startsWith(ADD)) { focus = add(clicked.substring(ADD.length()), answers); continue; }
                 else if (clicked.startsWith(DROP)) { focus = drop(clicked.substring(DROP.length()), answers); continue; }
+                else if (clicked.startsWith(BROWSE)) {
+                    focus = browse(clicked.substring(BROWSE.length()), answers, asTyped, problems);
+                    continue;
+                }
                 else continue;                      // a name nothing here knows; nothing to do about it
             }
             if (!submitted) continue;               // a change, a resize, something new
@@ -201,6 +214,49 @@ public final class FormPanel {
         return name;
     }
 
+    /**
+     * Goes looking for a file, on a screen of its own, and brings back a path.
+     *
+     * <p>Only reached on an editor that has no chooser of its own -- one that does
+     * was handed the offer on the entry and never sends this. So this is the
+     * render-down path, and it is drawn out of nothing but text and buttons, which
+     * is why an editor written before {@code pick} existed gets a working file
+     * chooser without being touched.
+     *
+     * <p>Backing out of the chooser leaves the field exactly as it was: it is
+     * somebody deciding to type the path after all, not an answer of any kind.
+     */
+    private String browse(String name, SequencedMap<String, Value> answers,
+                          SequencedMap<String, String> asTyped,
+                          SequencedMap<String, String> problems) {
+        Field field = form.field(name);
+        if (field == null || !field.isPicked()) return name;
+        Path chosen = Picker.show(field.pick(), pathOf(answers.get(name)), from, editor);
+        if (chosen == null) return name;
+        answers.put(name, new Value.PathVal(chosen));
+        // Whatever was in the box, and whatever was wrong with it, is answered by
+        // what came back -- so both go, rather than sitting under a fresh answer.
+        asTyped.remove(name);
+        problems.remove(name);
+        return name;
+    }
+
+    /**
+     * The answer as a path, for a chooser to open at, or null when there is not
+     * one to open at yet.
+     *
+     * <p>Read rather than cast, because a path field accepts text as well: a
+     * record piped in from a file holds the path as the string it was written as.
+     */
+    private static Path pathOf(Value value) {
+        if (value == null || value instanceof Value.Nothing) return null;
+        try {
+            return Path.of(Values.display(value));
+        } catch (InvalidPathException e) {
+            return null;
+        }
+    }
+
     /** Takes one entry back out, which is the thing a printed form cannot offer. */
     private String drop(String what, SequencedMap<String, Value> answers) {
         int colon = what.lastIndexOf(':');
@@ -264,13 +320,24 @@ public final class FormPanel {
         screen.text(row, LEFT, field.heading(), "label");
 
         String value = asTyped.containsKey(name) ? asTyped.get(name) : shown(answers.get(name));
+        boolean chooses = field.isPicked() && editor.hello().can("pick");
         if (field.choices() != null) {
             screen.choice(row, ENTRY_COLUMN, name, field.choices(), value,
                     editor.hello().can("choice"));
         } else {
-            screen.entry(row, ENTRY_COLUMN, name, entryWidth(), value, field.type().display());
+            screen.entry(row, ENTRY_COLUMN, name, entryWidth(), value, field.type().display(),
+                    chooses ? field.pick().written() : null);
         }
         if (field.required()) screen.text(row, width() - 8, "required", "hint");
+        // An editor with a chooser of its own has been offered the field and is
+        // left to it: a native file dialog beats anything MainFrame could draw, and
+        // two ways to browse the same field would be one too many. An editor
+        // without one gets a button, and the chooser behind it is a screen made of
+        // text and things to click -- which every editor has had all along.
+        if (field.isPicked() && !chooses && editor.hello().can("action")) {
+            screen.action(Math.max(row, screen.rows()) + 1, ENTRY_COLUMN, BROWSE + name,
+                    "[ " + field.pick().heading() + " ]", null);
+        }
 
         // The deepest row written rather than the row this counted to, because a
         // part is allowed to take more room than it was placed at: a choice an

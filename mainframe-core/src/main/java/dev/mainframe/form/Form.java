@@ -1,5 +1,7 @@
 package dev.mainframe.form;
 
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -52,8 +54,82 @@ public record Form(List<Field> fields) {
 
     /** The keys a field record may use, in the order they are worth reading in. */
     private static final List<String> KEYS = List.of(
-            "name", "label", "type", "required", "min", "max", "match", "choose", "help",
+            "name", "label", "type", "required", "min", "max", "match", "choose", "pick", "help",
             "default", "fields");
+
+    /**
+     * How a path field is answered: by choosing something that is already there,
+     * or by naming somewhere something is about to go.
+     *
+     * <p>All three hold a path, so this is not a type -- it is the question. "Which
+     * file?", "which folder?" and "where shall I put it?" are three different
+     * things to ask, and they cannot be told apart from the answer, because every
+     * one of them comes back as a path. So a field that wants a chooser rather
+     * than somewhere to type has to say which chooser, and this is the word it
+     * says it with.
+     *
+     * <p>It sits beside {@code choose} rather than beside {@code type} for the
+     * reason {@code choose} does: both turn an entry into a way of picking, and
+     * neither changes what the answer is. A form is still a table of records, and
+     * a {@code pick} field still holds a path.
+     *
+     * <p>What it does <em>not</em> do is insist the thing is already there. A
+     * folder a profile is about to put on the PATH may not have been unpacked yet,
+     * and a file being saved to had better not exist. See {@link Field#pickProblem}.
+     */
+    public enum Pick {
+        /** A file that is already there. */
+        FILE("file", "a file to choose", "Choose a file", "Choose"),
+        /** A folder that is already there. */
+        FOLDER("folder", "a folder to choose", "Choose a folder", "Use this folder"),
+        /** A file to write, which need not exist yet. */
+        SAVE("save", "a file to save as", "Save as", "Save");
+
+        private final String written;
+        private final String shape;
+        private final String heading;
+        private final String verb;
+
+        Pick(String written, String shape, String heading, String verb) {
+            this.written = written;
+            this.shape = shape;
+            this.heading = heading;
+            this.verb = verb;
+        }
+
+        /** How it is written in a field record, and how it goes on the wire. */
+        public String written() { return written; }
+
+        /** What the field takes, for the line of prose under the label. */
+        public String shape() { return shape; }
+
+        /** The heading across the top of a chooser offering it. */
+        public String heading() { return heading; }
+
+        /** What the button that settles it says. */
+        public String verb() { return verb; }
+
+        /** True when the answer names somewhere to write rather than something to open. */
+        public boolean isNew() { return this == SAVE; }
+
+        /** True when the answer is a folder rather than something inside one. */
+        public boolean isFolder() { return this == FOLDER; }
+
+        /** The one written like this, or null -- which is a misspelling, not a crash. */
+        public static Pick of(String written) {
+            for (Pick pick : values()) {
+                if (pick.written.equals(written)) return pick;
+            }
+            return null;
+        }
+
+        /** The words, for a listing and for a "did you mean". */
+        public static List<String> names() {
+            List<String> names = new ArrayList<>(values().length);
+            for (Pick pick : values()) names.add(pick.written);
+            return List.copyOf(names);
+        }
+    }
 
     /**
      * One field of a form.
@@ -62,6 +138,8 @@ public record Form(List<Field> fields) {
      *                repeated entries, which is what {@code entries} describes
      * @param min     the smallest acceptable answer: a character count for text, a
      *                value for a number or a moment, an entry count for a group
+     * @param pick    for a path, what sort of chooser to offer instead of somewhere
+     *                to type, or null to ask for it as text
      * @param entries the sub-form each entry of a group is filled in with, or null
      *                when this field holds a single value
      */
@@ -75,12 +153,16 @@ public record Form(List<Field> fields) {
             Pattern match,
             String matchSource,
             List<String> choices,
+            Pick pick,
             String help,
             Value preset,
             Form entries) {
 
         /** True when this field repeats: a list of details rather than one value. */
         public boolean isGroup() { return entries != null; }
+
+        /** True when this field is answered by browsing rather than by typing. */
+        public boolean isPicked() { return pick != null; }
 
         /** Text, or something that can always be read as text. */
         public boolean isTextual() {
@@ -143,6 +225,38 @@ public record Form(List<Field> fields) {
             if (match != null && !match.matcher(text).matches()) {
                 return label + " does not match " + matchSource;
             }
+            if (pick != null) return pickProblem(text);
+            return null;
+        }
+
+        /**
+         * What is wrong with the thing a picked path names -- when there is
+         * something there to look at.
+         *
+         * <p>Being there is not the rule, and deliberately: a folder a profile is
+         * about to add to the PATH may not have been unpacked yet, and a file
+         * being saved to had better not exist. A chooser only ever hands back
+         * something real, so the case this catches is the other one -- a record
+         * that arrived down a pipe or out of a file, naming a folder where a file
+         * was wanted or the other way about. That is a mistake worth catching
+         * away from the keyboard, and it is the only one that can be caught
+         * without guessing at what somebody meant.
+         */
+        private String pickProblem(String text) {
+            Path path;
+            try {
+                path = Path.of(text);
+            } catch (InvalidPathException e) {
+                return label + " is not a path this machine could have: " + text;
+            }
+            if (!Files.exists(path)) return null;
+            boolean folder = Files.isDirectory(path);
+            if (pick.isFolder() && !folder) {
+                return label + " takes a folder, and " + text + " is a file";
+            }
+            if (!pick.isFolder() && folder) {
+                return label + " takes a file, and " + text + " is a folder";
+            }
             return null;
         }
 
@@ -197,9 +311,17 @@ public record Form(List<Field> fields) {
                 // "nothing" typed into a text field is the text somebody typed.
                 case STRING -> { return Reading.of(new Value.Str(typed)); }
                 case PATH -> {
-                    return Reading.of(new Value.PathVal(from == null
-                            ? java.nio.file.Path.of(typed)
-                            : SafeFs.resolve(from, typed)));
+                    try {
+                        return Reading.of(new Value.PathVal(from == null
+                                ? Path.of(typed)
+                                : SafeFs.resolve(from, typed)));
+                    } catch (InvalidPathException e) {
+                        // What counts as a path is the machine's business, and on
+                        // some of them a colon or a quotation mark is not one. Said
+                        // rather than thrown: this is somebody at a keyboard.
+                        return Reading.no(label + " is not a path this machine could have",
+                                "no " + illegal(typed) + " in a name here");
+                    }
                 }
                 case BOOL -> {
                     String lower = typed.toLowerCase(Locale.ROOT);
@@ -226,7 +348,7 @@ public record Form(List<Field> fields) {
         public String rules() {
             List<String> parts = new ArrayList<>();
             if (help != null && !help.isBlank()) parts.add(help);
-            String shape = shape(type);
+            String shape = pick != null ? pick.shape() : shape(type);
             if (shape != null) parts.add(shape);
             if (isGroup()) {
                 long least = leastEntries();
@@ -259,6 +381,15 @@ public record Form(List<Field> fields) {
                 case MIME -> "a media type like text/plain";
                 default -> null;
             };
+        }
+
+        /** The first character of {@code typed} the filesystem would not take, quoted. */
+        private static String illegal(String typed) {
+            for (int i = 0; i < typed.length(); i++) {
+                char c = typed.charAt(i);
+                if ("<>:\"|?*".indexOf(c) >= 0) return "\"" + c + "\"";
+            }
+            return "that character";
         }
 
         private static int whole(String text) {
@@ -405,6 +536,7 @@ public record Form(List<Field> fields) {
         Pattern match = null;
         String matchSource = text(rec, "match");
         List<String> choices = choices(rec, name, type, span);
+        Pick pick = pick(rec, name, type, span);
         String help = text(rec, "help");
         Value preset = present(rec, "default");
 
@@ -437,7 +569,7 @@ public record Form(List<Field> fields) {
         }
 
         Field field = new Field(name, label, type, required, min, max, match, matchSource,
-                choices, help, preset, entries);
+                choices, pick, help, preset, entries);
         if (preset != null) {
             String problem = field.problem(preset);
             if (problem != null) {
@@ -457,7 +589,7 @@ public record Form(List<Field> fields) {
                     .build();
         }
         return new Field(name, name.replace('-', ' ').replace('_', ' '), ValueType.STRING,
-                false, null, null, null, null, null, null, null, null);
+                false, null, null, null, null, null, null, null, null, null);
     }
 
     private static ValueType type(String declared, boolean hasEntries, String name, Span span) {
@@ -523,6 +655,37 @@ public record Form(List<Field> fields) {
             choices.add(Values.display(item));
         }
         return List.copyOf(choices);
+    }
+
+    /**
+     * What sort of chooser a path field asks for, or null when it wants typing
+     * into.
+     *
+     * <p>Refused on anything but a path, because a chooser hands back a path and
+     * there is nothing else it could hand back. Saying so is better than
+     * accepting the word and then never offering the chooser.
+     */
+    private static Pick pick(Value.Rec rec, String name, ValueType type, Span span) {
+        String written = text(rec, "pick");
+        if (written == null) return null;
+        if (type != ValueType.PATH) {
+            throw MfError.of("E1206", name + " is " + type.withArticle()
+                            + ", so there is nothing to browse for").at(span)
+                    .hint("pick works on path fields, because a chooser hands back a path")
+                    .hint("say type: \"path\" and keep the pick")
+                    .build();
+        }
+        Pick pick = Pick.of(written);
+        if (pick == null) {
+            MfError.Builder error = MfError.of("E1204",
+                    "\"" + written + "\" is not something a field can pick").at(span);
+            String closest = Suggest.closest(written, Pick.names());
+            if (closest != null) error.hint("did you mean " + closest + "?");
+            error.hint("pick is one of: " + String.join(", ", Pick.names()));
+            error.hint("file and folder choose one that is there; save names one that is not");
+            throw error.build();
+        }
+        return pick;
     }
 
     /**

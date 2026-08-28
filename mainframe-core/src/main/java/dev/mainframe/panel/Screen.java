@@ -62,11 +62,28 @@ public final class Screen {
      *              the editor's own keyboard, never a rule it has to enforce
      */
     public Screen entry(int row, int col, String name, int width, String value, String holds) {
+        return entry(row, col, name, width, value, holds, null);
+    }
+
+    /**
+     * The same, and an offer: {@code pick} asks the editor for a chooser beside
+     * it -- {@code "file"}, {@code "folder"} or {@code "save"}.
+     *
+     * <p>An offer rather than an instruction, and still only an entry. What comes
+     * back is text in {@code name} like any other entry, so an editor that never
+     * heard of {@code pick} ignores the key and lets the path be typed -- rule one
+     * doing exactly what it is for. MainFrame reads the answer as a path either
+     * way and judges it either way, so the two are the same field asked twice as
+     * well as it can be.
+     */
+    public Screen entry(int row, int col, String name, int width, String value, String holds,
+                        String pick) {
         Value.Rec entry = part(row, col, "entry", new Value.Str(name))
                 .with("width", new Value.Int(width))
                 .with("value", new Value.Str(value == null ? "" : value))
                 .with("holds", new Value.Str(holds))
                 .with("style", new Value.Str(name.equals(focus) ? "entry-focus" : "entry"));
+        if (pick != null) entry = entry.with("pick", new Value.Str(pick));
         parts.add(entry);
         grewTo(row, col + width);
         return this;

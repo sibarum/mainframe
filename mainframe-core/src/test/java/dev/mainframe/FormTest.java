@@ -1,9 +1,11 @@
 package dev.mainframe;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
@@ -353,6 +355,132 @@ class FormTest {
     @Test
     void aBadPatternIsRefusedBeforeAnythingIsAsked() {
         assertEquals("E1206", mf().errorCode("form [{name: \"x\", match: \"[unclosed\"}]"));
+    }
+
+    // ---- browsing for a file ---------------------------------------------------------------
+
+    /**
+     * A tree with one of each thing in it: a folder to walk into, a folder inside
+     * that one, and a file beside it. Deliberately small, because the listing is
+     * numbered and a test that types a number should be typing a number it can be
+     * sure of.
+     */
+    private void tree() throws Exception {
+        Files.createDirectories(here.resolve("tools").resolve("jdk-21"));
+        Files.writeString(here.resolve("tools").resolve("notes.txt"), "hello");
+    }
+
+    @Test
+    void aFolderIsBrowsedToAndThenTaken() throws Exception {
+        tree();
+        // !browse opens where the shell is; "tools" walks in; blank takes it.
+        Mf mf = Mf.typing(here, "!browse", "tools", "", "");
+        Value.Rec record = answers(mf.eval(
+                "form [{name: \"jdk\", type: \"path\", pick: \"folder\", required: true}]"));
+        assertEquals(here.resolve("tools").toString(), text(record, "jdk"), mf.printed());
+    }
+
+    @Test
+    void aFolderListingLeavesTheFilesOut() throws Exception {
+        tree();
+        Mf mf = Mf.typing(here, "!browse", "tools", "1", "", "");
+        Value.Rec record = answers(mf.eval(
+                "form [{name: \"jdk\", type: \"path\", pick: \"folder\"}]"));
+        String shown = mf.printed();
+        assertTrue(shown.contains("CHOOSE A FOLDER"), shown);
+        assertTrue(shown.contains("[jdk-21]"), shown);
+        // Asked for a folder, so the file is not offered -- which is what makes
+        // the number beside jdk-21 a 1.
+        assertFalse(shown.contains("notes.txt"), shown);
+        assertEquals(here.resolve("tools").resolve("jdk-21").toString(), text(record, "jdk"), shown);
+    }
+
+    @Test
+    void aFileIsTakenByTheNumberBesideIt() throws Exception {
+        tree();
+        // In tools, asking for a file: 1 is the folder, 2 is the file.
+        Mf mf = Mf.typing(here, "!browse", "tools", "2", "");
+        Value.Rec record = answers(mf.eval(
+                "form [{name: \"log\", type: \"path\", pick: \"file\"}]"));
+        assertEquals(here.resolve("tools").resolve("notes.txt").toString(),
+                text(record, "log"), mf.printed());
+    }
+
+    @Test
+    void savingAsNamesSomethingThatIsNotThereYet() throws Exception {
+        tree();
+        Mf mf = Mf.typing(here, "!browse", "tools", "report.csv", "");
+        Value.Rec record = answers(mf.eval(
+                "form [{name: \"out\", type: \"path\", pick: \"save\"}]"));
+        assertEquals(here.resolve("tools").resolve("report.csv").toString(),
+                text(record, "out"), mf.printed());
+    }
+
+    @Test
+    void aFileThatIsNotThereCannotBeChosen() throws Exception {
+        tree();
+        Mf mf = Mf.typing(here, "!browse", "nope.txt", "notes.txt", "!cancel", "");
+        mf.eval("form [{name: \"log\", type: \"path\", pick: \"file\"}]");
+        // A chooser offers what is there, so it says so rather than handing back a
+        // path to nothing. Backing out leaves the field to be typed into instead.
+        assertTrue(mf.printed().contains("there is no file called nope.txt"), mf.printed());
+    }
+
+    @Test
+    void backingOutOfTheChooserGoesBackToTheField() throws Exception {
+        tree();
+        Mf mf = Mf.typing(here, "!browse", "!cancel", "tools", "");
+        Value.Rec record = answers(mf.eval(
+                "form [{name: \"jdk\", type: \"path\", pick: \"folder\"}]"));
+        // Backing out is not an answer of any kind: the field asked again, and the
+        // path was typed.
+        assertEquals(here.resolve("tools").toString(), text(record, "jdk"), mf.printed());
+    }
+
+    @Test
+    void aPickedFieldSaysWhatSortOfPathItWants() throws Exception {
+        tree();
+        Mf mf = Mf.typing(here, "tools", "");
+        mf.eval("form [{name: \"jdk\", type: \"path\", pick: \"folder\"}]");
+        String shown = mf.printed();
+        assertTrue(shown.contains("a folder to choose"), shown);
+        assertTrue(shown.contains("!browse looks for one"), shown);
+    }
+
+    @Test
+    void onlyAPathCanBeBrowsedFor() {
+        MfError error = mf().error("form [{name: \"x\", pick: \"file\"}]");
+        assertEquals("E1206", error.code());
+        assertTrue(error.hints().toString().contains("path fields"), error.hints().toString());
+    }
+
+    @Test
+    void aPickNobodyRecognisesGetsADidYouMean() {
+        MfError error = mf().error("form [{name: \"x\", type: \"path\", pick: \"folser\"}]");
+        assertEquals("E1204", error.code());
+        assertTrue(error.hints().contains("did you mean folder?"), error.hints().toString());
+    }
+
+    @Test
+    void aFolderWhereAFileWasWantedIsCaughtWithoutAKeyboard() throws Exception {
+        tree();
+        // The rule holds where nobody is typing, which is the whole point of a form
+        // being data: form-check judges a record that came out of a file.
+        MfError error = mf().error("echo {log: \"" + Values.portable(here.resolve("tools")) + "\"}"
+                + " | form-check [{name: \"log\", type: \"path\", pick: \"file\"}]");
+        assertEquals("E1210", error.code());
+        assertTrue(error.getMessage().contains("takes a file"), error.getMessage());
+        assertTrue(error.getMessage().endsWith("is a folder"), error.getMessage());
+    }
+
+    @Test
+    void aPathThatIsNotThereYetIsStillAllowed() throws Exception {
+        tree();
+        // Being there is not the rule: a folder a profile is about to put on the
+        // PATH may not have been unpacked yet.
+        Value result = mf().eval("echo {jdk: \"" + Values.portable(here.resolve("later")) + "\"}"
+                + " | form-check [{name: \"jdk\", type: \"path\", pick: \"folder\"}]");
+        assertInstanceOf(Value.Rec.class, result);
     }
 
     // ---- when there is nobody to ask ------------------------------------------------------

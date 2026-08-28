@@ -23,6 +23,7 @@ import sibarum.tactroller.api.InputEvent;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -30,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.SequencedMap;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -73,6 +75,15 @@ import java.util.function.LongSupplier;
  * lands.
  */
 final class Panel implements Editor {
+
+    /**
+     * The three questions a chooser can be asked, as PROTOCOL.md writes them.
+     *
+     * <p>Checked rather than passed on, because what comes back off the wire decides which dialog opens: a word
+     * this editor does not know would be a field offering a chooser that then had to guess which one. An offer
+     * it cannot honour is no offer, and the field is still a field somebody can type a path into.
+     */
+    private static final Set<String> PICKS = Set.of("file", "folder", "save");
 
     /** What an empty cell of an entry shows, and what makes a field's extent visible when it holds nothing. */
     private static final char FILL = '_';
@@ -136,9 +147,39 @@ final class Panel implements Editor {
         void panel(boolean up);
     }
 
+    /**
+     * A file chooser, as the one thing this editor cannot draw for itself.
+     *
+     * <p>An interface rather than a call, for two reasons. It keeps the native binding out of this file, which
+     * is a display and should stay one; and it is what a machine with no native dialog says <em>nothing</em>
+     * through — {@link Console} hands over null there, {@link #hello} does not claim {@code pick}, and MainFrame
+     * sends the chooser it draws itself. See {@link NativeChooser}.
+     */
+    interface Chooser {
+
+        /**
+         * Put a chooser up and wait for it.
+         *
+         * @param pick   the word MainFrame sent on the entry: {@code file}, {@code folder} or {@code save}
+         * @param answer what the field holds now, which is where to open — never a rule about what may be chosen
+         * @return the path chosen, or null when they backed out
+         */
+        Path choose(String pick, String answer);
+    }
+
     /** An entry, a choice or an action: the parts somebody can reach. Everything else is paint. */
     private record Spot(String kind, String name, int row, int col, int width, boolean locked,
-                        List<String> of) {
+                        List<String> of, String pick) {
+
+        /**
+         * Whether this is a field MainFrame offered a chooser for.
+         *
+         * <p>Locked as well as unclaimed: a field nobody may type into is not one a chooser may write into
+         * either, the protocol being explicit that a locked entry is shown and not edited.
+         */
+        boolean browsable() {
+            return typable() && pick != null;
+        }
 
         boolean typable() {
             return kind.equals("entry") && !locked;
@@ -223,6 +264,13 @@ final class Panel implements Editor {
     private final Curtain curtain;
     /** Whether the shell is still running the command that put a screen up. See {@link #flush}. */
     private final BooleanSupplier busy;
+    /**
+     * What opens when somebody asks to browse, or null on a machine that has no file dialog to open.
+     *
+     * <p>Null is not a missing part: it is the answer {@link #hello} gives, and MainFrame draws its own chooser
+     * on hearing it. See {@link Chooser}.
+     */
+    private final Chooser chooser;
 
     /** Work from threads that are not the frame loop -- clicks, so far. Drained once per frame. */
     private final ConcurrentLinkedQueue<Runnable> queued = new ConcurrentLinkedQueue<>();
@@ -259,18 +307,20 @@ final class Panel implements Editor {
     private int laidOutRows = GUESS_ROWS;
     private long litAt;
 
-    Panel(Gui gui, Node host, Ansi ansi, Scrollback scrollback, Curtain curtain, BooleanSupplier busy) {
-        this(gui, host, ansi, scrollback, curtain, busy, System::nanoTime);
+    Panel(Gui gui, Node host, Ansi ansi, Scrollback scrollback, Curtain curtain, BooleanSupplier busy,
+          Chooser chooser) {
+        this(gui, host, ansi, scrollback, curtain, busy, chooser, System::nanoTime);
     }
 
     Panel(Gui gui, Node host, Ansi ansi, Scrollback scrollback, Curtain curtain, BooleanSupplier busy,
-          LongSupplier clock) {
+          Chooser chooser, LongSupplier clock) {
         this.gui = gui;
         this.host = host;
         this.ansi = ansi;
         this.scrollback = scrollback;
         this.curtain = curtain;
         this.busy = busy;
+        this.chooser = chooser;
         this.clock = clock;
         this.litAt = clock.getAsLong();
 
@@ -295,18 +345,31 @@ final class Panel implements Editor {
     }
 
     /**
-     * The keys that can end a transaction, claimed for as long as the screen holds focus.
+     * The keys claimed for as long as the screen holds focus: the ones that can end a transaction, Ctrl+V and
+     * Ctrl+O.
      *
      * <p>Claimed rather than handled: a claim is preemption declared in advance, so Tab moves between this
      * screen's fields instead of walking the window's focus ring, and Enter submits instead of reaching the
      * command line hidden behind the screen. What each key <em>does</em> is not decided here — the screen says,
      * in its own key list, and {@link #ended} looks it up.
+     *
+     * <p>The two control keys are the odd ones out, and are here because a claim is also how this editor gets a
+     * key nothing else on the window would take: a field on a screen is painted characters rather than a widget,
+     * so there is no text box underneath for either of them to fall through to.
      */
     private void claims() {
         gui.claimUi(host, Shortcut.of(Key.TAB), ClaimScope.FOCUSED, () -> move(+1));
         gui.claimUi(host, Shortcut.of(Key.TAB, Modifier.SHIFT), ClaimScope.FOCUSED, () -> move(-1));
         gui.claimUi(host, Shortcut.of(Key.ENTER), ClaimScope.FOCUSED, this::entered);
         gui.claimUi(host, Shortcut.of(Key.SPACE), ClaimScope.FOCUSED, this::spaced);
+        // Paste, which is not an ending at all and is claimed for the other reason: the fields on a screen here
+        // are painted characters rather than widgets, so there is nothing underneath this that would know what
+        // Ctrl+V meant. See pasted().
+        gui.claimUi(host, Shortcut.of(Key.V, Modifier.CONTROL), ClaimScope.FOCUSED, this::pasted);
+        // Browse, on the editor with a chooser and nowhere else. MainFrame stops drawing its Browse button the
+        // moment this editor claims `pick`, so the way to the dialog is this editor's to provide -- and the key
+        // line under the screen says so whenever the caret is on a field that has one.
+        gui.claimUi(host, Shortcut.of(Key.O, Modifier.CONTROL), ClaimScope.FOCUSED, this::browsed);
         gui.claimUi(host, Shortcut.of(Key.ESCAPE), ClaimScope.FOCUSED, () -> ended("Esc"));
         for (Key key : List.of(Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
                 Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12)) {
@@ -334,11 +397,22 @@ final class Panel implements Editor {
      * out what belongs in it. Left unclaimed, MainFrame writes the options above it as text and sends a plain
      * entry, which is both readable and what a 5250 actually did with a choice. Rule four earning its keep: the
      * better screen here is the one this editor asked for less of.
+     *
+     * <p><b>{@code pick} is claimed only where there is a dialog to open</b> — which is a decision made per
+     * machine rather than per editor. The binding ships a native library for Windows and macOS; anywhere else
+     * {@link Console} hands over no {@link Chooser}, this says nothing about {@code pick}, and MainFrame draws
+     * the chooser itself out of text, an entry and things to click. The same form works both ways round, and
+     * the machine without a dialog is not missing a feature — it is getting the other implementation of one.
+     * That is the whole promise: a form grew a file chooser, and the fallback was written before the dialog was.
      */
     @Override
     public Hello hello() {
-        return new Hello("mainframe-vexel-gui", 1, rows, cols,
-                new LinkedHashSet<>(List.of("text", "entry", "action", "box", "click", "resize")));
+        LinkedHashSet<String> can =
+                new LinkedHashSet<>(List.of("text", "entry", "action", "box", "click", "resize"));
+        if (chooser != null) {
+            can.add("pick");
+        }
+        return new Hello("mainframe-vexel-gui", 1, rows, cols, can);
     }
 
     /**
@@ -696,8 +770,12 @@ final class Panel implements Editor {
         if (part.get("entry") instanceof Value.Str name) {
             boolean locked = part.get("locked") instanceof Value.Bool flag && flag.value();
             screen.values.put(name.value(), text(part, "value"));
+            // pick is only ever sent to an editor that claimed it, so an entry carrying one is an entry this
+            // editor said it would offer a chooser for. A word nobody here knows is no offer rather than an
+            // error -- rule three, the same as an unknown style or an unknown part.
+            String pick = text(part, "pick");
             screen.spots.add(new Spot("entry", name.value(), row, col, Math.max(1, width(part)),
-                    locked, List.of()));
+                    locked, List.of(), PICKS.contains(pick) ? pick : null));
             return;                                     // its cells are written at repaint, from the value
         }
         if (part.get("choice") instanceof Value.Str name) {
@@ -710,14 +788,14 @@ final class Panel implements Editor {
             // The value, a space, and the two marks that say it cycles.
             screen.values.put(name.value(), text(part, "value"));
             screen.spots.add(new Spot("choice", name.value(), row, col, widest(of) + 3, false,
-                    List.copyOf(of)));
+                    List.copyOf(of), null));
             return;
         }
         if (part.get("action") instanceof Value.Str name) {
             String label = text(part, "text");
             write(screen, row, col, label, style == PLAIN ? ACTION : style);
             screen.spots.add(new Spot("action", name.value(), row, col, Math.max(1, label.length()),
-                    false, List.of()));
+                    false, List.of(), null));
             return;
         }
         if (part.get("box") instanceof Value.ListVal dims && dims.items().size() >= 2) {
@@ -820,13 +898,19 @@ final class Panel implements Editor {
      * goes to the next one and Enter on a button presses it, and a line that said both at once would be teaching
      * the reader to work out which applies. What a screen is for should not have to be inferred, and the cheapest
      * way to make an interface self-explanatory is to have it say what it will do next.
+     *
+     * <p>Which is also where Ctrl+O gets said. A field MainFrame offered a chooser for looks like every other
+     * field on the glass, and the button that used to say otherwise is not sent to an editor that claimed
+     * {@code pick} -- so without this line there would be a dialog behind a key nobody had been told about.
      */
     private String keyHint(Live screen) {
         Spot focused = screen.spot(screen.focus);
         String enter = focused != null && focused.pressable()
                 ? "press " + label(screen, focused)
                 : next(screen) == null ? "submit" : "next field";
-        return "Tab  move    Enter  " + enter + "    Esc  cancel";
+        String line = "Tab  move    Enter  " + enter + "    Esc  cancel";
+        return focused != null && focused.browsable() && chooser != null
+                ? line + "    Ctrl+O  choose" : line;
     }
 
     /** What a button says on it, for talking about it in the hint line. */
@@ -1060,6 +1144,119 @@ final class Panel implements Editor {
         current.caret = caret + 1;
         relight();
         dirty = true;
+    }
+
+    /**
+     * Ctrl+V: whatever is on the clipboard, into the focused field at the caret.
+     *
+     * <p>Written here rather than got for free, because the fields on this screen are not widgets — a row is a
+     * string of characters and an entry is a stretch of it, so there is nothing holding text that a framework
+     * could paste into. It goes in as if it had been typed: same fields refuse it, same width stops it, and a
+     * field it will not all fit into takes as much of it as there is room for rather than nothing at all, which
+     * is what a long path into a short field wants.
+     *
+     * <p>What arrives is cleaned to what could have been typed. A field is one line, so a paste stops at the
+     * first line break rather than running the lines together — two lines squashed into one would put something
+     * in the field that is not on the clipboard and is not what anybody typed either, and it would be past the
+     * caret before it could be looked at. Everything up to that break is kept, minus the control characters
+     * {@link #typed} would have refused one at a time.
+     *
+     * <p>The clipboard is the window's, which the host points at the OS one. On a desk where it did not, this
+     * pastes what was copied inside MainFrame and nothing from outside — which is the arrangement failing
+     * quietly rather than this doing something different.
+     */
+    void pasted() {
+        Live current = live;
+        if (current == null) {
+            return;
+        }
+        Spot spot = current.spot(current.focus);
+        if (spot == null || !spot.typable()) {
+            return;
+        }
+        String value = current.value(spot.name());
+        int room = spot.width() - value.length();
+        if (room <= 0) {
+            return;                                     // the field is full, as it is for a typed character
+        }
+        String text = fit(pastable(gui.clipboard().get()), room);
+        if (text.isEmpty()) {
+            return;
+        }
+        int caret = Math.min(current.caret, value.length());
+        current.values.put(spot.name(), value.substring(0, caret) + text + value.substring(caret));
+        current.caret = caret + text.length();
+        relight();
+        dirty = true;
+    }
+
+    /**
+     * Ctrl+O: the file dialog this editor claimed, over the window it is in.
+     *
+     * <p>The way to it, on this display, and the only one — MainFrame stops drawing its own Browse button the
+     * moment an editor claims {@code pick}, because two ways to browse one field is one too many. So the key
+     * line under the screen names this key whenever the caret is on a field that has an offer, which is the same
+     * rule the rest of that line follows: it says what can be done <em>here</em>, and never what cannot.
+     *
+     * <p>It blocks the frame loop, which is what a modal dialog is. The OS window on top draws itself and the
+     * console underneath is a still picture until it is answered. Nothing else in MainFrame notices: the job
+     * thread is already waiting on this screen, as it waits on every screen.
+     *
+     * <p>Backing out of a dialog leaves the field exactly as it was — it is somebody deciding to type the path
+     * after all, and not an answer of any kind. What comes back goes in whole, however long it is: the cells
+     * MainFrame reserved show the front of it, which is a truth about the room and not about the answer, and
+     * cutting a path to fit the field would hand back a path to somewhere else.
+     */
+    void browsed() {
+        Live current = live;
+        if (current == null || chooser == null) {
+            return;
+        }
+        Spot spot = current.spot(current.focus);
+        if (spot == null || !spot.browsable()) {
+            return;
+        }
+        Path chosen;
+        try {
+            chosen = chooser.choose(spot.pick(), current.value(spot.name()));
+        } catch (RuntimeException | LinkageError e) {
+            // Said out loud rather than swallowed, and then out of the way: a dialog that will not open is not a
+            // reason to lose the screen, and the field can still be typed into. It lands in the scrollback,
+            // which is behind the curtain until the form is finished -- so it is a record of what happened
+            // rather than a message anybody reads at the time, and the key line is the wrong place for it.
+            scrollback.post("the file chooser would not open (" + e + ") -- the path can still be typed");
+            return;
+        }
+        if (chosen == null) {
+            return;
+        }
+        String text = chosen.toString();
+        current.values.put(spot.name(), text);
+        current.caret = text.length();
+        relight();
+        dirty = true;
+    }
+
+    /** As much of the clipboard as is one line of typing: up to the first break, control characters dropped. */
+    private static String pastable(String clipboard) {
+        if (clipboard == null || clipboard.isEmpty()) {
+            return "";
+        }
+        StringBuilder kept = new StringBuilder();
+        clipboard.codePoints()
+                .takeWhile(c -> c != '\n' && c != '\r')
+                .filter(c -> c >= 0x20 && c != 0x7F)
+                .forEach(kept::appendCodePoint);
+        return kept.toString();
+    }
+
+    /** {@code text} cut to {@code room} characters, never through the middle of a character. */
+    private static String fit(String text, int room) {
+        if (text.length() <= room) {
+            return text;
+        }
+        int cut = Character.isHighSurrogate(text.charAt(room - 1)) ? room - 1 : room;
+        return text.substring(0, cut);
     }
 
     /** The keys that edit a field or move about one. What ends the transaction is claimed, not handled here. */

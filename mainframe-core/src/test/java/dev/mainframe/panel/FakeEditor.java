@@ -42,6 +42,12 @@ final class FakeEditor implements Editor {
         return new FakeEditor(new Hello("plain", 1, 24, 80, capabilities("text", "entry")));
     }
 
+    /** An editor hosted somewhere with a file dialog of its own, so it claims {@code pick}. */
+    static FakeEditor choosing() {
+        return new FakeEditor(new Hello("native", 1, 40, 90,
+                capabilities("text", "entry", "choice", "action", "box", "click", "resize", "pick")));
+    }
+
     /** Queues a message exactly as it would arrive down the wire. */
     FakeEditor sends(String json) {
         events.add(json);

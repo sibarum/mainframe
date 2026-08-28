@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
@@ -205,6 +206,129 @@ class PanelTest {
         // And it is told why the list is only being shown, rather than left to wonder.
         assertTrue(parts.contains("cannot add entries"), parts);
         assertEquals("Acme", Values.display(answers.get("client")));
+    }
+
+    // ---- browsing for a file ----------------------------------------------------------------
+
+    private static final String TOOLING = """
+            [{"name": "jdk", "type": "path", "pick": "folder", "required": true},
+             {"name": "log", "type": "path", "pick": "save"}]
+            """;
+
+    /** A folder to walk into, so a chooser has somewhere to go. */
+    private void tree() throws Exception {
+        Files.createDirectories(here.resolve("tools").resolve("jdk-21"));
+    }
+
+    /**
+     * A path under the test's own directory, written the way it goes on the wire.
+     *
+     * <p>Forward slashes, because an event is JSON and a Windows path in a JSON
+     * string is a run of escape sequences nobody meant. MainFrame reads either.
+     */
+    private String at(String name) {
+        return Values.portable(here.resolve(name));
+    }
+
+    /** And the same path the way this machine writes one, which is what comes back. */
+    private String local(String... names) {
+        Path path = here;
+        for (String name : names) path = path.resolve(name);
+        return path.toString();
+    }
+
+    @Test
+    void anEditorWithAChooserOfItsOwnIsHandedTheField() throws Exception {
+        tree();
+        FakeEditor editor = FakeEditor.choosing().submits("jdk", at("tools"));
+        Value.Rec answers = show(editor, TOOLING);
+
+        String parts = editor.parts(0);
+        // The offer goes on the entry, and nothing else does: no button, because
+        // this editor has something better than anything MainFrame could draw.
+        assertTrue(parts.contains("pick: folder"), parts);
+        assertTrue(parts.contains("pick: save"), parts);
+        assertFalse(parts.contains("action: pick:jdk"), parts);
+        // What comes back is text in an entry like anything else, read as a path.
+        assertEquals(local("tools"), Values.display(answers.get("jdk")));
+    }
+
+    @Test
+    void anEditorWithoutOneGetsAButtonAndAScreenBehindIt() throws Exception {
+        tree();
+        FakeEditor editor = FakeEditor.rich()
+                .clicks("pick:jdk")                        // the button beside the field
+                .clicks("at:1")                            // in the chooser: walk into tools
+                .submits("where", at("tools"))             // and take it
+                .submits("jdk", at("tools"));
+        Value.Rec answers = show(editor, TOOLING);
+
+        // No offer was made to this editor, because it did not claim one.
+        assertFalse(editor.parts(0).contains("pick: folder"), editor.parts(0));
+        assertTrue(editor.parts(0).contains("action: pick:jdk"), editor.parts(0));
+        // The chooser is a screen of its own, made of nothing this editor had to
+        // learn: text, an entry and things to click.
+        assertEquals("CHOOSE A FOLDER", Values.display(editor.screen(1).get("title")));
+        assertTrue(editor.parts(1).contains("entry: where"), editor.parts(1));
+        assertTrue(editor.parts(1).contains("[tools]"), editor.parts(1));
+        assertEquals(local("tools"), Values.display(answers.get("jdk")));
+    }
+
+    @Test
+    void aChooserOnlyListsFoldersWhenAFolderIsWanted() throws Exception {
+        tree();
+        Files.writeString(here.resolve("notes.txt"), "hello");
+        FakeEditor editor = FakeEditor.rich()
+                .clicks("pick:jdk")
+                .cancels()
+                .submits("jdk", at("tools"));
+        show(editor, TOOLING);
+
+        assertTrue(editor.parts(1).contains("[tools]"), editor.parts(1));
+        assertFalse(editor.parts(1).contains("notes.txt"), editor.parts(1));
+    }
+
+    @Test
+    void backingOutOfTheChooserLeavesTheFieldAlone() throws Exception {
+        tree();
+        FakeEditor editor = FakeEditor.rich()
+                .clicks("pick:jdk", "jdk", at("tools"))
+                .cancels()
+                .submits("jdk", at("tools"));
+        Value.Rec answers = show(editor, TOOLING);
+
+        // Backing out of a chooser is somebody deciding to type it after all, so
+        // the form is still there with what was in it.
+        assertEquals(local("tools"), Values.display(answers.get("jdk")));
+    }
+
+    @Test
+    void savingAsWillTakeANameThatIsNotThereYet() throws Exception {
+        tree();
+        FakeEditor editor = FakeEditor.rich()
+                .clicks("pick:log")
+                .clicks("at:1")                            // into tools
+                .submits("where", at("tools"), "name", "run.log")
+                .submits("jdk", at("tools"));
+        Value.Rec answers = show(editor, TOOLING);
+
+        assertEquals(local("tools", "run.log"), Values.display(answers.get("log")));
+    }
+
+    @Test
+    void aChooserSaysWhyItWillNotTakeSomething() throws Exception {
+        tree();
+        FakeEditor editor = FakeEditor.rich()
+                .clicks("pick:jdk")
+                .submits("where", at("nowhere"))
+                .cancels()
+                .submits("jdk", at("tools"));
+        show(editor, TOOLING);
+
+        // The refusal comes back as a new screen with an error on it, which is the
+        // only way MainFrame ever says no to an editor.
+        assertTrue(editor.styled(2, "error").contains("no folder called nowhere"),
+                editor.parts(2));
     }
 
     // ---- the rules that keep it evergreen ---------------------------------------------------
