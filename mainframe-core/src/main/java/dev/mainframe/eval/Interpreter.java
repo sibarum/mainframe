@@ -14,6 +14,7 @@ import dev.mainframe.HostedProgram;
 import dev.mainframe.MfError;
 import dev.mainframe.Session;
 import dev.mainframe.Span;
+import dev.mainframe.lang.Argv;
 import dev.mainframe.lang.Ast;
 import dev.mainframe.ui.Suggest;
 import dev.mainframe.value.Value;
@@ -681,88 +682,55 @@ public final class Interpreter {
         return new Value.Float(result);
     }
 
-    // ---- external programs --------------------------------------------------------------
+    // ---- host programs --------------------------------------------------------------
 
     /**
-     * Runs an external program, written with a leading caret so it is always
-     * obvious that MainFrame is not in charge of what happens next.
+     * Runs a program the surrounding application installed, written with a leading
+     * caret so it is always obvious that MainFrame is not in charge of what happens
+     * next: arguments in, text out, an exit code at the end.
      *
-     * <p>A program the host installed in-process is looked for first, so
-     * {@code ^jdk} can be the host program's own code rather than a file on disk.
-     * The caret means the same thing either way: arguments in, text out, an exit
-     * code at the end.
+     * <p><b>Nothing is spawned.</b> MainFrame does not start processes, so a caret
+     * reaches this application's own code and nothing else. A name nobody installed
+     * is an error rather than a search of the PATH — which keeps the set of things a
+     * line can do a set somebody wrote down.
      */
     private Value external(Ast.External call, Value input, Scope scope, boolean last) {
         List<String> arguments = argumentsOf(call, scope);
         boolean handOver = last && input instanceof Value.Nothing && session.interactive();
 
-        // A name with a separator in it spells out a file, so it is never one of
-        // the installed programs: ./tool is ./tool.
-        if (!spelledOut(call.name())) {
-            HostedProgram installed = session.programs().get(call.name());
-            if (installed != null) return hosted(installed, call, arguments, input, handOver);
-        }
-
-        List<String> command = new ArrayList<>();
-        command.add(resolveProgram(call));
-        command.addAll(arguments);
-
-        ProcessBuilder builder = new ProcessBuilder(command).directory(session.cwd().toFile());
-        // The child gets the environment as it stands right now, not the one this
-        // process was started with, so env-set and path-add take effect at once.
-        builder.environment().clear();
-        builder.environment().putAll(session.env().all());
-        try {
-            if (handOver) {
-                builder.inheritIO();
-                Process process = builder.start();
-                int code = process.waitFor();
-                if (code != 0) session.out().warn(call.name() + " exited with code " + code);
-                return Value.Nothing.INSTANCE;
-            }
-            builder.redirectErrorStream(false);
-            Process process = builder.start();
-            if (!(input instanceof Value.Nothing)) {
-                try (var stdin = process.getOutputStream()) {
-                    stdin.write(textOf(input).getBytes(StandardCharsets.UTF_8));
-                }
-            } else {
-                process.getOutputStream().close();
-            }
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            int code = process.waitFor();
-            if (code != 0) throw failedProgram(call, code, stderr);
-            if (!stderr.isBlank()) session.out().warn(stderr.strip());
-            return new Value.Str(stdout.stripTrailing());
-        } catch (IOException e) {
-            throw MfError.of("E323", "could not start " + call.name() + ": " + e.getMessage())
-                    .at(call.span())
-                    .hint("check the name and that it is on your PATH")
-                    .build();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw MfError.of("E324", call.name() + " was interrupted").at(call.span()).build();
-        }
+        // A name with a separator in it spells out a file, and there is nothing here
+        // that runs a file: ./tool is not one of the installed programs.
+        HostedProgram installed = spelledOut(call.name()) ? null : session.programs().get(call.name());
+        if (installed == null) throw noSuchProgram(call);
+        return hosted(installed, call, arguments, input, handOver);
     }
 
-    /** The arguments of a caret call, as strings, the way a process would get them. */
+    /** A caret with a name behind it that nothing installed. */
+    private MfError noSuchProgram(Ast.External call) {
+        MfError.Builder error = MfError.of("E323", "there is no program called " + call.name())
+                .at(call.span());
+        String closest = Suggest.closest(call.name(), session.programs().names());
+        if (closest != null) error.hint("did you mean ^" + closest + "?");
+        return error
+                .hint("run programs to see what this shell provides")
+                .hint("MainFrame does not start programs on your PATH -- a caret reaches this app's own code")
+                .hint("if it is a MainFrame command, drop the ^")
+                .build();
+    }
+
+    /**
+     * The arguments of a caret call, the way a program would get them.
+     *
+     * <p>The text was never parsed as MainFrame, so all that happens here is the
+     * splitting a program expects: unquoted whitespace separates, quotes group, and
+     * {@code $name} becomes what it stands for. Everything else -- a colon, a
+     * comma, an {@code =} -- is a character in a word.
+     */
     private List<String> argumentsOf(Ast.External call, Scope scope) {
-        List<String> arguments = new ArrayList<>();
-        for (Ast.Arg arg : call.args()) {
-            if (arg instanceof Ast.FlagArg flag) {
-                String dashes = flag.shortForm() ? "-" : "--";
-                if (flag.value() == null) {
-                    arguments.add(dashes + flag.name());
-                } else {
-                    arguments.add(dashes + flag.name() + "="
-                            + Values.asString(eval(flag.value(), scope), flag.span()));
-                }
-            } else {
-                arguments.add(Values.asString(eval(((Ast.Positional) arg).value(), scope), arg.span()));
-            }
-        }
-        return arguments;
+        return Argv.split(call.raw(), name -> {
+            Value value = scope.get(name);
+            return value == null ? null : textOf(value);
+        });
     }
 
     /**
@@ -838,33 +806,7 @@ public final class Interpreter {
                 || (name.length() > 1 && name.charAt(1) == ':');
     }
 
-    /**
-     * Finds the program to run using MainFrame's own PATH.
-     *
-     * <p>The operating system would search the PATH this process was started
-     * with, which would quietly ignore anything {@code path-add} did. Resolving
-     * it here is what makes an edited PATH real, and it turns "not found" into an
-     * error that says where MainFrame looked.
-     */
-    private String resolveProgram(Ast.External call) {
-        String name = call.name();
-        if (spelledOut(name)) return session.resolve(name).toString();
-        java.nio.file.Path found = session.env().findProgram(name);
-        if (found != null) return found.toString();
-        MfError.Builder error = MfError.of("E325",
-                        "there is no program called " + name + " on your PATH")
-                .at(call.span());
-        String closest = Suggest.closest(name, session.programs().names());
-        if (closest != null) error.hint("this app provides one called " + closest + " -- try ^" + closest);
-        throw error
-                .hint("check the spelling, or run path to see the " + session.env().pathEntries().size()
-                        + " place(s) MainFrame looked")
-                .hint("add somewhere to look with: path-add <directory>")
-                .hint("if it is a MainFrame command, drop the ^")
-                .build();
-    }
-
-    /** The text a value becomes when it is handed to an external program. */
+    /** The text a value becomes when it is handed to a program. */
     private String textOf(Value value) {
         if (value instanceof Value.ListVal list) {
             StringBuilder sb = new StringBuilder();

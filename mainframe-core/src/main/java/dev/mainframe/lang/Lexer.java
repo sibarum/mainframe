@@ -52,9 +52,13 @@ public final class Lexer {
     private int col = 1;
     private final List<Token> out = new ArrayList<>();
 
-    private Lexer(String src) { this.src = src; }
+    private Lexer(String src) {
+        this.src = src;
+    }
 
-    public static List<Token> tokenize(String src) { return new Lexer(src).run(); }
+    public static List<Token> tokenize(String src) {
+        return new Lexer(src).run();
+    }
 
     /** How many bytes a unit suffix multiplies by, or null if it is not a unit. */
     public static Long sizeUnit(String suffix) { return SIZE_UNITS.get(suffix.toLowerCase()); }
@@ -65,6 +69,11 @@ public final class Lexer {
             if (c == ' ' || c == '\t' || c == '\r') { advance(); continue; }
             if (c == '#') { while (!eof() && peek() != '\n') advance(); continue; }
             if (c == '\n') { add(TokenType.NEWLINE, "\\n", mark(), 1); advance(); continue; }
+            // A caret stage is not read as MainFrame at all: the program's name, and
+            // then the rest of the line exactly as it was typed. This is the one place
+            // the language stops interpreting, and it is what lets a program own its
+            // own argument syntax.
+            if (atCommandPosition() && c == '^') { external(); continue; }
             if (c == '"' || c == '\'') { string(c); continue; }
             if (Character.isDigit(c) && datetimeAhead(pos)) { datetime(); continue; }
             if (Character.isDigit(c)) { number(false); continue; }
@@ -434,6 +443,83 @@ public final class Lexer {
     private static boolean isBarewordEnd(char c) {
         return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '|' || c == ';'
                 || c == ')' || c == ']' || c == '}' || c == ',' || c == '(' || c == '[';
+    }
+
+    // ---- caret stages ------------------------------------------------------------
+
+    /**
+     * Whether a stage could begin here.
+     *
+     * <p>Only at a stage boundary does a caret mean a program. A {@code ^} written
+     * as an argument to something else is just a character.
+     */
+    private boolean atCommandPosition() {
+        if (out.isEmpty()) return true;
+        return switch (out.getLast().type()) {
+            case NEWLINE, SEMI, PIPE, LBRACE -> true;
+            default -> false;
+        };
+    }
+
+    /** The program's name, and then everything else as one raw token. */
+    private void external() {
+        add(TokenType.CARET, "^", mark(), 0);
+        advance();
+        skipBlanks();
+        // A ^ with no name after it is the parser's error to report, and it says
+        // it better than the lexer could.
+        if (eof()) return;
+        char n = peek();
+        if (n == '"' || n == '\'') string(n);
+        else if (isIdentStart(n)) word();
+        else if (startsBareword(n)) bareword(mark(), new StringBuilder());
+        else return;
+        rawTail();
+    }
+
+    /**
+     * The rest of the stage, verbatim.
+     *
+     * <p>Only what separates stages ends it: a pipe, a semicolon, a newline, and a
+     * closing brace when there is a block open to close. Quotes are stepped over
+     * rather than read, so a pipe inside an argument stays in the argument.
+     *
+     * <p>The token is added even when it is empty, because its presence is what
+     * tells the parser this stage was handed over rather than parsed.
+     */
+    private void rawTail() {
+        skipBlanks();
+        Span start = mark();
+        int begin = pos;
+        int depth = braceDepth();
+        while (!eof()) {
+            char c = peek();
+            if (c == '\n' || c == ';' || c == '|') break;
+            if (c == '}' && depth > 0) break;
+            if (c == '"' || c == '\'') { skipQuoted(c); continue; }
+            advance();
+        }
+        String raw = src.substring(begin, pos).stripTrailing();
+        add(TokenType.RAW, raw, start, Math.max(1, raw.length()));
+    }
+
+    private void skipBlanks() {
+        while (!eof() && (peek() == ' ' || peek() == '\t' || peek() == '\r')) advance();
+    }
+
+    private void skipQuoted(char quote) {
+        advance();
+        while (!eof() && peek() != quote && peek() != '\n') advance();
+        if (!eof() && peek() == quote) advance();
+    }
+
+    private int braceDepth() {
+        int depth = 0;
+        for (Token t : out) {
+            if (t.type() == TokenType.LBRACE) depth++;
+            else if (t.type() == TokenType.RBRACE) depth--;
+        }
+        return depth;
     }
 
     // ---- cursor ------------------------------------------------------------------

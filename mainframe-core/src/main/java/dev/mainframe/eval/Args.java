@@ -48,6 +48,9 @@ public final class Args {
 
     public Signature signature() { return signature; }
     public Session session() { return session; }
+
+    /** The commands this shell has, for anything that has to not collide with one. */
+    public Registry registry() { return interpreter.registry(); }
     public Scope scope() { return scope; }
     public Span span() { return span; }
     public boolean dryRun() { return session.dryRun(); }

@@ -518,8 +518,8 @@ public final class MainFrame {
         }
 
         /**
-         * Installs a program of the host's own: invoked with a caret like anything
-         * on the PATH, but run in this JVM.
+         * Installs a program of the host's own: invoked with a caret, and run in
+         * this JVM.
          *
          * <p>Use this for something that has to look like a tool -- a name people
          * type, flags it parses itself, text it prints. Use {@link #command} for

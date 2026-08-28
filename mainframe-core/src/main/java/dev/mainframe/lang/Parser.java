@@ -127,13 +127,23 @@ public final class Parser {
                         .at(caret).hint("for example: ^git status").build();
             }
             advance();
-            return new Ast.External(name.text(), args(), caret.through(name.span()));
+            return new Ast.External(name.text(), rawTail(), caret.through(name.span()));
         }
         if (startsCommand()) {
             Token name = advance();
             return new Ast.Command(name.text(), args(), name.span());
         }
         return new Ast.ExprStage(expression());
+    }
+
+    /**
+     * The raw tail the lexer set aside for a caret stage, or {@code ""}.
+     *
+     * <p>It is absent only for a program with no arguments at the very end of the
+     * input, which is the same as an empty one.
+     */
+    private String rawTail() {
+        return check(TokenType.RAW) ? advance().text() : "";
     }
 
     /** An identifier starts a command unless the next token makes it part of an expression. */

@@ -351,10 +351,9 @@ class ProgramTest {
         MainFrame shell = shell()
                 .program(spec("seed-database"), call -> 0)
                 .build();
-        shell.env("PATH", "");
 
         ShellError error = assertThrows(ShellError.class, () -> shell.run("^seed-databse"));
-        assertEquals("E325", error.code());
+        assertEquals("E323", error.code());
         assertTrue(error.hints().toString().contains("^seed-database"), error.hints().toString());
 
         ShellError missing = assertThrows(ShellError.class, () -> shell.run("which seed-databse"));
@@ -379,8 +378,7 @@ class ProgramTest {
 
         assertTrue(shell.programRemove("later"));
         assertFalse(shell.programRemove("later"));
-        shell.env("PATH", "");
-        assertEquals("E325", assertThrows(ShellError.class, () -> shell.run("^later")).code());
+        assertEquals("E323", assertThrows(ShellError.class, () -> shell.run("^later")).code());
     }
 
     @Test

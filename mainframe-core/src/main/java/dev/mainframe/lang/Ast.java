@@ -37,8 +37,13 @@ public sealed interface Ast {
     /** A builtin invocation: {@code where size > 1mb}. */
     record Command(String name, List<Arg> args, Span span) implements Stage {}
 
-    /** An external program invocation, written with a leading caret: {@code ^git status}. */
-    record External(String name, List<Arg> args, Span span) implements Stage {}
+    /**
+     * A program invocation: {@code ^calc 2+2}.
+     *
+     * <p>{@code raw} is the rest of the stage exactly as it was typed, because a
+     * tool owns its own syntax. {@link Argv} holds the one rule applied to it.
+     */
+    record External(String name, String raw, Span span) implements Stage {}
 
     /** A stage that is just a value, e.g. the {@code [1 2 3]} in {@code [1 2 3] | length}. */
     record ExprStage(Expr expr) implements Stage {

@@ -196,22 +196,38 @@ class EnvironmentTest {
         assertEquals(new Value.Str("external program"), ((Value.Rec) found).get("kind"));
     }
 
-    @Test
-    void aMissingProgramSaysWhereItLooked() {
-        Mf mf = mf();
-        mf.session().env().set("PATH", "");
-        MfError error = mf.error("^definitely-not-a-real-program");
-        assertEquals("E325", error.code());
-        assertTrue(error.hints().toString().contains("path-add"), error.hints().toString());
-    }
-
+    /**
+     * A cross-platform toolchain ships {@code mvn} and {@code mvn.cmd} in one directory, and only the second is
+     * a program Windows can start. Finding the shell script first is the failure this orders against: it comes
+     * back as "not a valid Win32 application" from a toolchain that is installed perfectly well.
+     */
     @Test
     @EnabledOnOs(OS.WINDOWS)
-    void aChildProcessSeesTheEditedEnvironment() {
+    void theSuffixedSpellingWinsOverTheBareNameBesideIt() throws IOException {
+        Path tools = Files.createDirectories(here.resolve("tools"));
+        Files.writeString(tools.resolve("mytool"), "#!/bin/sh\n");
+        Files.writeString(tools.resolve("mytool.cmd"), "@echo off\n");
+
         Mf mf = mf();
-        mf.eval("env-set DEMO_CHILD \"passed through\"");
-        Value output = mf.eval("^cmd \"/c\" \"echo %DEMO_CHILD%\"");
-        assertEquals(new Value.Str("passed through"), output);
+        mf.session().env().set("PATH", tools.toString());
+        mf.session().env().set("PATHEXT", ".COM;.EXE;.BAT;.CMD");
+
+        assertEquals(tools.resolve("mytool.cmd"), mf.session().env().findProgram("mytool"));
+        // Spelled out in full it is still itself: nothing suffixed matches, and the name as typed is on disk.
+        assertEquals(tools.resolve("mytool.cmd"), mf.session().env().findProgram("mytool.cmd"));
+    }
+
+    /**
+     * A caret reaches this application's own programs and nothing else. Being on the PATH is not enough and is
+     * not meant to be: MainFrame starts no processes, so the set of things a line can run is a set somebody
+     * wrote down, and the error has to say that rather than send you off to check your PATH.
+     */
+    @Test
+    void aCaretNameNobodyInstalledSaysSo() {
+        Mf mf = mf();
+        MfError error = mf.error("^definitely-not-a-real-program");
+        assertEquals("E323", error.code());
+        assertTrue(error.hints().toString().contains("programs"), error.hints().toString());
     }
 
     // ---- the environment class on its own ----------------------------------------------

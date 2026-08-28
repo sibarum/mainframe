@@ -169,16 +169,29 @@ public final class Environment {
     /**
      * Finds an executable on this PATH the way the operating system would,
      * including the Windows habit of trying PATHEXT suffixes.
+     *
+     * <p>On Windows the suffixed spellings are tried <em>first</em>, and the
+     * name as typed only after them. That is what the system does -- a name with
+     * no extension in PATHEXT is not a program there -- and it is not a detail:
+     * cross-platform toolchains ship {@code mvn} and {@code mvn.cmd} side by side
+     * in one directory, so trying the bare name first finds the Unix shell script
+     * every time. Starting one of those raises "not a valid Win32 application"
+     * from a toolchain that is installed perfectly well, and the PATH the shell
+     * was told about is not the one to blame.
+     *
+     * <p>The bare name stays on the end rather than going away, because a name
+     * that already carries its extension -- {@code ^mvn.cmd} -- is spelled
+     * exactly as it is on disk, and nothing suffixed will match it.
      */
     public Path findProgram(String name) {
         List<String> candidates = new ArrayList<>();
-        candidates.add(name);
         if (onWindows()) {
             String pathext = getOrDefault("PATHEXT", ".COM;.EXE;.BAT;.CMD");
             for (String extension : pathext.split(";")) {
                 if (!extension.isBlank()) candidates.add(name + extension.trim().toLowerCase(Locale.ROOT));
             }
         }
+        candidates.add(name);
         for (String entry : pathEntries()) {
             for (String candidate : candidates) {
                 try {

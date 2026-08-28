@@ -6,6 +6,8 @@ public enum TokenType {
     PIPE, EQ_EQ, BANG_EQ, LT, LT_EQ, GT, GT_EQ, MATCH, NOT_MATCH,
     PLUS, MINUS, STAR, SLASH, PERCENT, ASSIGN, CARET, DOT,
     LPAREN, RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE, COMMA, COLON, SEMI,
+    /** The whole tail of a caret stage, exactly as it was typed. */
+    RAW,
     NEWLINE, EOF;
 
     public boolean isKeyword() {
