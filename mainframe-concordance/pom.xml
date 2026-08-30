@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.mainframe</groupId>
+    <artifactId>mainframe-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>mainframe-concordance</artifactId>
+  <packaging>jar</packaging>
+
+  <name>MainFrame Concordance</name>
+  <description>Concordance's source index, invoked from MainFrame as a program: ^concordance . usages area</description>
+
+  <!--
+    An adapter, and only an adapter. Concordance is not a MainFrame capability that
+    happens to live outside: it is a separate program with a CLI of its own and a
+    repository of its own, which already passes the could-another-project-use-it
+    test without anything being done to it. So this module depends on both sides
+    and neither side depends on this; nothing in dev.mainframe.concordance is
+    reusable, because there is nothing here except the join.
+
+    Deliberately not in mainframe-dist. concordance-index brings JavaParser, and
+    the one mainframe.exe is a zero-dependency AOT build that has not been asked to
+    swallow a parser yet. See mainframe-assistant/pom.xml, which is out for the
+    same reason and a heavier one.
+  -->
+  <dependencies>
+    <dependency>
+      <groupId>dev.mainframe</groupId>
+      <artifactId>mainframe-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!--
+      concordance-cli, not concordance-index: the argv-in-text-out contract this
+      wraps is the CLI's, and re-deriving it here from the index would be a second
+      Concordance to keep in step with the first. Installed to the local .m2 by
+      `mvn install` in the sibling concordance-indexer repo, the same arrangement
+      vexelray has with supirvast. Note this pulls concordance-index and
+      concordance-project with it, and Cardinal with none of them — the receipt
+      graph is concordance-drafter's, and no part of it is on this path.
+    -->
+    <dependency>
+      <groupId>sibarum.concordance</groupId>
+      <artifactId>concordance-cli</artifactId>
+      <version>${concordance.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

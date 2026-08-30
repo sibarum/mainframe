@@ -28,6 +28,7 @@
   <modules>
     <module>mainframe-core</module>
     <module>mainframe-vexel-gui</module>
+    <module>mainframe-concordance</module>
   </modules>
 
   <profiles>
@@ -52,6 +53,9 @@
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.4</junit.version>
+
+    <!-- Concordance's source index, wrapped by mainframe-concordance. Local install; see that module's pom. -->
+    <concordance.version>0.1.0-SNAPSHOT</concordance.version>
 
     <!-- The stack mainframe-vexel-gui sits on. Local installs; see that module's pom. -->
     <vexelray-gui.version>0.1.0-SNAPSHOT</vexelray-gui.version>
