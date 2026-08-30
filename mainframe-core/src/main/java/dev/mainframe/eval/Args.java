@@ -51,6 +51,17 @@ public final class Args {
 
     /** The commands this shell has, for anything that has to not collide with one. */
     public Registry registry() { return interpreter.registry(); }
+
+    /**
+     * The interpreter this command is running inside, for the rare command whose
+     * job is to run another one.
+     *
+     * <p>Exposed rather than reached around: a command that ran a line by any
+     * other route would be a second way in, and every guardrail lives on this
+     * one. See the assistant, which turns a model's answer into a line and sends
+     * it through here exactly as a typed one goes.
+     */
+    public Interpreter interpreter() { return interpreter; }
     public Scope scope() { return scope; }
     public Span span() { return span; }
     public boolean dryRun() { return session.dryRun(); }

@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SequencedMap;
 
+import dev.mainframe.MfError;
 import dev.mainframe.form.Form.Field;
 import dev.mainframe.panel.Editor;
 import dev.mainframe.panel.Event;
@@ -111,7 +112,34 @@ public final class FormPanel {
      */
     public static Value.Rec show(Form form, Value.Rec starting, String title, Editor editor,
                                  Path from) {
+        refuseSecretsAnEditorCannotKeep(form, editor);
         return new FormPanel(form, title, editor, from).run(starting);
+    }
+
+    /**
+     * The one part MainFrame will not send to an editor that did not ask for it.
+     *
+     * <p>Every other capability degrades: an editor with no {@code choice} gets
+     * the options rendered down to an entry, one with no {@code pick} gets a path
+     * typed instead of chosen, and in both cases the answer is the same. A
+     * {@code secret} sent to an editor that never heard of it does not degrade --
+     * it paints the key on the glass and sends it back in every event, which is
+     * the whole of what the field exists to prevent.
+     *
+     * <p>So it stops here, before a screen is built, rather than being drawn as an
+     * ordinary entry and hoped about. Refusing is the safe half of the trade: the
+     * caller can ask another way, and nobody has leaked anything by finding out.
+     */
+    private static void refuseSecretsAnEditorCannotKeep(Form form, Editor editor) {
+        if (editor.hello().can(Screen.SECRET)) return;
+        for (Field field : form.fields()) {
+            if (!field.isSecret()) continue;
+            throw MfError.of("E1207", field.label()
+                            + " is a secret, and this editor cannot hide what is typed into it")
+                    .hint("the editor did not claim \"secret\", so MainFrame will not send it one")
+                    .hint("set it from a terminal instead, or use an editor that can mask an entry")
+                    .build();
+        }
     }
 
     private Value.Rec run(Value.Rec starting) {
@@ -321,7 +349,11 @@ public final class FormPanel {
 
         String value = asTyped.containsKey(name) ? asTyped.get(name) : shown(answers.get(name));
         boolean chooses = field.isPicked() && editor.hello().can("pick");
-        if (field.choices() != null) {
+        if (field.isSecret()) {
+            // No value goes with it, in either direction -- not this one and not
+            // the one that was typed a moment ago. See Field.isSecret.
+            screen.secret(row, ENTRY_COLUMN, name, entryWidth());
+        } else if (field.choices() != null) {
             screen.choice(row, ENTRY_COLUMN, name, field.choices(), value,
                     editor.hello().can("choice"));
         } else {
@@ -458,6 +490,10 @@ public final class FormPanel {
     private SequencedMap<String, Value> offered(Value.Rec starting) {
         SequencedMap<String, Value> answers = new LinkedHashMap<>();
         for (Field field : form.fields()) {
+            // A secret is never offered back, even when the caller has one to
+            // offer. This is the downward half of the rule on Field.isSecret: the
+            // screen may say a key is set; it may not say what it is.
+            if (field.isSecret()) continue;
             Value seed = starting == null ? null : starting.get(field.name());
             if (seed != null && !(seed instanceof Value.Nothing) && !field.type().accepts(seed)) {
                 editor.print(field.name() + " arrived as " + ValueType.of(seed).withArticle()

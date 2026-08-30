@@ -55,7 +55,7 @@ public record Form(List<Field> fields) {
     /** The keys a field record may use, in the order they are worth reading in. */
     private static final List<String> KEYS = List.of(
             "name", "label", "type", "required", "min", "max", "match", "choose", "pick", "help",
-            "default", "fields");
+            "default", "secret", "fields");
 
     /**
      * How a path field is answered: by choosing something that is already there,
@@ -142,6 +142,8 @@ public record Form(List<Field> fields) {
      *                to type, or null to ask for it as text
      * @param entries the sub-form each entry of a group is filled in with, or null
      *                when this field holds a single value
+     * @param secret  a password or a key: shown as dots, never sent back down to
+     *                the editor, and sent up only once. See {@link #isSecret}.
      */
     public record Field(
             String name,
@@ -156,13 +158,39 @@ public record Form(List<Field> fields) {
             Pick pick,
             String help,
             Value preset,
-            Form entries) {
+            Form entries,
+            boolean secret) {
 
         /** True when this field repeats: a list of details rather than one value. */
         public boolean isGroup() { return entries != null; }
 
         /** True when this field is answered by browsing rather than by typing. */
         public boolean isPicked() { return pick != null; }
+
+        /**
+         * True when this field holds something that must not travel like the rest.
+         *
+         * <p>Every other entry on a screen obeys one rule: an event carries the
+         * whole screen, every field, every time, because a diff that can disagree
+         * with itself is not worth the bytes. That rule is right, and for a
+         * password it is the problem. It would put the key in the change event, the
+         * click event and the resize event -- not once, but for as long as the
+         * screen is open -- and it would send the stored value back <em>down</em>
+         * every time the screen was drawn.
+         *
+         * <p>So a secret field is the documented exception, and the exception is
+         * its own rule rather than a special case hidden in the panel: <b>a secret
+         * travels once, upward, on submit.</b> Never on a change, never on a click,
+         * never on a resize, and never downward at all. What the editor shows for
+         * one is dots, and what it is offered to show is nothing -- the screen says
+         * whether a key is set, and never what it is.
+         *
+         * <p>The cost is that the whole-state rule now has an exception, and the
+         * value of the whole-state rule was that it had none. That is the trade,
+         * taken deliberately: the alternative is a key on the wire a hundred times
+         * for one that was typed.
+         */
+        public boolean isSecret() { return secret; }
 
         /** Text, or something that can always be read as text. */
         public boolean isTextual() {
@@ -568,8 +596,11 @@ public record Form(List<Field> fields) {
                     .build();
         }
 
+        boolean secret = truthy(rec, "secret");
+        if (secret) checkSecret(name, type, preset, choices, pick, entries, span);
+
         Field field = new Field(name, label, type, required, min, max, match, matchSource,
-                choices, pick, help, preset, entries);
+                choices, pick, help, preset, entries, secret);
         if (preset != null) {
             String problem = field.problem(preset);
             if (problem != null) {
@@ -589,7 +620,47 @@ public record Form(List<Field> fields) {
                     .build();
         }
         return new Field(name, name.replace('-', ' ').replace('_', ' '), ValueType.STRING,
-                false, null, null, null, null, null, null, null, null, null);
+                false, null, null, null, null, null, null, null, null, null, false);
+    }
+
+    /**
+     * What a secret field may not also be.
+     *
+     * <p>Each of these would send the secret somewhere it must not go, so they are
+     * refused when the form is read rather than quietly ignored when it is drawn.
+     * A form that says {@code secret: true} and hands the value out anyway is
+     * worse than one that never claimed to.
+     */
+    private static void checkSecret(String name, ValueType type, Value preset,
+                                    List<String> choices, Pick pick, Form entries, Span span) {
+        if (entries != null) {
+            throw MfError.of("E1206", name + " cannot be a secret and a group at once").at(span)
+                    .hint("a group is a table of answers, and a secret is one answer that is not kept")
+                    .build();
+        }
+        if (type != ValueType.STRING) {
+            throw MfError.of("E1206", name + " is " + type.withArticle()
+                            + ", and a secret is text").at(span)
+                    .hint("say type: \"string\", or drop secret: true")
+                    .build();
+        }
+        if (preset != null) {
+            throw MfError.of("E1206", "a secret cannot have a default").at(span)
+                    .hint("a default is sent down to the editor to be shown, which is the one "
+                            + "thing a secret never does")
+                    .build();
+        }
+        if (choices != null) {
+            throw MfError.of("E1206", "a secret cannot be chosen from a list").at(span)
+                    .hint("the list would have to carry every possible answer, including the real one")
+                    .build();
+        }
+        if (pick != null) {
+            throw MfError.of("E1206", "a secret cannot be picked with a chooser").at(span)
+                    .hint("a chooser answers with a path, which is not a secret -- ask for the "
+                            + "path as an ordinary field")
+                    .build();
+        }
     }
 
     private static ValueType type(String declared, boolean hasEntries, String name, Span span) {

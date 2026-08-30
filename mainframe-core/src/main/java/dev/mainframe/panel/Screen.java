@@ -89,6 +89,38 @@ public final class Screen {
         return this;
     }
 
+    /**
+     * An entry for a password or a key: shown as dots, and carrying no value.
+     *
+     * <p>Unlike {@code pick}, this is <em>not</em> an offer an editor may ignore.
+     * The whole point of {@code pick} is that an editor which never heard of it
+     * still does something correct -- the path gets typed instead of chosen, and
+     * the answer is the same either way. Ignoring {@code secret} is not like
+     * that: the answer would be shown on screen as it was typed, and sent back in
+     * every event, which is precisely what asking for a secret entry was meant to
+     * prevent. An unknown key that degrades into a leak is not a degradation.
+     *
+     * <p>So this is a capability, checked before the screen is built -- see
+     * {@link #SECRET} and {@link Editor.Hello#can()}. An editor that has not said
+     * it can do secrets is never sent one; the caller asks for the key some other
+     * way, or says it cannot. That is the same negotiation rule one already
+     * describes, applied to the one kind of part where silence is not safe.
+     */
+    public Screen secret(int row, int col, String name, int width) {
+        parts.add(part(row, col, "entry", new Value.Str(name))
+                .with("width", new Value.Int(width))
+                // No "value" key at all. Not an empty string standing in for the
+                // real one -- nothing, so there is nothing to send down.
+                .with("holds", new Value.Str("string"))
+                .with("secret", new Value.Bool(true))
+                .with("style", new Value.Str(name.equals(focus) ? "entry-focus" : "entry")));
+        grewTo(row, col + width);
+        return this;
+    }
+
+    /** The capability an editor advertises when it can mask an entry. */
+    public static final String SECRET = "secret";
+
     /** An entry that is shown but cannot be typed in. */
     public Screen locked(int row, int col, String name, int width, String value) {
         parts.add(part(row, col, "entry", new Value.Str(name))

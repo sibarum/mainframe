@@ -100,6 +100,27 @@ options written above it, and never has to know it missed anything.
 optimisation, and an optimisation that can disagree with itself is not worth the
 bytes; a whole screen of text fields is a few hundred bytes.
 
+There is exactly one exception, and it is the next rule.
+
+### A secret travels once, upward
+
+An entry marked `secret` is **not** included in `fields` on `change`, `click`,
+`resize` or `cancel`. It appears once, in the `fields` of the `submit` event that
+ends the screen, and never otherwise. MainFrame never sends a value down for one:
+a `secret` entry has no `value` key at all — not an empty string standing in for
+the real one, nothing.
+
+This is the only place the whole-screen rule is broken, and it is broken
+deliberately. A password obeying that rule would be on the wire in the change
+event, the click event and the resize event — not once, but for as long as the
+screen is open — and would be sent back down every time the screen was redrawn.
+The rule is right about form data and wrong about keys, so keys are named as the
+exception rather than quietly handled somewhere in the middle.
+
+The cost is real and worth stating: the whole-screen rule used to have no
+exceptions, and that was most of its value. This is the trade taken knowingly.
+One secret typed should cross the wire once, not a hundred times.
+
 Values arrive as text. MainFrame declared what type each field holds when it sent
 the screen and will read the text back as that type — the editor never has to
 know what a size or a moment is.
@@ -172,6 +193,25 @@ An entry may also carry:
 | `notify` | `"change"` to report every edit, not just on submit |
 | `holds` | `"string"`, `"int"`, `"size"`, `"time"`, … — a hint for the editor's own keyboard, never a rule. MainFrame validates. |
 | `pick` | `"file"`, `"folder"` or `"save"` — offer a file chooser for this entry. Only sent to an editor that claimed `pick`. |
+| `secret` | `true` — a password or a key. Show dots. Only sent to an editor that claimed `secret`. |
+
+### Secrets
+
+`secret` looks like `pick` and is not like it. `pick` is an offer: an editor that
+never heard of it ignores the key, the path gets typed instead of chosen, and the
+answer is identical either way — rule one doing exactly what it is for.
+
+Ignoring `secret` is not that. It would show the key on screen as it was typed and
+send it back in every event, which is the whole of what asking for a secret entry
+was meant to prevent. An unknown key that degrades into a leak is not a
+degradation, so this one is negotiated rather than assumed: **MainFrame never
+sends a `secret` entry to an editor that did not claim `secret` in `hello`.** An
+editor that cannot mask is asked for the key some other way, or is told it cannot
+be asked here.
+
+If you implement it: show a dot or an asterisk per character, never the character;
+do not put the value in your scrollback, your undo history or your logs; and send
+it only in the `submit` event, as above.
 
 ### Choosing a file
 

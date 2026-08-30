@@ -149,6 +149,57 @@ final class PanelTest {
         assertEquals("ada@example.com", answer.field("email"));
     }
 
+    /** A screen with a key on it and something to press, so a click can happen before the submit. */
+    private static Screen keyAndButton() {
+        Screen screen = new Screen(11).title("SETTINGS").focus("key");
+        screen.text(1, 3, "API KEY", "label");
+        screen.secret(1, 20, "key", 20);
+        screen.action(3, 20, "go", "Save", null);
+        screen.key("F12", Event.SUBMIT, "Submit");
+        return screen;
+    }
+
+    @Test
+    void aSecretIsShownAsDotsAndNotAsItself() throws Exception {
+        Future<Event> asked = ask(() -> panel.show(keyAndButton()));
+        raised();
+        type("hunter2");
+        panel.flush();
+
+        String glass = String.join("\n", panel.lines());
+        assertFalse(glass.contains("hunter2"), "the key is on the glass:\n" + glass);
+        assertTrue(glass.contains("*******"), "one mark per character, so the length still shows:\n" + glass);
+
+        panel.ended("F12");
+        Event answer = settled(asked);
+        // Masked on the glass, itself on the wire: an editor that stored dots would submit dots.
+        assertEquals("hunter2", answer.field("key"));
+    }
+
+    @Test
+    void aSecretIsWithheldFromEveryEventButTheSubmit() throws Exception {
+        Future<Event> asked = ask(() -> panel.show(keyAndButton()));
+        raised();
+        type("hunter2");
+
+        panel.entered();
+        assertEquals("go", panel.focused());
+        panel.entered();
+        Event click = settled(asked);
+
+        assertTrue(click.is(Event.CLICK));
+        // The one exception to "fields carries every entry". Absent rather than blank -- an empty string would
+        // read as "they cleared it", which is a different claim from "this is not that kind of event".
+        assertNull(click.field("key"), "a key must not ride along on a click");
+    }
+
+    @Test
+    void maskingIsClaimedRatherThanAssumed() {
+        // Unlike pick, ignoring this one leaks: an editor that never heard of secret would paint the key and
+        // send it in every event. So it is negotiated, and this editor can honestly claim it.
+        assertTrue(panel.hello().can(Screen.SECRET));
+    }
+
     @Test
     void theScreenDecidesWhatAKeyMeans() throws Exception {
         Screen screen = new Screen(1).focus("only");

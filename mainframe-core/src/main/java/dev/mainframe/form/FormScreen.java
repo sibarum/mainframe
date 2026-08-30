@@ -209,6 +209,16 @@ public final class FormScreen {
     }
 
     private Step askValue(Field field, SequencedMap<String, Value> answers, int indent) {
+        if (field.isSecret() && System.console() == null) {
+            // The printed form is the fallback for a terminal with no panel, and
+            // here it has run out of fallback. Typing would be echoed, and echoing
+            // is the thing a secret field exists to prevent -- so it says so
+            // rather than asking anyway. The same rule the panel protocol applies
+            // to an editor that cannot mask: no capability, no question.
+            complain(indent, field.label() + " is a secret, and this terminal cannot hide typing");
+            hint(indent, "run MainFrame attached to a terminal, or set it from a screen");
+            return Step.CANCEL;
+        }
         Value current = answers.get(field.name());
         out.info("");
         out.info(leader(indent, field.heading(), field.required() ? "required" : "optional"));
@@ -229,7 +239,7 @@ public final class FormScreen {
         }
 
         while (true) {
-            String line = read(indent);
+            String line = field.isSecret() ? readSecret(indent) : read(indent);
             if (line == null) return Step.CANCEL;
             String typed = line.trim();
             if (typed.equals("!cancel")) return Step.CANCEL;
@@ -387,6 +397,35 @@ public final class FormScreen {
             if (YES.contains(typed)) return Answer.YES;
             if (NO.contains(typed)) return Answer.NO;
             complain(indent, "answer y or n");
+        }
+    }
+
+    /**
+     * The same prompt, with nothing echoed.
+     *
+     * <p>Straight to the terminal rather than through {@code session.readLine}: the
+     * shell's reader is a buffered stream that may be a pipe or a script, and the
+     * only thing that can suppress an echo is the console itself. Whether one is
+     * there was settled before the field was asked -- see {@link #askValue}.
+     *
+     * <p>The characters are wiped from the array afterwards. It is a small
+     * gesture, since the {@code String} it was turned into stays until it is
+     * collected, and it costs one line.
+     */
+    private String readSecret(int indent) {
+        java.io.Console console = System.console();
+        if (console == null) return null;
+        out.out().print(spaces(indent) + out.cyan("> "));
+        out.out().flush();
+        char[] typed = console.readPassword();
+        if (typed == null) return null;
+        try {
+            // The person typed and saw nothing, so the newline they expected has
+            // to come from here or the next line lands on top of the prompt.
+            out.info("");
+            return new String(typed);
+        } finally {
+            java.util.Arrays.fill(typed, '\0');
         }
     }
 

@@ -28,6 +28,7 @@
   <modules>
     <module>mainframe-core</module>
     <module>mainframe-vexel-gui</module>
+    <module>mainframe-assistant</module>
     <module>mainframe-concordance</module>
   </modules>
 

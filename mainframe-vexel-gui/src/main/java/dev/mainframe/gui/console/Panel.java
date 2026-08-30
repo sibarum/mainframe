@@ -88,6 +88,9 @@ final class Panel implements Editor {
     /** What an empty cell of an entry shows, and what makes a field's extent visible when it holds nothing. */
     private static final char FILL = '_';
 
+    /** What stands in a secret entry for each character typed. One per character, so the length still shows. */
+    private static final char MASK = '*';
+
     /** How long a blocked {@link #show} waits before checking whether the window went away under it. */
     private static final long POLL_MS = 100;
 
@@ -169,7 +172,7 @@ final class Panel implements Editor {
 
     /** An entry, a choice or an action: the parts somebody can reach. Everything else is paint. */
     private record Spot(String kind, String name, int row, int col, int width, boolean locked,
-                        List<String> of, String pick) {
+                        List<String> of, String pick, boolean secret) {
 
         /**
          * Whether this is a field MainFrame offered a chooser for.
@@ -412,6 +415,9 @@ final class Panel implements Editor {
         if (chooser != null) {
             can.add("pick");
         }
+        // Unconditional, unlike pick: masking needs nothing from the host, only that this editor promises to
+        // show dots and to hold the value back until submit. Both are here, so the claim is honest.
+        can.add(Screen.SECRET);
         return new Hello("mainframe-vexel-gui", 1, rows, cols, can);
     }
 
@@ -670,9 +676,17 @@ final class Panel implements Editor {
         }
         SequencedMap<String, Value> fields = new LinkedHashMap<>();
         for (Spot spot : current.spots) {
-            if (!spot.kind().equals("action")) {
-                fields.put(spot.name(), new Value.Str(current.value(spot.name())));
+            if (spot.kind().equals("action")) {
+                continue;
             }
+            // The one exception to "fields carries every entry", and the reason this editor claims `secret`: a
+            // key goes up once, on the submit that ends the screen, and is absent from every change, click and
+            // resize before it. Absent rather than blanked -- an empty string here would read as "they cleared
+            // it", which is a different thing from "this is not that kind of event".
+            if (spot.secret() && !Event.SUBMIT.equals(did)) {
+                continue;
+            }
+            fields.put(spot.name(), new Value.Str(current.value(spot.name())));
         }
         SequencedMap<String, Value> event = new LinkedHashMap<>();
         event.put("screen", new Value.Int(current.id));
@@ -769,13 +783,16 @@ final class Panel implements Editor {
         byte style = style(text(part, "style"));
         if (part.get("entry") instanceof Value.Str name) {
             boolean locked = part.get("locked") instanceof Value.Bool flag && flag.value();
-            screen.values.put(name.value(), text(part, "value"));
+            boolean secret = part.get("secret") instanceof Value.Bool masked && masked.value();
+            // A secret arrives with no value key at all, so this starts empty and stays that way until somebody
+            // types into it. Nothing to unpack, which is the point of MainFrame not sending one.
+            screen.values.put(name.value(), secret ? "" : text(part, "value"));
             // pick is only ever sent to an editor that claimed it, so an entry carrying one is an entry this
             // editor said it would offer a chooser for. A word nobody here knows is no offer rather than an
             // error -- rule three, the same as an unknown style or an unknown part.
             String pick = text(part, "pick");
             screen.spots.add(new Spot("entry", name.value(), row, col, Math.max(1, width(part)),
-                    locked, List.of(), PICKS.contains(pick) ? pick : null));
+                    locked, List.of(), PICKS.contains(pick) ? pick : null, secret));
             return;                                     // its cells are written at repaint, from the value
         }
         if (part.get("choice") instanceof Value.Str name) {
@@ -788,14 +805,14 @@ final class Panel implements Editor {
             // The value, a space, and the two marks that say it cycles.
             screen.values.put(name.value(), text(part, "value"));
             screen.spots.add(new Spot("choice", name.value(), row, col, widest(of) + 3, false,
-                    List.copyOf(of), null));
+                    List.copyOf(of), null, false));
             return;
         }
         if (part.get("action") instanceof Value.Str name) {
             String label = text(part, "text");
             write(screen, row, col, label, style == PLAIN ? ACTION : style);
             screen.spots.add(new Spot("action", name.value(), row, col, Math.max(1, label.length()),
-                    false, List.of(), null));
+                    false, List.of(), null, false));
             return;
         }
         if (part.get("box") instanceof Value.ListVal dims && dims.items().size() >= 2) {
@@ -963,7 +980,10 @@ final class Panel implements Editor {
      */
     private static char cell(Spot spot, String value, int i) {
         if (i < value.length()) {
-            return value.charAt(i);
+            // A secret is the one field whose characters are not its own. Masked here rather than at the value,
+            // because the value is what gets sent on submit and what the caret moves through -- a field that
+            // stored dots would submit dots.
+            return spot.secret() ? MASK : value.charAt(i);
         }
         if (spot.kind().equals("choice")) {
             return i == spot.width() - 2 ? '<' : i == spot.width() - 1 ? '>' : ' ';

@@ -6,7 +6,17 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 
 import dev.mainframe.value.Times;
 import dev.mainframe.value.Value;
@@ -48,15 +58,35 @@ public final class SafeFs {
         return userHome().resolve(".mainframe");
     }
 
+    /** Who is allowed to read a file MainFrame writes. */
+    public enum Visibility {
+        /** Whatever the system would normally give it. Right for everything that is not a secret. */
+        NORMAL,
+        /** This account and nobody else. */
+        OWNER_ONLY
+    }
+
     /**
      * Writes via a sibling temporary file and one rename, so a reader never sees
      * a half-written file and a failure leaves the original untouched.
      */
     public static void atomicWrite(Path target, byte[] data) throws IOException {
+        atomicWrite(target, data, Visibility.NORMAL);
+    }
+
+    /**
+     * The same write, with a say in who can read the result.
+     *
+     * <p>The permissions go on the temporary file before the bytes do. Setting
+     * them on the target afterwards would leave the contents readable for the
+     * length of the write, and a rename cannot take that back.
+     */
+    public static void atomicWrite(Path target, byte[] data, Visibility visibility) throws IOException {
         Path parent = target.toAbsolutePath().getParent();
         Files.createDirectories(parent);
         Path temp = Files.createTempFile(parent, "." + target.getFileName() + ".", ".mf-part");
         try {
+            if (visibility == Visibility.OWNER_ONLY) restrictToOwner(temp);
             Files.write(temp, data);
             try {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -66,6 +96,49 @@ public final class SafeFs {
         } finally {
             Files.deleteIfExists(temp);
         }
+    }
+
+    /**
+     * Cuts a file down to this account, on whichever of the two permission models
+     * the filesystem has.
+     *
+     * <p>POSIX is a set of bits. Windows is an access control list, and
+     * restricting one means replacing the entries inherited from the parent
+     * directory rather than adding to them -- a list that still carries Users
+     * read is not restricted, it is decorated.
+     *
+     * @throws IOException when the filesystem offers neither model, so that a
+     *                     caller who asked for this cannot quietly not get it
+     */
+    public static void restrictToOwner(Path path) throws IOException {
+        PosixFileAttributeView posix = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+        if (posix != null) {
+            posix.setPermissions(Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            return;
+        }
+        AclFileAttributeView acl =
+                Files.getFileAttributeView(path, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        if (acl == null) {
+            throw new IOException("this filesystem offers no way to keep " + path
+                    + " to your account alone");
+        }
+        UserPrincipal owner = acl.getOwner();
+        acl.setAcl(List.of(AclEntry.newBuilder()
+                .setType(AclEntryType.ALLOW)
+                .setPrincipal(owner)
+                .setPermissions(EnumSet.of(
+                        AclEntryPermission.READ_DATA,
+                        AclEntryPermission.WRITE_DATA,
+                        AclEntryPermission.APPEND_DATA,
+                        AclEntryPermission.READ_ATTRIBUTES,
+                        AclEntryPermission.WRITE_ATTRIBUTES,
+                        AclEntryPermission.READ_NAMED_ATTRS,
+                        AclEntryPermission.WRITE_NAMED_ATTRS,
+                        AclEntryPermission.READ_ACL,
+                        AclEntryPermission.WRITE_ACL,
+                        AclEntryPermission.DELETE,
+                        AclEntryPermission.SYNCHRONIZE))
+                .build()));
     }
 
     /** Moves a path into the trash and returns where it landed. */
