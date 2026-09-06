@@ -13,9 +13,9 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.core.app.WindowSpec;
 import dev.vexelray.gui.core.input.ClaimScope;
+import dev.vexelray.gui.core.input.DragEvent;
 import dev.vexelray.gui.core.input.MenuSink;
 import dev.vexelray.gui.core.input.Shortcut;
-import dev.vexelray.gui.core.layout.LayoutEnums;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.core.style.Theme;
@@ -172,9 +172,11 @@ public final class Console implements AutoCloseable, ConsoleContext {
         // the rule. This is the clearance that keeps the two apart.
         Node clearance = gui.box().width(Length.FILL).height(Length.rem(0.3f));
 
-        this.output = gui.column().width(Length.FILL).height(Length.grow(1))
-                .scrollLock(LayoutEnums.ScrollLock.BOTTOM);
-        this.scrollback = new Scrollback(gui, output, ansi);
+        this.scrollback = new Scrollback(gui, ansi);
+        // One document rather than a node per line, which is what makes the output selectable and copyable. It
+        // tails itself: the scroll lock a container would have carried lives inside it, said in the one term a
+        // text node has for its bottom edge. See Scrollback.
+        this.output = scrollback.node().width(Length.FILL).height(Length.grow(1));
 
         // ---- the panel -----------------------------------------------------------------
         // A screen MainFrame describes goes here, in the slot the scrollback stands in, because the two are never
@@ -243,6 +245,8 @@ public final class Console implements AutoCloseable, ConsoleContext {
         prompt.onSubmit(this::onLine);
         this.clicks = focusFollowsWindow();
         gui.onContextMenu(frame, this::contextMenu);
+        // And over the output, where the framework would otherwise stop at the pane's own Copy.
+        scrollback.menu(this::contextMenu);
         claims();
     }
 
@@ -462,7 +466,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
         if (shell == null) {
             return;
         }
-        output.scrollToEdge();
+        scrollback.tail();
         String label = promptText();
         scrollback.post(label + line, List.of(Span.foreground(0, label.length(), ansi.hot())));
         shell.submit(line);
@@ -537,7 +541,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
             return;
         }
         prompt.text("");
-        output.scrollToEdge();
+        scrollback.tail();
         // A line is either a command or an answer to a question the shell is holding open -- a form's field, a
         // yes/no. The shell knows which, because it knows whether it is blocked reading; the window only has to
         // ask. An answer is echoed like a command, since that is what the scrollback of a filled-in form is.
@@ -573,6 +577,15 @@ public final class Console implements AutoCloseable, ConsoleContext {
      * same target.
      */
     private Subscription focusFollowsWindow() {
+        // A selection dragged across the output is the one gesture a click does not end: press and release land
+        // on different nodes, so no click is published and the caret would be left nowhere -- with Ctrl+C, which
+        // is claimed on the field, reaching nothing at the moment there is finally something to copy. The pane's
+        // own drag stage is the widget's; this is a second, unordered handler on the same node, so both run.
+        gui.onDrag(scrollback.node(), event -> {
+            if (event.phase() == DragEvent.Phase.END) {
+                gui.focus(panel.up() ? panel.node() : prompt.node());
+            }
+        });
         return gui.bus().subscribe(gui.clicks(),
                 event -> gui.focus(panel.up() ? panel.node() : prompt.node()));
     }
@@ -648,10 +661,29 @@ public final class Console implements AutoCloseable, ConsoleContext {
             }
             return;
         }
-        Document document = prompt.document().value();
-        if (document.hasSelection()) {
-            gui.clipboard().set(document.selectedText());
+        String selected = selection();
+        if (!selected.isEmpty()) {
+            gui.clipboard().set(selected);   // Ctrl+C with nothing selected copies nothing; it does not empty it
         }
+    }
+
+    /**
+     * What Copy would copy: whatever is selected on this window.
+     *
+     * <p>Two documents can hold a selection — the command line and the output pane — and only one of them ever
+     * holds the caret, so "the focused one" is not the answer. The command line is asked first because it is
+     * where the caret is and so where a selection was most recently made; the scrollback answers when it has not
+     * been. Which means Ctrl+C copies the lines somebody just dragged across without their having to give the
+     * pane focus it is deliberately not allowed to take.
+     *
+     * @return the selected text, or {@code ""} when nothing is selected anywhere
+     */
+    private String selection() {
+        Document typed = prompt.document().value();
+        if (typed.hasSelection()) {
+            return typed.selectedText();
+        }
+        return scrollback.document().selectedText();
     }
 
     // ---- per frame -------------------------------------------------------------------
@@ -908,6 +940,7 @@ public final class Console implements AutoCloseable, ConsoleContext {
             shell = null;
         }
         prompt.close();
+        scrollback.close();
     }
 
     /** One line of screen text in the tube's own face and size. Every label on this display goes through here. */

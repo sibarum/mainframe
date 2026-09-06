@@ -87,7 +87,7 @@ final class PanelTest {
         Ansi ansi = Ansi.of(gui.theme());
         Node host = gui.column();
         seen = 0;
-        return new Panel(gui, host, ansi, new Scrollback(gui, gui.column(), ansi),
+        return new Panel(gui, host, ansi, new Scrollback(gui, ansi),
                 up -> curtain.add(up), () -> busy, chooser, () -> now);
     }
 
