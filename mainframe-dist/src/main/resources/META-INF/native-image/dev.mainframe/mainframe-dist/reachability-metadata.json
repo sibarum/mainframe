@@ -607,6 +607,48 @@
       "glob": "dev/vexelray/text/atlas/primary.png"
     },
     {
+      "glob": "dev/mainframe/gui/desktop/mainframe-16.png"
+    },
+    {
+      "glob": "dev/mainframe/gui/desktop/mainframe-32.png"
+    },
+    {
+      "glob": "dev/mainframe/gui/desktop/mainframe-48.png"
+    },
+    {
+      "glob": "dev/mainframe/gui/desktop/mainframe-256.png"
+    },
+    {
+      "glob": "dev/vexelray/demo/calculator/icon-16.png"
+    },
+    {
+      "glob": "dev/vexelray/demo/calculator/icon-32.png"
+    },
+    {
+      "glob": "dev/vexelray/demo/calculator/icon-48.png"
+    },
+    {
+      "glob": "dev/vexelray/demo/calculator/icon-256.png"
+    },
+    {
+      "glob": "icons/icon-16.png"
+    },
+    {
+      "glob": "icons/icon-32.png"
+    },
+    {
+      "glob": "icons/icon-48.png"
+    },
+    {
+      "glob": "icons/icon-64.png"
+    },
+    {
+      "glob": "icons/icon-128.png"
+    },
+    {
+      "glob": "icons/icon-256.png"
+    },
+    {
       "glob": "grammars/JSON.tmLanguage.json"
     },
     {

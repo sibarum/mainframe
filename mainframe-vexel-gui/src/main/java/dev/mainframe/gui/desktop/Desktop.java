@@ -13,6 +13,7 @@ import dev.vexelray.gui.core.app.WindowInput;
 import dev.vexelray.gui.core.app.WindowMemory;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.os.Decorations;
+import dev.vexelray.os.NativePlatform;
 import sibarum.tactroller.api.BackendException;
 import sibarum.tactroller.api.CoordinateSpace;
 import sibarum.tactroller.api.NativeWindow;
@@ -150,6 +151,13 @@ public final class Desktop {
                 .build());
         console.gui().zoomRange(0.5f, 3f, 1.25f);
 
+        // The mark, before anything opens. Set on the application rather than on the console's WindowConfig
+        // because it is the application's: every window this desk opens that did not choose a mark of its own
+        // — the console, and an app window opened without one — inherits it, which is exactly the rule the
+        // platform already applies. Setting it here also means it is in place before the first window is
+        // shown, so nothing appears under the generic icon and is corrected a frame later.
+        applyMark();
+
         try (Tactroller input = openInput();
              // Placement is read before the window exists, so it comes up where it was left rather than being
              // moved there after appearing — and clamped on the way, because the desk may have changed shape.
@@ -259,6 +267,21 @@ public final class Desktop {
     }
 
     // ---- the platform edge -----------------------------------------------------------
+
+    /**
+     * Give the application MainFrame's mark, if the platform has icons.
+     *
+     * <p>Best effort on purpose: an icon is cosmetic, and a desk that comes up under the OS default is a
+     * lesser thing than one that does not come up at all. A platform without icon support already no-ops, so
+     * the only thing caught here is artwork that could not be read or decoded.
+     */
+    private static void applyMark() {
+        try {
+            NativePlatform.current().setApplicationIcon(Mark.mainframe());
+        } catch (RuntimeException e) {
+            System.out.println("icon unavailable (" + e.getMessage() + "); using the system default");
+        }
+    }
 
     private static Tactroller openInput() {
         try {

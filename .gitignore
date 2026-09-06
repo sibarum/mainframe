@@ -3,3 +3,6 @@ target/
 # Captures written by mainframe-vexel-gui's --capture path. A screenshot meant for the docs is
 # added with git add -f.
 *.png
+# ...except the mark. These four are a resource the program loads at start-up, not a picture of it,
+# and an icon that is not in the jar is a window with no icon. See Mark.java.
+!mainframe-vexel-gui/src/main/resources/dev/mainframe/gui/desktop/*.png

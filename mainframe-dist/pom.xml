@@ -186,6 +186,27 @@
                   </target>
                 </configuration>
               </execution>
+              <!-- The executable's own icon, which is a packaging fact rather than an engine one: what
+                   Explorer shows for mainframe.exe, and what a pinned shortcut shows before the program runs.
+                   The icon of the *running* application is the other half and lives in Mark.java, which
+                   Desktop hands to setApplicationIcon. Compiling .rc -> .res needs rc.exe on PATH, which the
+                   MSVC environment native-image already requires on Windows supplies; failonerror, because an
+                   icon that silently did not get linked looks exactly like one that was never asked for. -->
+              <execution>
+                <id>compile-exe-icon</id>
+                <phase>prepare-package</phase>
+                <goals><goal>run</goal></goals>
+                <configuration>
+                  <target>
+                    <exec executable="rc" failonerror="true">
+                      <arg value="/nologo"/>
+                      <arg value="/fo"/>
+                      <arg file="${project.build.directory}/mainframe.res"/>
+                      <arg file="${project.basedir}/src/main/native/mainframe.rc"/>
+                    </exec>
+                  </target>
+                </configuration>
+              </execution>
             </executions>
           </plugin>
           <plugin>
@@ -239,6 +260,9 @@
                 -->
                 <buildArg>-H:NativeLinkerOption=/SUBSYSTEM:WINDOWS</buildArg>
                 <buildArg>-H:NativeLinkerOption=/ENTRY:mainCRTStartup</buildArg>
+                <!-- The compiled icon resource, handed to the linker like any other object. Built by the
+                     compile-exe-icon execution above; a Windows linker option beside the two above it. -->
+                <buildArg>-H:NativeLinkerOption=${project.build.directory}/mainframe.res</buildArg>
               </buildArgs>
             </configuration>
           </plugin>

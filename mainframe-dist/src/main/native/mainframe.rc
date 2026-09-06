@@ -1,0 +1,4 @@
+// Linked into target/mainframe.exe by the `native` profile. The first icon resource in an
+// executable is the one Explorer and the taskbar show, and IDI_APPLICATION == 1 is the
+// conventional id for it. The mark is a-mainframe from vexelray-icons.
+1 ICON "mainframe.ico"
