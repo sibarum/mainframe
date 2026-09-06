@@ -51,6 +51,20 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- The assistant: `ask` and `key`. Not an application and not a window, which is why it arrives through
+         ConsoleApp.of rather than as one of the programs below.
+
+         This is the one dependency in the whole tree with a transitive closure worth naming: OkHttp, Jackson
+         and the Kotlin standard library, arriving behind the Anthropic SDK. Everything MainFrame is built out
+         of otherwise has none, and native-image has to be told about every one of them. See the
+         reachability metadata beside this file, and Claude.java for the seam where a hand-written HTTP client
+         would go if the weight ever stops being worth it. -->
+    <dependency>
+      <groupId>dev.mainframe</groupId>
+      <artifactId>mainframe-assistant</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <!-- The two programs this distributable carries. Each is an ordinary ConsoleApp out of its own
          repository: nothing was added to either one for the sake of being shipped here. -->
     <dependency>

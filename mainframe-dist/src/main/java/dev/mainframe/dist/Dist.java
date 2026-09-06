@@ -1,5 +1,7 @@
 package dev.mainframe.dist;
 
+import dev.mainframe.assistant.Assistants;
+import dev.mainframe.gui.app.ConsoleApp;
 import dev.mainframe.gui.desktop.Desktop;
 import dev.vexelray.demo.calculator.Calculator;
 import dev.vexelray.demo.editor.Editor;
@@ -59,8 +61,28 @@ public final class Dist {
         // are handed the memory rather than opening one each.
         Desktop.run("mainframe", "MainFrame",
                 (settings, memory) -> List.of(
+                        assistant(),
                         new Calculator(memory),
                         new Editor(memory)),
                 args);
+    }
+
+    /**
+     * The assistant, as the list sees it.
+     *
+     * <p>Not a program: it opens no window and there is nothing to launch. What it
+     * has is commands -- {@code ask} and {@code key} -- which is what
+     * {@link ConsoleApp#of} is for, and it arrives through the same seam the
+     * calculator and the editor use so it gets the same argument checking, the
+     * same {@code help} and the same guardrails as everything else.
+     *
+     * <p>It is in the list rather than in {@code Desktop.run} on purpose. A shell
+     * that always had an assistant would be a shell nobody could build without an
+     * HTTP client; this way the ordinary MainFrame is exactly what it was, and
+     * this distributable is the one that also answers questions.
+     */
+    private static ConsoleApp assistant() {
+        return ConsoleApp.of("assistant", "ask for what you want in words",
+                (registry, console) -> Assistants.install(registry));
     }
 }
