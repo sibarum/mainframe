@@ -173,11 +173,15 @@ what produces `Type not found during analysis: BasicConstraintsExtension`.
   window leaves a `#32770` (`Open`, `Select Folder`) window open in the process, which is the proof that NFD
   loaded its library and linked its downcalls. "The process did not crash" is *not* proof on its own — it is
   also what a keystroke that never arrived looks like.
-- The assistant's request path survives being native-imaged: a native probe over `Claude` completes both
-  turns against the stand-in — request serialised with the tool roster in it, `tool_use` read back off the
-  reply, `tool_result` sent up, final answer returned — where the same probe without
-  `mainframe-dist-assistant/` dies on the first one. That is the SDK, Jackson and Kotlin in an image; it is
-  not `ask` running inside `mainframe.exe`, and it is not TLS. See the metadata section above.
+- `ask "marco"` completes both turns from the executable, against the stand-in the metadata was traced from:
+  `ANTHROPIC_BASE_URL=http://127.0.0.1:8787 mainframe.exe --run 'ask "marco"' 400`. The first request carries
+  the real roster — 26KB of it, where the probe's one made-up tool was 324 bytes — and the second carries a
+  `tool_result`, which is the whole loop: the reply deserialised, the `ls` it asked for run through the
+  ordinary interpreter, the outcome sent back up. A native probe over `Claude` alone does the same, and
+  without `mainframe-dist-assistant/` dies on the first turn.
+
+  What is still not covered is TLS: the stand-in speaks plain HTTP. One real `ask` with a real key is the
+  only thing that exercises the handshake, the certificate chain and the trust store in an image.
 
 There is no pixel-level screenshot of the editor window: this machine's desktop session is not capturable
 (`CopyFromScreen` returns black), so the highlighting evidence is the embedded grammar, the clean run and the
