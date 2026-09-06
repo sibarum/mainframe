@@ -2,6 +2,7 @@ package dev.mainframe.gui.console;
 
 import dev.vexelray.gui.core.style.Oklab;
 import dev.vexelray.gui.core.style.Palette;
+import dev.vexelray.gui.core.style.Relief;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.core.style.Shading;
 import dev.vexelray.gui.core.style.Theme;
@@ -60,6 +61,11 @@ public final class Phosphor {
                     0.42),
             // The beam responds harder than a painted surface does: hover blooms, press drops the gun.
             Shading.of(0.055, -0.045),
+            // The framework's ladder, unchanged, because the tube has already said what depth means here: the
+            // depth anchor above is the phosphor, so a rung is a wider halo rather than a longer shadow. Hover
+            // one rung up and press flush are the right responses either way -- what a raised thing does is the
+            // theme's decision, and it was made in the palette.
+            Relief.STANDARD,
             true,
             false);
 
