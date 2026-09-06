@@ -6,3 +6,6 @@ target/
 # ...except the mark. These four are a resource the program loads at start-up, not a picture of it,
 # and an icon that is not in the jar is a window with no icon. See Mark.java.
 !mainframe-vexel-gui/src/main/resources/dev/mainframe/gui/desktop/*.png
+# JVM crash dumps. Written wherever the process happened to start, which is a module directory.
+hs_err_pid*.log
+replay_pid*.log
