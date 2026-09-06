@@ -104,7 +104,7 @@ shipping the atlas as raw RGBA, or decoding the PNG directly. That is a change i
 
 ### reachability-metadata.json
 
-Two files, kept apart on purpose.
+Three files, kept apart on purpose.
 
 `dev.mainframe/mainframe-dist/` is the tracing agent's own output, from five runs over this module: the
 headless console capture, the form-panel capture, a windowed run of each app, and a probe that opens the two
@@ -127,7 +127,37 @@ the image heap — so every type needed to represent an X.509 certificate has to
 fails outright with `Type not found during analysis`. Discovering those one build at a time is a long
 afternoon, so the whole of `sun.security.{x509,util,rsa,pkcs,ec}` is registered at once.
 
-Both are regenerated the same way: run the JVM arrangement under
+`dev.mainframe/mainframe-dist-assistant/` is the SDK's, and separate because it was not traced from this
+program at all. The Anthropic SDK hands Jackson its own deserialisers — `JsonValue$Deserializer` and the
+whole of `com.anthropic.models` — and Jackson instantiates them reflectively, so a native image without this
+file **builds and links without a single warning** and then throws on the first question:
+
+```
+PROBE-FAILED java.lang.IllegalArgumentException:
+    Class com.anthropic.core.JsonValue$Deserializer has no default (no arg) constructor
+  at com.anthropic.core.JsonValue$Companion.from(Values.kt:360)
+  at dev.mainframe.assistant.Claude.asTool(Claude.java:162)
+```
+
+That is before a request is sent — rendering the roster as tools is enough to hit it. 183 types, mostly
+`com.anthropic.models`, plus the Kotlin builtins resources and the `sun.security.*` and `com.sun.crypto`
+machinery an OkHttp client initialises on the way up.
+
+**How it was traced, since it cannot be traced the way the others were.** Asking the real API needs a key,
+and the point of a trace run is to be repeatable. So the agent was run over a probe that drives
+`dev.mainframe.assistant.Claude` against a stand-in for `api.anthropic.com` on `127.0.0.1` — a canned
+`/v1/messages` that replies with a `tool_use` block on the first turn and text on the second, which is the
+assistant's whole loop and covers `ToolUseBlock` and `ToolResultBlockParam` as well as the plain answer. The
+client is pointed at it with `ANTHROPIC_BASE_URL`, so nothing about the SDK's own path is stubbed. `Probe`
+and `sun.launcher.LauncherHelper` were then filtered out, the same way the first file drops surefire.
+
+**What that trace does not cover, and what would.** The stand-in speaks plain HTTP, so nothing here proves
+TLS works in the image — the handshake, `api.anthropic.com`'s certificate chain, the bundled trust store. The
+`sun.security.ssl`, `pkcs12` and `provider` entries the trace did pick up are the client's start-up, not a
+completed handshake. Closing that gap needs one real `ask` against the real endpoint with a real key, which
+has not been done. A streamed response is also untraced; nothing asks for one yet.
+
+All three are regenerated the same way: run the JVM arrangement under
 `-agentlib:native-image-agent=config-merge-dir=<dir>`, then re-apply the filter. Deleting the
 `sun.security.*` entries because a native image has no jars to verify is the obvious-looking mistake; it is
 what produces `Type not found during analysis: BasicConstraintsExtension`.
@@ -143,6 +173,11 @@ what produces `Type not found during analysis: BasicConstraintsExtension`.
   window leaves a `#32770` (`Open`, `Select Folder`) window open in the process, which is the proof that NFD
   loaded its library and linked its downcalls. "The process did not crash" is *not* proof on its own — it is
   also what a keystroke that never arrived looks like.
+- The assistant's request path survives being native-imaged: a native probe over `Claude` completes both
+  turns against the stand-in — request serialised with the tool roster in it, `tool_use` read back off the
+  reply, `tool_result` sent up, final answer returned — where the same probe without
+  `mainframe-dist-assistant/` dies on the first one. That is the SDK, Jackson and Kotlin in an image; it is
+  not `ask` running inside `mainframe.exe`, and it is not TLS. See the metadata section above.
 
 There is no pixel-level screenshot of the editor window: this machine's desktop session is not capturable
 (`CopyFromScreen` returns black), so the highlighting evidence is the embedded grammar, the clean run and the
