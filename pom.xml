@@ -30,6 +30,7 @@
     <module>mainframe-vexel-gui</module>
     <module>mainframe-assistant</module>
     <module>mainframe-concordance</module>
+    <module>mainframe-template</module>
   </modules>
 
   <profiles>

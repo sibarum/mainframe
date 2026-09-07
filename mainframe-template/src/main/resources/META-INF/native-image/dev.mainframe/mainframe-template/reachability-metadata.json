@@ -1,0 +1,22 @@
+{
+  "comment": [
+    "A bundled template's files are classpath resources, and a native image ships",
+    "only the resources it was told about. Without these, mainframe.exe builds",
+    "clean, lists the template, asks every question, and then cannot find a single",
+    "file to write -- a green build is not evidence for this.",
+    "",
+    "It travels with the module rather than living in mainframe-dist so that",
+    "anything embedding mainframe-template gets it, which is the whole point of the",
+    "module being one. Every path the manifest can name is covered by the two globs;",
+    "the test that holds the manifest and the folder together is what keeps the",
+    "second one honest."
+  ],
+  "resources": [
+    {
+      "glob": "dev/mainframe/template/*/template.manifest"
+    },
+    {
+      "glob": "dev/mainframe/template/**/files/**"
+    }
+  ]
+}

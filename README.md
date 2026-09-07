@@ -31,6 +31,15 @@ like on a particular machine*.
 | [`mainframe-core`](mainframe-core) | The shell: the language, the interpreter, the commands, the embedding API. Zero runtime dependencies, native-image clean, no idea a screen exists. | nothing |
 | [`mainframe-vexel-gui`](mainframe-vexel-gui) | MainFrame as a window, on [vexelray-gui](https://github.com/sibarum/vexelray-gui): the console an application embeds, the seams it plugs its own commands and screens into, and a `main()` that boots MainFrame on its own. | `mainframe-core`, vexelray-gui |
 
+Beside them are the capabilities, each its own module because each would still be
+worth having outside MainFrame. They are installed into a shell rather than built
+into one — a `Registry` and one call — so the ordinary MainFrame is exactly what
+it was without them.
+
+| Module | What it adds | Depends on |
+| --- | --- | --- |
+| [`mainframe-template`](mainframe-template) | `templates` and `new`: starting a project from a template, filled in through the data entry framework. Ships one — a VexelRay desktop application, wired the way the reference implementation is. [Using it](mainframe-template/docs/using-templates.md). | `mainframe-core` |
+
 The shell is the program. Everything else — an editor, a calculator — is
 something it opens, and `mainframe-vexel-gui` is where that list lives. See
 [its README](mainframe-vexel-gui/README.md).
@@ -1131,6 +1140,7 @@ part that renders itself down into two rows has to be counted as two.
 | **searching** | `index-build` `index-sync` `index-list` `index-drop` `from-index` `find` |
 | **environment** | `env` `env-set` `env-remove` `path` `path-add` `path-remove` `programs` |
 | **data entry** | `form` `form-check` `form-save` `form-recall` `form-forget` |
+| **projects** | `templates` `new` — from [`mainframe-template`](mainframe-template), installed rather than built in ([how to use it](mainframe-template/docs/using-templates.md)) |
 
 `cp` and `mv` take their destination as `--to=<path>`, never as a trailing
 argument, so the last thing you typed is never mistaken for a target.

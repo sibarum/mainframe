@@ -1,0 +1,172 @@
+# A VexelRay desktop application, as calculator-vexel-demo taught it.
+#
+# The calculator is the reference implementation of this stack, and what is copied
+# here is its *shape* rather than its content: the application edge, the threading
+# model, the build, and the two documents a project of this kind is expected to
+# keep. What a new project draws is a heading and a counter, because the point of
+# the starting tree is that every seam is already wired and none of them is
+# pretending to be an application somebody else wrote.
+#
+# Every file this writes is listed below. That is not tidiness -- a bundled
+# template's files are classpath resources, and a classpath directory cannot be
+# enumerated in a native image, so these lines are the only record of what is in
+# it. VexelDesktopTest.theManifestAndTheFolderAgree holds the list and the folder
+# together.
+
+template  vexel-desktop
+title     VexelRay desktop application
+summary   a window on vexelray-gui, wired the way the reference implementation is
+folder    ${artifactId}
+next      cd ${artifactId} && mvn compile exec:exec
+
+# ---- what it is ------------------------------------------------------------------
+
+slot where
+    label     create it in
+    kind      folder
+    required  yes
+    help      the folder the project folder goes inside -- your checkouts directory
+
+slot artifactId
+    label     project name
+    kind      text
+    required  yes
+    preset    my-app
+    match     [a-z][a-z0-9]*(-[a-z0-9]+)*
+    rule      maven-id
+    help      lower case, dashes between words; it is the folder name and the Maven artifactId
+
+slot groupId
+    label     group
+    kind      text
+    required  yes
+    preset    dev.example
+    match     [a-z][a-z0-9_]*(\.[a-z0-9_]+)*
+    rule      maven-id
+    help      your Maven groupId, e.g. dev.vexelray.demo
+
+slot summary
+    label     one-line summary
+    kind      text
+    required  no
+    preset    A VexelRay desktop application.
+    most      160
+    help      goes in the pom and the README
+
+# ---- the names inside it ---------------------------------------------------------
+
+slot packageName
+    label     java package
+    kind      text
+    required  no
+    match     [a-z][a-z0-9_]*(\.[a-z0-9_]+)*
+    rule      java-package
+    help      leave blank for <group>.<project name>
+
+slot className
+    label     main class
+    kind      text
+    required  no
+    match     [A-Za-z][A-Za-z0-9_]*
+    rule      java-type
+    help      leave blank for a name made from the project name
+
+slot title
+    label     window title
+    kind      text
+    required  no
+    most      60
+    help      leave blank to use the project name
+
+# ---- the window ------------------------------------------------------------------
+
+slot width
+    label     window width
+    kind      number
+    required  yes
+    preset    1180
+    least     320
+    most      8192
+    help      in the engine's logical coordinates, on a first run
+
+slot height
+    label     window height
+    kind      number
+    required  yes
+    preset    720
+    least     240
+    most      8192
+
+# ---- the stack it builds against --------------------------------------------------
+
+slot vexelrayVersion
+    label     vexelray version
+    kind      text
+    required  yes
+    preset    0.1.0-SNAPSHOT
+    help      the version of vexelray and vexelray-gui installed in your local Maven repository
+
+slot tactrollerVersion
+    label     tactroller version
+    kind      text
+    required  yes
+    preset    1.0-SNAPSHOT
+
+# ---- what to include ---------------------------------------------------------------
+
+slot tests
+    label     starting tests
+    kind      flag
+    required  no
+    preset    yes
+    help      unit tests for the state model and the palette
+
+# ---- worked out rather than asked for ------------------------------------------------
+
+fill blank  packageName    package  ${groupId}.${artifactId}
+fill always packagePath    path     ${packageName}
+fill blank  className      type     ${artifactId}
+fill blank  title          title    ${artifactId}
+fill blank  summary        text     A VexelRay desktop application.
+fill always appName        slug     ${artifactId}
+fill always guiVersion     text     ${vexelrayVersion}
+fill always junitVersion   text     5.11.4
+
+# ---- the tree ------------------------------------------------------------------------
+
+file pom.xml
+file .gitignore                                            from gitignore
+file README.md
+file docs/framework-notes.md
+file docs/TODO.md
+
+# A file's source is a plain name inside files/, and its path is where it lands, so
+# every one of these needs its "from" -- the two are only ever the same for a file
+# that sits at the top of the project.
+
+file src/main/java/${packagePath}/${className}.java  from App.java
+file src/main/java/${packagePath}/Ui.java            from Ui.java
+file src/main/java/${packagePath}/Model.java         from Model.java
+file src/main/java/${packagePath}/Doc.java           from Doc.java
+file src/main/java/${packagePath}/Look.java          from Look.java
+file src/main/java/${packagePath}/Type.java          from Type.java
+file src/main/java/${packagePath}/Landmarks.java     from Landmarks.java
+file src/main/java/${packagePath}/Capture.java       from Capture.java
+
+file src/test/java/${packagePath}/ModelTest.java     from ModelTest.java  when tests
+file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when tests
+
+# ---- what it will not build without ---------------------------------------------------
+#
+# Looked up in the local Maven repository before anything is written, because this
+# stack is installed rather than downloaded and a version nobody has run
+# `mvn install` for is the likeliest reason a fresh project does not build. The
+# platform modules are deliberately not here: exactly one of them activates from
+# the host OS, so checking for all three would warn about two that are correctly
+# absent.
+
+needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}
+needs dev.vexelray.gui:vexelray-gui-krono:${guiVersion}
+needs dev.vexelray.gui:vexelray-gui-automation:${guiVersion}
+needs sibarum.tactroller:tactroller-atchung:${tactrollerVersion}
+needs sibarum.tactroller:tactroller-clipboard:${tactrollerVersion}

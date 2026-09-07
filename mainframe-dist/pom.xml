@@ -68,6 +68,17 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- Starting a project from a template: `templates`, and `new vexel-desktop`. In, rather than out
+         like the assistant was, because it costs nothing to be in: no third-party jar, no HTTP client,
+         nothing for native-image to be taught beyond the two resource globs the module carries in its own
+         reachability-metadata.json. The template's files are resources, so the exe writes a whole VexelRay
+         project with nothing installed beside it. -->
+    <dependency>
+      <groupId>dev.mainframe</groupId>
+      <artifactId>mainframe-template</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <!-- The two programs this distributable carries. Each is an ordinary ConsoleApp out of its own
          repository: nothing was added to either one for the sake of being shipped here. -->
     <dependency>

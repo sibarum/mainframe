@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.mainframe</groupId>
+    <artifactId>mainframe-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>mainframe-template</artifactId>
+  <packaging>jar</packaging>
+
+  <name>MainFrame Templates</name>
+  <description>Starting a project from a template: new vexel-desktop</description>
+
+  <!--
+    A capability, so a module, and the boundary is drawn inside it as well as
+    around it. Two packages:
+
+      dev.mainframe.template        the engine. Reads a template, works out what
+                                    files it would write, and refuses the ones it
+                                    should not. Imports nothing from MainFrame,
+                                    and nothing from anywhere else either: a JDK
+                                    and a folder of templates is the whole of it.
+      dev.mainframe.template.shell  the adapter. Turns slots into MainFrame form
+                                    fields, answers into a record, and the result
+                                    into a Plan, so `new` gets the same dry-run,
+                                    the same confirmation and the same errors as
+                                    every other command that writes.
+
+    The could-another-project-use-it test is asked of the first package, and it
+    passes: Scaffold and Checks would drop into an installer or a Maven mojo
+    unchanged. The second package is the join, and is not meant to be reusable,
+    which is why it is a package of its own rather than mixed through the engine.
+
+    The price of that line is paid in small duplication: the engine parses its own
+    manifest rather than borrowing the shell's reader, and matches its own globs.
+    That price is the proof the boundary is real.
+  -->
+  <dependencies>
+    <dependency>
+      <groupId>dev.mainframe</groupId>
+      <artifactId>mainframe-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

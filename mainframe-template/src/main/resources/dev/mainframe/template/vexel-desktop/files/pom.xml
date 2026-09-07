@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>${groupId}</groupId>
+    <artifactId>${artifactId}</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+
+    <name>${artifactId}</name>
+    <description>
+        ${summary}
+    </description>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <vexelray-gui.version>${guiVersion}</vexelray-gui.version>
+        <vexelray.version>${vexelrayVersion}</vexelray.version>
+        <tactroller.version>${tactrollerVersion}</tactroller.version>
+        <junit.version>${junitVersion}</junit.version>
+
+        <app.mainClass>${packageName}.${className}</app.mainClass>
+
+        <!--
+          Program args for exec:exec, split on whitespace by the commandlineArgs form below. Empty is the
+          interactive run; a multi-word value is several arguments rather than one, which is what lets
+          an app.args of "capture out.png" mean what it says.
+        -->
+        <app.args></app.args>
+
+        <!-- The automation driver: "off", "on" for the default port, or a port number. -->
+        <automation>off</automation>
+
+        <!--
+          Extra JVM flags for exec:exec, split on whitespace. Needed because a -D on the mvn command line sets a
+          MAVEN property, which reaches the forked JVM only if the command line below names it: without this,
+          "mvn exec:exec -Dmy.setting=48" runs the app with the default and reports a measurement of nothing.
+        -->
+        <app.jvmArgs></app.jvmArgs>
+    </properties>
+
+    <dependencies>
+        <!-- The widget shelf, and the framework core and draw modules behind it. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-widget</artifactId>
+            <version>$${vexelray-gui.version}</version>
+        </dependency>
+        <!-- The clock. Motion enters at the application edge and nowhere else: -widget declares seams shaped
+             out of JDK types and this module satisfies them, so a widget animates without naming Kronometer. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-krono</artifactId>
+            <version>$${vexelray-gui.version}</version>
+        </dependency>
+        <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop.
+             A troubleshooting instrument, not a shipped feature - see vexelray-gui/docs/automation.md. -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-automation</artifactId>
+            <version>$${vexelray-gui.version}</version>
+        </dependency>
+        <!-- Input at the application edge: the tactroller->atchung bridge (brings tactroller-api and
+             atchung-core transitively, which is where State and Committer come from). -->
+        <dependency>
+            <groupId>sibarum.tactroller</groupId>
+            <artifactId>tactroller-atchung</artifactId>
+            <version>$${tactroller.version}</version>
+        </dependency>
+        <!-- Standalone OS clipboard; no input-subsystem coupling. -->
+        <dependency>
+            <groupId>sibarum.tactroller</groupId>
+            <artifactId>tactroller-clipboard</artifactId>
+            <version>$${tactroller.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>$${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>$${maven.compiler.release}</release>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+                </configuration>
+            </plugin>
+            <!--
+              Run in a fresh JVM: mvn compile exec:exec
+              exec:exec rather than exec:java so native access can be enabled for Panama FFM.
+
+              One command line split on whitespace, rather than a list of argument elements. An argument
+              element is exactly one token and a property cannot expand into several, so a multi-word
+              app.args would arrive as a single argument. %classpath is substituted after the split, so it
+              stays one argument even where a path contains a space.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <executable>$${java.home}/bin/java</executable>
+                    <classpathScope>runtime</classpathScope>
+                    <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=$${automation} $${app.jvmArgs} -classpath %classpath $${app.mainClass} $${app.args}</commandlineArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- Build-time platform selection: exactly one activates from the host OS, adding VexelRay's
+             matching provider module and tactroller's input backend (both found by ServiceLoader). -->
+        <profile>
+            <id>platform-windows</id>
+            <activation><os><family>windows</family></os></activation>
+            <dependencies>
+                <dependency>
+                    <groupId>dev.vexelray</groupId>
+                    <artifactId>vexelray-os-windows</artifactId>
+                    <version>$${vexelray.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>sibarum.tactroller</groupId>
+                    <artifactId>tactroller-windows</artifactId>
+                    <version>$${tactroller.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>platform-linux</id>
+            <activation><os><family>unix</family><name>linux</name></os></activation>
+            <dependencies>
+                <dependency>
+                    <groupId>dev.vexelray</groupId>
+                    <artifactId>vexelray-os-linux</artifactId>
+                    <version>$${vexelray.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>sibarum.tactroller</groupId>
+                    <artifactId>tactroller-linux</artifactId>
+                    <version>$${tactroller.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>platform-macos</id>
+            <activation><os><family>mac</family></os></activation>
+            <dependencies>
+                <dependency>
+                    <groupId>dev.vexelray</groupId>
+                    <artifactId>vexelray-os-macos</artifactId>
+                    <version>$${vexelray.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>sibarum.tactroller</groupId>
+                    <artifactId>tactroller-macos</artifactId>
+                    <version>$${tactroller.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

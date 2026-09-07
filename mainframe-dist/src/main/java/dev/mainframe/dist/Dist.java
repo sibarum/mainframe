@@ -3,6 +3,7 @@ package dev.mainframe.dist;
 import dev.mainframe.assistant.Assistants;
 import dev.mainframe.gui.app.ConsoleApp;
 import dev.mainframe.gui.desktop.Desktop;
+import dev.mainframe.template.shell.Templates;
 import dev.vexelray.demo.calculator.Calculator;
 import dev.vexelray.demo.editor.Editor;
 
@@ -62,6 +63,7 @@ public final class Dist {
         Desktop.run("mainframe", "MainFrame",
                 (settings, memory) -> List.of(
                         assistant(),
+                        templates(),
                         new Calculator(memory),
                         new Editor(memory)),
                 args);
@@ -84,5 +86,24 @@ public final class Dist {
     private static ConsoleApp assistant() {
         return ConsoleApp.of("assistant", "ask for what you want in words",
                 (registry, console) -> Assistants.install(registry));
+    }
+
+    /**
+     * Project templates, as the list sees them.
+     *
+     * <p>Not a program either -- {@code templates} and {@code new} are commands, and
+     * they arrive through the same seam as everything else, so they get the same
+     * argument checking, the same {@code help}, the same {@code --dry-run} and the
+     * same confirmation before anything is written.
+     *
+     * <p>Unlike the assistant this one is not a weight worth thinking about: the
+     * module has no third-party dependency and the whole of the shipped template is
+     * a folder of resources. What it buys is that this executable can start a
+     * VexelRay project on a machine with nothing but a JDK and a Maven repository:
+     * {@code new vexel-desktop}.
+     */
+    private static ConsoleApp templates() {
+        return ConsoleApp.of("templates", "start a new project from a template",
+                (registry, console) -> Templates.install(registry));
     }
 }

@@ -17,12 +17,18 @@ editor      true        open files in tabs, and point the file tree at a directo
 ~ > edit ./pom.xml       the editor, with that file in a tab
 ~ > ls | where ext == "java" | first 3 | edit
 ~ > reveal ./src         the file tree, pointed there
+~ > new vexel-desktop    a whole VexelRay project, from a form
 ```
 
 Everything stock in MainFrame is stock in this: `ls`, `where`, `select`, the pipes, the forms,
 the panel protocol. `calc`, `edit` and `reveal` are not aliases this module invented — they are the commands
 the calculator and the editor register for themselves, so they arrive with the same argument checking, the
 same `help`, the same `--dry-run` and the same errors as every built-in.
+
+`new` and `templates` arrive the same way, from [`mainframe-template`](../mainframe-template). Because the
+template's files are resources in the image, this executable can start a whole VexelRay project on a machine
+with nothing beside it but a JDK and a Maven repository —
+[how to use it](../mainframe-template/docs/using-templates.md).
 
 ## Why this module is behind a profile
 

@@ -1,0 +1,6 @@
+target/
+*.png
+!src/main/resources/**/*.png
+.idea/
+*.iml
+.vscode/
