@@ -17,6 +17,7 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <vexelray-framework.version>${frameworkVersion}</vexelray-framework.version>
         <vexelray-gui.version>${guiVersion}</vexelray-gui.version>
         <vexelray.version>${vexelrayVersion}</vexelray.version>
         <tactroller.version>${tactrollerVersion}</tactroller.version>
@@ -43,7 +44,23 @@
     </properties>
 
     <dependencies>
-        <!-- The widget shelf, and the framework core and draw modules behind it. -->
+        <!-- The application framework: the edge this project would otherwise write for itself. Its -shell
+             module brings vexelray-gui-core, -krono, -widget and tactroller with it, and owns the input
+             backend, the clipboard, the window memory, the clock, the frame loop and the shutdown. -->
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-shell</artifactId>
+            <version>$${vexelray-framework.version}</version>
+        </dependency>
+        <!-- The driving socket, as a framework component. Its own module, so a binary that never wants to be
+             driven does not link a listening socket. -->
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-automation</artifactId>
+            <version>$${vexelray-framework.version}</version>
+        </dependency>
+        <!-- The widget shelf, and the framework core and draw modules behind it. Reached through -shell as
+             well; named here because this project's own Ui builds against it directly. -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-widget</artifactId>

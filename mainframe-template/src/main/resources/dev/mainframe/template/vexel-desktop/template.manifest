@@ -129,7 +129,8 @@ fill blank  className      type     ${artifactId}
 fill blank  title          title    ${artifactId}
 fill blank  summary        text     A VexelRay desktop application.
 fill always appName        slug     ${artifactId}
-fill always guiVersion     text     ${vexelrayVersion}
+fill always guiVersion       text     ${vexelrayVersion}
+fill always frameworkVersion text     ${vexelrayVersion}
 fill always junitVersion   text     5.11.4
 
 # ---- the tree ------------------------------------------------------------------------
@@ -145,6 +146,7 @@ file docs/TODO.md
 # that sits at the top of the project.
 
 file src/main/java/${packagePath}/${className}.java  from App.java
+file src/main/java/${packagePath}/${className}Wiring.java from Wiring.java
 file src/main/java/${packagePath}/Ui.java            from Ui.java
 file src/main/java/${packagePath}/Model.java         from Model.java
 file src/main/java/${packagePath}/Doc.java           from Doc.java
@@ -165,6 +167,8 @@ file src/test/java/${packagePath}/LookTest.java      from LookTest.java   when t
 # the host OS, so checking for all three would warn about two that are correctly
 # absent.
 
+needs dev.vexelray.framework:vexelray-framework-shell:${frameworkVersion}
+needs dev.vexelray.framework:vexelray-framework-automation:${frameworkVersion}
 needs dev.vexelray.gui:vexelray-gui-widget:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-krono:${guiVersion}
 needs dev.vexelray.gui:vexelray-gui-automation:${guiVersion}

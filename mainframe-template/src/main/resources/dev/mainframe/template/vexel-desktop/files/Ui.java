@@ -2,7 +2,6 @@ package ${packageName};
 
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
-import dev.vexelray.gui.core.WindowControls;
 import dev.vexelray.gui.core.input.CursorShape;
 import dev.vexelray.gui.core.input.InteractionState;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
@@ -33,12 +32,13 @@ final class Ui {
     private final Node count;
     private final Node note;
 
-    Ui(Gui gui, Model model) {
+    Ui(Gui gui, Model model, TitleBar titleBar) {
         this.gui = gui;
-
-        // The window's own chrome. Handed no controls yet -- the window does not exist until GuiApp is
-        // constructed, and a bar bound to a window that is not there would be a set of buttons that do nothing.
-        titleBar = new TitleBar(gui, WindowControls.NONE, ${className}.TITLE);
+        // The bar is the framework's: chrome placement belongs to whoever owns the window, so the instruments
+        // in it mean the same thing in every window on the desk. This application places the node, below, and
+        // supplies every colour in it through Look. It is already pointed at real window controls by the time
+        // a frame is drawn -- the framework hands those down at ATTACH, once the window exists.
+        this.titleBar = titleBar;
 
         Node heading = gui.text(${className}.TITLE)
                 .font(Type.UI)
@@ -120,9 +120,5 @@ final class Ui {
     void show(Doc doc) {
         count.text(String.valueOf(doc.count()));
         note.text(doc.note());
-    }
-
-    TitleBar titleBar() {
-        return titleBar;
     }
 }

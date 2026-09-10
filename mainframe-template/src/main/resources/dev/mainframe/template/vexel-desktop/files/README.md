@@ -41,13 +41,37 @@ Four files carry the whole shape, and it is worth reading them in this order.
 
 | file | what belongs in it |
 | --- | --- |
-| `${className}.java` | **the application edge** — input, clipboard, window memory, the clock, the frame loop, and what closing the window means. The framework deliberately does not decide any of these for you. |
+| `${className}Wiring.java` | **what this application builds, and in which phase.** One method per phase, called in order. New components go here. |
 | `Model.java` | the one authoritative state, and the only way to change it. Every edit is a function of the current value, committed through atchung's `State`. |
 | `Doc.java` | what the application knows, as one immutable record. Add fields here rather than adding state elsewhere. |
 | `Ui.java` | the tree. Holds no state; `show(Doc)` writes everything derived from the document. |
 
+`${className}.java` is the entry point and the constants, and nothing else. What used to be there — the
+**application edge**: input, the clipboard, window memory, the clock, the frame loop with its wakes and its
+pacing, the dialogs, the command line and the shutdown order — is `vexelray-framework`'s. It was three hundred
+lines, and it was very nearly the same three hundred lines in every application on this stack.
+
 `Look.java`, `Type.java` and `Landmarks.java` are the three vocabularies: colour, size, and the names an
 automation script is allowed to depend on.
+
+### Phases
+
+A phase is a **correctness** constraint rather than a scheduling detail, and having them as a type is what
+makes the constraints structural instead of remembered:
+
+| phase | what exists by then |
+| --- | --- |
+| `CONFIG` | the settings store and the look — values, before there is a `Gui` to apply them to |
+| `MODEL` | what the application knows, before there is anything to draw it with |
+| `GUI` | the `Gui` and the clock; the theme applied and the zoom range set, before the first widget |
+| `TREE` | the widgets. Buildable with no window, which is what makes a headless capture possible |
+| `WINDOW` | the device and the window handle. Main-thread from here on |
+| `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
+
+A component's phase is decided by **what it needs** — the latest phase of anything it depends on — so it is a
+consequence of the code rather than a second thing to keep in agreement with it. `Shell`'s accessors refuse to
+hand over what does not exist yet, so asking too early is a message naming the phase rather than a null three
+frames later.
 
 ### Threading, in one paragraph
 

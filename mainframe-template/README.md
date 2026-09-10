@@ -108,14 +108,15 @@ the failure otherwise is a file that quietly stops shipping.
 ## What is in the box
 
 `vexel-desktop` follows [`calculator-vexel-demo`](https://github.com/sibarum/calculator-vexel-demo), the
-reference implementation of the VexelRay stack. What is copied is its *shape* rather than its content — the
-application edge, the threading model, the build, and the two documents a project of this kind keeps. What a
+reference implementation of the VexelRay stack. What is copied is its *shape* rather than its content -- the
+wiring, the threading model, the build, and the two documents a project of this kind keeps. What a
 new project draws is a heading and a counter, deliberately: every seam is wired and none of them is pretending
 to be somebody else's application.
 
 | | |
 | --- | --- |
-| `<Main>.java` | the application edge: input backend, clipboard, window memory, the clock, the frame loop and its wakes, the automation socket |
+| `<Main>Wiring.java` | what the application builds, one method per `vexelray-framework` phase: the look, the model, the tree, the driving socket |
+| `<Main>.java` | the entry point and the constants. The application edge -- input backend, clipboard, window memory, the clock, the frame loop and its wakes -- is the framework's, and used to be three hundred lines here |
 | `Model.java` / `Doc.java` | one authoritative state, changed by relative edits committed through atchung's `State` |
 | `Ui.java` | the tree, holding no state; `show(Doc)` writes everything derived from the document |
 | `Look.java` / `Type.java` / `Landmarks.java` | the three vocabularies: colour, size, and the names an automation script may depend on |
