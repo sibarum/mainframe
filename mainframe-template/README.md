@@ -125,16 +125,17 @@ to be somebody else's application.
 
 ## Layout
 
-Two packages, and the line between them is the module's whole reason for being one.
+One package, `dev.mainframe.template.shell` — the adapter. Slots become MainFrame form fields, answers become
+a record, the result becomes a `Plan`. Not meant to be reusable.
 
-- `dev.mainframe.template` — the engine. Reads a template, works out what files it would write, refuses the
-  ones it should not. Imports nothing from MainFrame and nothing from anywhere else: `Scaffold` and `Checks`
-  would drop into an installer or a Maven mojo unchanged.
-- `dev.mainframe.template.shell` — the adapter. Slots become MainFrame form fields, answers become a record,
-  the result becomes a `Plan`. Not meant to be reusable, which is why it is a package of its own.
-
-The price of that line is small duplication — the engine parses its own manifest and measures its own edit
-distance rather than borrowing the shell's. That price is the proof the boundary is real.
+**The engine is not here any more.** It reads a template, works out what files it would write and refuses the
+ones it should not, and it lives in
+[`vexelray-framework-template`](../../vexelray-framework/vexelray-framework-template) as
+`dev.vexelray.framework.template`, together with the `vexel-desktop` template and its native-image metadata.
+It moved because what it emits is that framework's primary witness, and it moved unchanged apart from its
+package name — it had always imported nothing from MainFrame, which was the proof the line between the two
+packages was real. It is JDK-only and a local install: `mvn install` in `vexelray-framework` before building
+this module.
 
 ## Installing it
 

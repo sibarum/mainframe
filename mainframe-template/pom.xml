@@ -17,34 +17,38 @@
   <description>Starting a project from a template: new vexel-desktop</description>
 
   <!--
-    A capability, so a module, and the boundary is drawn inside it as well as
-    around it. Two packages:
+    The adapter, and only the adapter. This module used to hold two packages:
 
       dev.mainframe.template        the engine. Reads a template, works out what
                                     files it would write, and refuses the ones it
-                                    should not. Imports nothing from MainFrame,
-                                    and nothing from anywhere else either: a JDK
-                                    and a folder of templates is the whole of it.
+                                    should not. Imported nothing from MainFrame.
       dev.mainframe.template.shell  the adapter. Turns slots into MainFrame form
                                     fields, answers into a record, and the result
                                     into a Plan, so `new` gets the same dry-run,
                                     the same confirmation and the same errors as
                                     every other command that writes.
 
-    The could-another-project-use-it test is asked of the first package, and it
-    passes: Scaffold and Checks would drop into an installer or a Maven mojo
-    unchanged. The second package is the join, and is not meant to be reusable,
-    which is why it is a package of its own rather than mixed through the engine.
+    The could-another-project-use-it test was asked of the first package, and it
+    answered itself: the engine moved to vexelray-framework-template, with the
+    vexel-desktop template and its native-image metadata, because what the builder
+    emits is that framework's primary witness. It moved unchanged apart from its
+    package name, which is the evidence the boundary was real. What is left here
+    is the join, which was never meant to be reusable.
 
-    The price of that line is paid in small duplication: the engine parses its own
-    manifest rather than borrowing the shell's reader, and matches its own globs.
-    That price is the proof the boundary is real.
+    vexelray-framework-template is JDK-only, like the engine always was, so this
+    module still builds on a machine with no GPU. It is a local install: run
+    `mvn install` in vexelray-framework first.
   -->
   <dependencies>
     <dependency>
       <groupId>dev.mainframe</groupId>
       <artifactId>mainframe-core</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.vexelray.framework</groupId>
+      <artifactId>vexelray-framework-template</artifactId>
+      <version>${vexelray-framework.version}</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

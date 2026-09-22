@@ -4,7 +4,7 @@ import java.nio.file.Path;
 
 import dev.mainframe.Session;
 import dev.mainframe.fs.SafeFs;
-import dev.mainframe.template.Catalogue;
+import dev.vexelray.framework.template.Catalogue;
 
 /**
  * The templates this session can see: the ones that ship, plus anybody's own.

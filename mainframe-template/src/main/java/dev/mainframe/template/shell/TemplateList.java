@@ -6,10 +6,10 @@ import java.util.List;
 import dev.mainframe.eval.Args;
 import dev.mainframe.eval.Builtin;
 import dev.mainframe.eval.Signature;
-import dev.mainframe.template.Answers;
-import dev.mainframe.template.Catalogue;
-import dev.mainframe.template.Template;
-import dev.mainframe.template.TemplateError;
+import dev.vexelray.framework.template.Answers;
+import dev.vexelray.framework.template.Catalogue;
+import dev.vexelray.framework.template.Template;
+import dev.vexelray.framework.template.TemplateError;
 import dev.mainframe.value.Value;
 import dev.mainframe.value.ValueType;
 

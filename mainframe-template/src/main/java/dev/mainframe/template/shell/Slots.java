@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 
-import dev.mainframe.template.Answers;
-import dev.mainframe.template.Template;
+import dev.vexelray.framework.template.Answers;
+import dev.vexelray.framework.template.Template;
 import dev.mainframe.value.Value;
 import dev.mainframe.value.Values;
 

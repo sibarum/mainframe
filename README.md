@@ -56,8 +56,9 @@ That produces `mainframe-core/target/mainframe.jar`, runnable with
 `java -jar mainframe-core/target/mainframe.jar`. The shell builds on its own, on
 a machine that has never heard of vexelray, and that is meant to keep being true.
 
-A plain `mvn package` at the root builds both modules, which needs the vexelray
-stack installed locally.
+A plain `mvn package` at the root builds every module, which needs the vexelray
+stack installed locally — `vexelray-framework` included, since `mainframe-template`
+adapts that framework's project builder.
 
 For the real thing — a single binary that starts instantly:
 

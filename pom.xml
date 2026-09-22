@@ -63,6 +63,10 @@
     <vexelray-gui.version>0.1.0-SNAPSHOT</vexelray-gui.version>
     <vexelray.version>0.1.0-SNAPSHOT</vexelray.version>
     <tactroller.version>1.0-SNAPSHOT</tactroller.version>
+
+    <!-- The project builder's engine, which mainframe-template adapts to the shell. Local install; see that
+         module's pom. -->
+    <vexelray-framework.version>0.1.0-SNAPSHOT</vexelray-framework.version>
   </properties>
 
   <dependencyManagement>
