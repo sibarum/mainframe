@@ -115,7 +115,7 @@ to be somebody else's application.
 
 | | |
 | --- | --- |
-| `<Main>Wiring.java` | what the application builds, one method per `vexelray-framework` phase: the look, the model, the tree, the driving socket |
+| `Recipes.java` | what the application builds, one `@Provides` method per part: the look, the model, the tree, the driving socket. `<Main>Wiring`, which builds them in phase order, is generated from it by `vexelray-framework-processor` |
 | `<Main>.java` | the entry point and the constants. The application edge -- input backend, clipboard, window memory, the clock, the frame loop and its wakes -- is the framework's, and used to be three hundred lines here |
 | `Model.java` / `Doc.java` | one authoritative state, changed by relative edits committed through atchung's `State` |
 | `Ui.java` | the tree, holding no state; `show(Doc)` writes everything derived from the document |
