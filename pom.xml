@@ -5,124 +5,110 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>dev.mainframe</groupId>
-  <artifactId>mainframe-parent</artifactId>
+  <artifactId>mainframe</artifactId>
   <version>0.1.0-SNAPSHOT</version>
-  <packaging>pom</packaging>
+  <packaging>jar</packaging>
 
   <name>MainFrame</name>
-  <description>
-    MainFrame and the windows it wears. The shell is the program; everything else is something it opens.
-  </description>
-
-  <!--
-    Two modules, and the split between them is the one that matters: what MainFrame *is* against what it *looks
-    like on a particular machine*.
-
-      mainframe-core       the shell. Zero runtime dependencies, native-image clean, no idea a screen exists.
-      mainframe-vexel-gui  MainFrame as a window on vexelray-gui, and the seams an application plugs into.
-
-    Only the second one drags in a graphics stack, which is why it is second. `mvn -pl mainframe-core package`
-    builds the shell on its own, on a machine that has never heard of vexelray, and that has to keep being true:
-    the day core needs the GUI module to compile is the day the shell stopped being a library.
-  -->
-  <modules>
-    <module>mainframe-core</module>
-    <module>mainframe-vexel-gui</module>
-    <module>mainframe-assistant</module>
-    <module>mainframe-concordance</module>
-    <module>mainframe-template</module>
-  </modules>
-
-  <profiles>
-    <!--
-      mvn -Pdist,native package  ->  mainframe-dist/target/mainframe.exe
-
-      The third module, and the only one that is not a library: one executable with the stock shell and the
-      programs it opens in it. It is behind a profile rather than in the list above because it names
-      applications, and those live in their own repositories. Listing it as an ordinary module would mean a
-      fresh clone could not build MainFrame without first building the calculator and the editor. See
-      mainframe-dist/pom.xml.
-    -->
-    <profile>
-      <id>dist</id>
-      <modules>
-        <module>mainframe-dist</module>
-      </modules>
-    </profile>
-  </profiles>
+  <description>A terminal window that wraps the native OS shell. v1: Windows PowerShell over ConPTY.</description>
 
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.4</junit.version>
-
-    <!-- Concordance's source index, wrapped by mainframe-concordance. Local install; see that module's pom. -->
-    <concordance.version>0.1.0-SNAPSHOT</concordance.version>
-
-    <!-- The stack mainframe-vexel-gui sits on. Local installs; see that module's pom. -->
+    <!-- The stack the window sits on. Local installs; see vexelray-gui/CLAUDE.md for the build order. -->
     <vexelray-gui.version>0.1.0-SNAPSHOT</vexelray-gui.version>
     <vexelray.version>0.1.0-SNAPSHOT</vexelray.version>
     <tactroller.version>1.0-SNAPSHOT</tactroller.version>
-
-    <!-- The project builder's engine, which mainframe-template adapts to the shell. Local install; see that
-         module's pom. -->
-    <vexelray-framework.version>0.1.0-SNAPSHOT</vexelray-framework.version>
   </properties>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>dev.mainframe</groupId>
-        <artifactId>mainframe-core</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.junit.jupiter</groupId>
-        <artifactId>junit-jupiter</artifactId>
-        <version>${junit.version}</version>
-        <scope>test</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>dev.vexelray.gui</groupId>
+      <artifactId>vexelray-gui-widget</artifactId>
+      <version>${vexelray-gui.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>sibarum.tactroller</groupId>
+      <artifactId>tactroller-atchung</artifactId>
+      <version>${tactroller.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>sibarum.tactroller</groupId>
+      <artifactId>tactroller-clipboard</artifactId>
+      <version>${tactroller.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
   <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.13.0</version>
-          <configuration>
-            <target>${maven.compiler.release}</target>
-            <release>${maven.compiler.release}</release>
-          </configuration>
-        </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-surefire-plugin</artifactId>
-          <version>3.5.2</version>
-        </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-jar-plugin</artifactId>
-          <version>3.5.0</version>
-        </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-antrun-plugin</artifactId>
-          <version>3.1.0</version>
-        </plugin>
-        <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>exec-maven-plugin</artifactId>
-          <version>3.5.0</version>
-        </plugin>
-        <plugin>
-          <groupId>org.graalvm.buildtools</groupId>
-          <artifactId>native-maven-plugin</artifactId>
-          <version>0.10.6</version>
-        </plugin>
-      </plugins>
-    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <executable>${java.home}/bin/java</executable>
+          <classpathScope>runtime</classpathScope>
+          <arguments>
+            <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-classpath</argument>
+            <classpath/>
+            <argument>dev.mainframe.Main</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>dev.mainframe.Main</mainClass>
+            </manifest>
+            <manifestEntries>
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
+
+  <profiles>
+    <!-- v1 is Windows-only: ConPty is the one piece that is. Linux/macOS would add a pty sibling and their own profiles here. -->
+    <profile>
+      <id>platform-windows</id>
+      <activation><os><family>windows</family></os></activation>
+      <dependencies>
+        <dependency>
+          <groupId>dev.vexelray</groupId>
+          <artifactId>vexelray-os-windows</artifactId>
+          <version>${vexelray.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+        <dependency>
+          <groupId>sibarum.tactroller</groupId>
+          <artifactId>tactroller-windows</artifactId>
+          <version>${tactroller.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>
+
