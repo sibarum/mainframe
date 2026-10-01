@@ -1,5 +1,7 @@
 package dev.mainframe;
 
+import dev.vexelray.gui.automation.Automation;
+import dev.vexelray.gui.automation.AutomationServer;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -26,10 +28,12 @@ public final class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        String capture = null;
-        if (args.length >= 1 && args[0].equals("--capture")) {
-            capture = args.length >= 2 ? args[1] : "mainframe.png";
-            args = java.util.Arrays.copyOfRange(args, Math.min(args.length, 2), args.length);
+        // --automation[=off|on|<port>] (or -Dautomation) opens the loopback socket ottermate drives; the rest is a shell.
+        String automation = System.getProperty("automation", "off");
+        if (args.length >= 1 && args[0].startsWith("--automation")) {
+            int eq = args[0].indexOf('=');
+            automation = eq < 0 ? "on" : args[0].substring(eq + 1);
+            args = java.util.Arrays.copyOfRange(args, 1, args.length);
         }
         AppSettings settings = new AppSettings(dev.vexelray.gui.core.app.Settings.open("mainframe"));
         if (args.length > 0) settings.overrideShell(String.join(" ", args));
@@ -47,18 +51,7 @@ public final class Main {
                 .height(dev.vexelray.gui.core.layout.Length.FILL)
                 .children(view.node().width(dev.vexelray.gui.core.layout.Length.grow(1)), menu.get().node()));
 
-        if (capture != null) {
-            // A headless still: let the shell draw its prompt, render once, write the PNG. No window, no input.
-            Thread.sleep(2500);
-            view.tick();
-            GuiApp.capture(gui, 1100, 680, 0.047f, 0.047f, 0.047f, capture);
-            view.close();
-            krono.close();
-            gui.close();
-            System.out.println("captured " + capture);
-            return;
-        }
-
+        AutomationServer server = null;
         try (Tactroller input = Tactroller.open();
              GuiApp app = new GuiApp(WindowConfig.of("MainFrame", 1100, 680).decorations(Decorations.SYSTEM));
              Clipboard clip = Clipboard.open()) {
@@ -74,6 +67,8 @@ public final class Main {
             });
             quit.set(() -> app.window().requestClose());
             view.focus();
+            // The clock goes with the Gui so settle waits out a tab animation, not only the frame loop.
+            server = openAutomation(automation, gui, app, krono);
             TactrollerInputBridge bridge = new TactrollerInputBridge(input, gui.bus());
             app.run(gui, 0, () -> {
                 try {
@@ -85,10 +80,30 @@ public final class Main {
                 view.tick();
             });
         } finally {
+            if (server != null) server.close();
             view.close();
         }
         krono.close();
         gui.close();
+    }
+
+    /**
+     * The driving socket, if this launch asked for one: {@code off}, {@code on} for the default port, or a port
+     * number (0 is a free one). The line it prints is protocol: {@code ottermate --launch} reads the port from it.
+     * A socket that cannot bind leaves the window running undriven.
+     */
+    private static AutomationServer openAutomation(String want, Gui gui, GuiApp app, KronoGui krono) {
+        if (want.isBlank() || want.equals("off") || want.equals("false")) return null;
+        try {
+            int port = want.equals("on") || want.equals("true") ? AutomationServer.DEFAULT_PORT : Integer.parseInt(want);
+            AutomationServer server = AutomationServer.start(
+                    new Automation(gui, app.controls(), krono::quiescentAtLastTick), port);
+            System.out.println("automation: localhost:" + server.port());
+            return server;
+        } catch (java.io.IOException | NumberFormatException e) {
+            System.err.println("automation '" + want + "' bound nothing: " + e.getMessage());
+            return null;
+        }
     }
 }
 

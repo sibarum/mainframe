@@ -11,6 +11,9 @@ vexelray GUI stack.
 | `pty/ConPty` | `powershell.exe` on a pseudoconsole, through the foreign function API (kernel32). The only Windows-specific part. |
 | `term/Terminal` | The VT screen: cells, colours, scrollback, alternate screen. Knows nothing about windows or ptys. |
 | `TerminalView` | Terminal drawn as a vexelray node, plus keyboard, mouse selection, scrollback and clipboard. |
+| `CellArt` | Box drawing, block elements and braille, drawn rather than taken from the font. |
+| `TerminalTabs` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. |
+| `SettingsPanel` / `AppSettings` | The docked settings panel and the saved settings behind it. |
 | `Main` | The window and the frame loop. |
 
 ## Run
@@ -21,10 +24,18 @@ Needs the local vexelray stack installed (see `vexelray-gui/CLAUDE.md` for the b
 mvn compile exec:exec
 ```
 
-A headless still of the window, for checking the drawing without a keyboard:
+Anything after the goal is a command line, and replaces the shell for that run, for example
+`mvn compile exec:exec -Dexec.arguments="cmd.exe"`.
+
+## Screenshots
+
+Screenshots are taken with `ottermate` (`vexelray-gui/docs/guides/ottermate.md`), which drives the running window over
+vexelray's automation socket. The socket is off unless asked for: `-Dautomation=0` (a free port) or `--automation=<port>`.
+`ottermate` takes one command per invocation, so a settle-then-shot goes in a script file:
 
 ```bash
-mvn -q compile exec:exec -Dexec.arguments="--capture,shot.png"
+printf 'settle\nshot C:/work/shot.png\n' > shot.txt
+ottermate --script shot.txt --launch mvn.cmd -q compile exec:exec -Dautomation=0
 ```
 
 ## Keys

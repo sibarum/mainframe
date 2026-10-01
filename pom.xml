@@ -20,6 +20,8 @@
     <vexelray-gui.version>0.1.0-SNAPSHOT</vexelray-gui.version>
     <vexelray.version>0.1.0-SNAPSHOT</vexelray.version>
     <tactroller.version>1.0-SNAPSHOT</tactroller.version>
+    <!-- The automation socket ottermate drives: "off", "on" for the default port, or a port number; 0 is a free one. -->
+    <automation>off</automation>
   </properties>
 
   <dependencies>
@@ -32,6 +34,12 @@
     <dependency>
       <groupId>dev.vexelray.gui</groupId>
       <artifactId>vexelray-gui-krono</artifactId>
+      <version>${vexelray-gui.version}</version>
+    </dependency>
+    <!-- The driving socket, off unless asked for. -->
+    <dependency>
+      <groupId>dev.vexelray.gui</groupId>
+      <artifactId>vexelray-gui-automation</artifactId>
       <version>${vexelray-gui.version}</version>
     </dependency>
     <dependency>
@@ -63,6 +71,7 @@
           <classpathScope>runtime</classpathScope>
           <arguments>
             <argument>--enable-native-access=ALL-UNNAMED</argument>
+            <argument>-Dautomation=${automation}</argument>
             <argument>-classpath</argument>
             <classpath/>
             <argument>dev.mainframe.Main</argument>
