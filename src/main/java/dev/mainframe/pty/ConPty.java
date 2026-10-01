@@ -52,6 +52,15 @@ public final class ConPty implements AutoCloseable {
             FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     private static final MethodHandle TERMINATE = fn("TerminateProcess",
             FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
+    private static final MethodHandle SET_CTRL_HANDLER = fn("SetConsoleCtrlHandler",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
+
+    static {
+        // A process started with Ctrl+C ignored (from a script runner, a terminal that backgrounded us, an IDE) passes
+        // that on to every child, and a shell in this terminal would then never be interrupted: the 0x03 reaches it as
+        // a character, but the signal that stops a running program is never raised. Undo it before any child exists.
+        call(SET_CTRL_HANDLER, MemorySegment.NULL, 0);
+    }
 
     private static final long PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016L;
     private static final int EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
@@ -67,6 +76,7 @@ public final class ConPty implements AutoCloseable {
     private final MemorySegment process;
     private final MemorySegment thread;
     private volatile boolean closed;
+    private final java.util.concurrent.atomic.AtomicBoolean consoleClosed = new java.util.concurrent.atomic.AtomicBoolean();
 
     private ConPty(MemorySegment hpc, MemorySegment inputWrite, MemorySegment outputRead,
                    MemorySegment process, MemorySegment thread) {
@@ -112,7 +122,9 @@ public final class ConPty implements AutoCloseable {
             // The pseudoconsole owns its ends of the pipes now; ours are the other two.
             close(get(inRead));
             close(get(outWrite));
-            return new ConPty(hpc, get(inWrite), get(outRead), pi.get(ADDRESS, 0), pi.get(ADDRESS, 8));
+            ConPty pty = new ConPty(hpc, get(inWrite), get(outRead), pi.get(ADDRESS, 0), pi.get(ADDRESS, 8));
+            pty.watchForExit();
+            return pty;
         } finally {
             // attrs/si/pi are only needed during CreateProcess; the handles we keep live outside the arena.
             a.close();
@@ -168,7 +180,7 @@ public final class ConPty implements AutoCloseable {
         // Closing the console can block until its output is drained, and our reader may already be gone.
         Thread t = new Thread(() -> {
             try {
-                CLOSE_PSEUDO_CONSOLE.invokeExact(hpc);
+                closeConsole();
             } catch (Throwable e) {
                 throw new AssertionError(e);
             }
@@ -180,6 +192,28 @@ public final class ConPty implements AutoCloseable {
         }, "conpty-close");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * The output pipe of a pseudoconsole does not break when its child exits: it stays open until the console
+     * itself is closed, so a reader waiting for the end of the stream would wait forever. Closing the console
+     * after the child is gone flushes what is left and then ends the stream.
+     */
+    private void watchForExit() {
+        Thread t = new Thread(() -> {
+            call(WAIT, process, INFINITE);
+            try {
+                closeConsole();
+            } catch (Throwable e) {
+                throw new AssertionError(e);
+            }
+        }, "conpty-exit");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void closeConsole() throws Throwable {
+        if (consoleClosed.compareAndSet(false, true)) CLOSE_PSEUDO_CONSOLE.invokeExact(hpc);
     }
 
     // -- plumbing ---------------------------------------------------------------------------------------------
