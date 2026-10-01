@@ -3,6 +3,7 @@ package dev.mainframe;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
 import dev.vexelray.gui.core.app.GuiApp;
+import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.os.Decorations;
 import dev.vexelray.os.WindowConfig;
 import sibarum.tactroller.api.BackendException;
@@ -21,8 +22,6 @@ import sibarum.tactroller.clipboard.ClipboardException;
  */
 public final class Main {
 
-    private static final String DEFAULT_SHELL = "powershell.exe -NoLogo";
-
     private Main() {
     }
 
@@ -32,11 +31,21 @@ public final class Main {
             capture = args.length >= 2 ? args[1] : "mainframe.png";
             args = java.util.Arrays.copyOfRange(args, Math.min(args.length, 2), args.length);
         }
-        String shell = args.length == 0 ? DEFAULT_SHELL : String.join(" ", args);
+        AppSettings settings = new AppSettings(dev.vexelray.gui.core.app.Settings.open("mainframe"));
+        if (args.length > 0) settings.overrideShell(String.join(" ", args));
 
         Gui gui = new Gui();
-        TerminalView view = new TerminalView(gui, shell);
-        gui.root().children(view.node());
+        // The window is closed by asking it to, which needs the window; the tabs are built first, so the last
+        // tab closing goes through this cell.
+        java.util.concurrent.atomic.AtomicReference<Runnable> quit = new java.util.concurrent.atomic.AtomicReference<>(() -> { });
+        KronoGui krono = KronoGui.attach(gui);
+        java.util.concurrent.atomic.AtomicReference<SettingsPanel> menu = new java.util.concurrent.atomic.AtomicReference<>();
+        TerminalTabs view = new TerminalTabs(gui, krono, settings, () -> menu.get().toggle(), () -> quit.get().run());
+        menu.set(new SettingsPanel(gui, settings, view::focus));
+        // Tabs fill what the docked settings panel leaves.
+        gui.root().children(gui.row().width(dev.vexelray.gui.core.layout.Length.FILL)
+                .height(dev.vexelray.gui.core.layout.Length.FILL)
+                .children(view.node().width(dev.vexelray.gui.core.layout.Length.grow(1)), menu.get().node()));
 
         if (capture != null) {
             // A headless still: let the shell draw its prompt, render once, write the PNG. No window, no input.
@@ -44,6 +53,7 @@ public final class Main {
             view.tick();
             GuiApp.capture(gui, 1100, 680, 0.047f, 0.047f, 0.047f, capture);
             view.close();
+            krono.close();
             gui.close();
             System.out.println("captured " + capture);
             return;
@@ -62,6 +72,7 @@ public final class Main {
                     try { clip.setText(text); } catch (ClipboardException e) { /* a dropped copy */ }
                 }
             });
+            quit.set(() -> app.window().requestClose());
             view.focus();
             TactrollerInputBridge bridge = new TactrollerInputBridge(input, gui.bus());
             app.run(gui, 0, () -> {
@@ -70,12 +81,13 @@ public final class Main {
                 } catch (BackendException e) {
                     // a transient poll failure drops one frame of input
                 }
+                krono.tick();
                 view.tick();
-                if (view.exited()) app.window().requestClose();
             });
         } finally {
             view.close();
         }
+        krono.close();
         gui.close();
     }
 }

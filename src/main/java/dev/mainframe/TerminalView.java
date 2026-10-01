@@ -35,35 +35,51 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 final class TerminalView {
 
-    private static final float PX = 18f;
     private static final Color DEFAULT_BG = Color.rgb(Palette.DEFAULT_BG);
     private static final Color SELECTION = Color.argb(0xA0264F78);
 
+    /** What a tab's terminal asks of the window it lives in. */
+    interface Hooks {
+        void newTab();
+        void closeTab(TerminalView view);
+        void cycle(int by);
+        void rename(TerminalView view);
+    }
+
     private final Gui gui;
+    private final Hooks hooks;
+    private final java.util.function.BooleanSupplier remapKeys;
     private final Node node;
     private final Terminal term;
     private final ConPty pty;
-    private final float cw, lineH, ascent;
+    private final GlyphLayout glyphs;
+    private volatile float px, cw, lineH, ascent;
+    private volatile float boxW, boxH;   // the node's content area as last laid out
     private final AtomicBoolean dirty = new AtomicBoolean(true);
     private volatile boolean exited;
+    private volatile boolean active;
+    private volatile String pendingTitle;
+    private volatile String shellTitle = "Shell";
+    private volatile String customTitle;
+    private sibarum.atchung.Subscription scrollSub;
 
     private int scrollOffset;
     private boolean hasSel;
     private int anchorRow, anchorCol, headRow, headCol;
 
-    TerminalView(Gui gui, String commandLine) {
+    TerminalView(Gui gui, String commandLine, int cols, int rows, float fontPx,
+                 java.util.function.BooleanSupplier remapKeys, Hooks hooks) {
         this.gui = gui;
-        GlyphLayout gl = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json").face(1))
+        this.remapKeys = remapKeys;
+        this.hooks = hooks;
+        this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json").face(1))
                 .glyphLayout();
-        this.cw = gl.advance('M', PX);
-        this.ascent = gl.ascent(PX);
-        this.lineH = gl.lineHeight(PX);
+        measure(fontPx);
 
-        int cols = 100, rows = 30;
         this.pty = ConPty.start(commandLine, cols, rows, null);
         this.term = new Terminal(cols, rows, new Terminal.Host() {
             @Override public void reply(String s) { pty.write(s); }
-            @Override public void title(String title) { }
+            @Override public void title(String title) { pendingTitle = title; }
         });
 
         this.node = gui.box().width(Length.FILL).height(Length.FILL).font(1).background(DEFAULT_BG);
@@ -77,11 +93,71 @@ final class TerminalView {
 
     void focus() { gui.focus(node); }
 
-    void close() { pty.close(); }
+    /** Change the type size: the cell grid is remeasured and the shell is told its new dimensions. */
+    void fontPx(float size) {
+        if (size == px) return;
+        measure(size);
+        refit();
+        dirty.set(true);
+    }
+
+    private void measure(float size) {
+        px = size;
+        cw = glyphs.advance('M', size);
+        ascent = glyphs.ascent(size);
+        lineH = glyphs.lineHeight(size);
+    }
+
+    /** Make the terminal as many cells as the content area holds. */
+    private void refit() {
+        // A tab that is not on show is laid out at no size at all. Resizing the shell to that would shrink its
+        // screen to nothing, and a shell does not repaint what it lost when it grows back.
+        if (boxW < cw * 2 || boxH < lineH) return;
+        int cols = Math.max(2, (int) (boxW / cw));
+        int rows = Math.max(1, (int) (boxH / lineH));
+        if (cols != term.cols() || rows != term.rows()) {
+            term.resize(cols, rows);
+            pty.resize(cols, rows);
+            dirty.set(true);
+        }
+    }
+
+    /** What the tab's header says: the name the user gave it, else whatever the shell last called itself. */
+    String displayTitle() {
+        String c = customTitle;
+        return c != null ? c : shellTitle;
+    }
+
+    void shellTitle(String title) { shellTitle = title; }
+
+    /** A blank name hands the header back to the shell. */
+    void customTitle(String title) { customTitle = title == null || title.isBlank() ? null : title.strip(); }
+
+    int cols() { return term.cols(); }
+
+    int rows() { return term.rows(); }
+
+    /** Takes the pending title, if the shell has set one since last asked. */
+    String takeTitle() {
+        String t = pendingTitle;
+        pendingTitle = null;
+        return t;
+    }
+
+    /** Only the tab on show draws; a background tab keeps reading its shell and draws when it comes back. */
+    void active(boolean on) {
+        active = on;
+        if (on) dirty.set(true);
+    }
+
+    void close() {
+        if (scrollSub != null) scrollSub.close();
+        pty.close();
+    }
 
     /** On the GUI thread, once a frame. */
     void tick() {
-        if (dirty.getAndSet(false)) render();
+        if (active && dirty.getAndSet(false)) render();
     }
 
     // -- output -----------------------------------------------------------------------------------------------
@@ -167,8 +243,8 @@ final class TerminalView {
     private void text(Sketch s, String str, int col, float y, int rgb, int at) {
         Color color = Color.rgb(rgb);
         float x = col * cw;
-        s.text(str, x, y + ascent, PX, color);
-        if ((at & Terminal.BOLD) != 0) s.text(str, x + 0.7f, y + ascent, PX, color); // one mono face: embolden by doubling
+        s.text(str, x, y + ascent, px, color);
+        if ((at & Terminal.BOLD) != 0) s.text(str, x + 0.7f, y + ascent, px, color); // one mono face: embolden by doubling
         if ((at & Terminal.UNDERLINE) != 0) s.fill(x, y + ascent + 2, str.length() * cw, 1, color);
         if ((at & Terminal.STRIKE) != 0) s.fill(x, y + lineH / 2, str.length() * cw, 1, color);
     }
@@ -200,13 +276,9 @@ final class TerminalView {
     private void wire() {
         gui.onResizeUi(node, l -> {
             if (!l.present()) return;
-            int cols = Math.max(2, (int) (l.content().w() / cw));
-            int rows = Math.max(1, (int) (l.content().h() / lineH));
-            if (cols != term.cols() || rows != term.rows()) {
-                term.resize(cols, rows);
-                pty.resize(cols, rows);
-                dirty.set(true);
-            }
+            boxW = l.content().w();
+            boxH = l.content().h();
+            refit();
         });
         gui.onCharUi(node, cp -> {
             if (cp < 0x20 || cp == 0x7f) return;
@@ -234,8 +306,13 @@ final class TerminalView {
         gui.onContextClick(node, c -> {
             if (hasSel) copySelection(); else paste();
         });
-        gui.bus().subscribe(InputTopics.INPUT, (InputEvent e) -> {
-            if (e instanceof InputEvent.Scrolled s && s.yOffset() != 0) {
+        gui.claimUi(node, Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED, hooks::newTab);
+        gui.claimUi(node, Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED, () -> hooks.closeTab(this));
+        gui.claimUi(node, Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED, () -> hooks.rename(this));
+        gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.CONTROL), ClaimScope.FOCUSED, () -> hooks.cycle(1));
+        gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED, () -> hooks.cycle(-1));
+        scrollSub = gui.bus().subscribe(InputTopics.INPUT, (InputEvent e) -> {
+            if (active && e instanceof InputEvent.Scrolled s && s.yOffset() != 0) {
                 scrollOffset += s.yOffset() > 0 ? 3 : -3;
                 dirty.set(true);
             }
@@ -247,8 +324,13 @@ final class TerminalView {
         boolean ctrl = e.has(Modifier.CONTROL), alt = e.has(Modifier.ALT), shift = e.has(Modifier.SHIFT);
         String name = k.name();
         if (ctrl && shift && k == Key.C) { copySelection(); return; }
-        if (ctrl && k == Key.V) { paste(); return; }
-        if (ctrl && !alt && k == Key.C && hasSel) { copySelection(); return; }
+        if (ctrl && shift && k == Key.V) { paste(); return; }
+        if (remapKeys.getAsBoolean() && !alt && !shift) {
+            // Ctrl+C and Ctrl+V are the clipboard's, which leaves the shell without its interrupt: Esc sends it.
+            if (ctrl && k == Key.C) { copySelection(); return; }
+            if (ctrl && k == Key.V) { paste(); return; }
+            if (!ctrl && k == Key.ESCAPE) { send("\u0003"); return; }
+        }
         if (shift && k == Key.PAGE_UP) { scrollOffset += term.rows() - 1; dirty.set(true); return; }
         if (shift && k == Key.PAGE_DOWN) { scrollOffset -= term.rows() - 1; dirty.set(true); return; }
 
