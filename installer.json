@@ -1,0 +1,23 @@
+{
+  "id": "mainframe",
+  "name": "MainFrame",
+  "publisher": "sibarum",
+  "description": "A terminal window that wraps the native Windows shell over ConPTY, built on the VexelRay stack.",
+  "version": "0.1.0",
+
+  "repo": "sibarum/mainframe",
+  "branch": "main",
+  "releasesRepo": "sibarum/mainframe",
+  "tagFormat": "v{version}",
+
+  "windows": {
+    "binaries": [
+      {
+        "name": "mainframe",
+        "source": "target/mainframe.exe",
+        "addToPath": true,
+        "shortcuts": { "desktop": true, "startMenu": true, "label": "MainFrame" }
+      }
+    ]
+  }
+}

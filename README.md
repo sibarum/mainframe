@@ -68,3 +68,23 @@ Escape cancels, and a blank name hands the header back to the shell's own title.
 - Box drawing, block elements and braille are drawn by `CellArt`, not from the font, so they join across cells. Latin, Greek, Cyrillic, punctuation, arrows and most math come from the atlas (`vexelray-text`, face 1); powerline glyphs, emoji and CJK are not covered and draw as a box.
 - Settings are limited to font size, tab animation, shell and key remapping, no mouse reporting to applications yet.
 - Old experiments (the typed shell, assistant, templates) are at the git tag `archive/pre-v1`.
+
+## Native builds
+
+Windows, GraalVM 25 as `JAVA_HOME`, from a Visual Studio developer prompt (or after `vcvars64.bat`) so `link.exe` is
+MSVC's and not Git Bash's. Two profiles build the same code as two editions:
+
+```
+mvn -Pnative-release package -DskipTests   # target/mainframe.exe        what ships and is signed
+mvn -Pnative package -DskipTests           # target/mainframe-debug.exe  for ottermate
+```
+
+- **release** (`installer.json` points at this one): linked as a Windows GUI subsystem program, so no console window
+  ever appears, and built without the automation module: the source root `src/edition-release` is compiled instead
+  of `src/edition-debug` and `vexelray-*-automation` is not on its classpath, so the binary cannot open a driving
+  socket (`--automation` is accepted and does nothing). stdout and stderr go nowhere; the log files are still written.
+- **debug**: console subsystem, automation present: `mainframe-debug.exe --automation=0` prints
+  `automation: localhost:<port>` for `ottermate --launch`.
+
+The plain JVM build, tests and `exec:exec` are the debug edition. The linker options are
+`/SUBSYSTEM:WINDOWS|CONSOLE` and `/ENTRY:mainCRTStartup` (pom, `pluginManagement`).

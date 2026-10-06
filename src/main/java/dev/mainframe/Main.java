@@ -1,7 +1,5 @@
 package dev.mainframe;
 
-import dev.vexelray.gui.automation.Automation;
-import dev.vexelray.gui.automation.AutomationServer;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
 import dev.vexelray.gui.core.app.GuiApp;
@@ -51,7 +49,7 @@ public final class Main {
                 .height(dev.vexelray.gui.core.layout.Length.FILL)
                 .children(view.node().width(dev.vexelray.gui.core.layout.Length.grow(1)), menu.get().node()));
 
-        AutomationServer server = null;
+        AutoCloseable server = null;
         try (Tactroller input = Tactroller.open();
              GuiApp app = new GuiApp(WindowConfig.of("MainFrame", 1100, 680).decorations(Decorations.SYSTEM));
              Clipboard clip = Clipboard.open()) {
@@ -68,7 +66,7 @@ public final class Main {
             quit.set(() -> app.window().requestClose());
             view.focus();
             // The clock goes with the Gui so settle waits out a tab animation, not only the frame loop.
-            server = openAutomation(automation, gui, app, krono);
+            server = Driving.open(automation, gui, app, krono);
             TactrollerInputBridge bridge = new TactrollerInputBridge(input, gui.bus());
             app.run(gui, 0, () -> {
                 try {
@@ -86,24 +84,4 @@ public final class Main {
         krono.close();
         gui.close();
     }
-
-    /**
-     * The driving socket, if this launch asked for one: {@code off}, {@code on} for the default port, or a port
-     * number (0 is a free one). The line it prints is protocol: {@code ottermate --launch} reads the port from it.
-     * A socket that cannot bind leaves the window running undriven.
-     */
-    private static AutomationServer openAutomation(String want, Gui gui, GuiApp app, KronoGui krono) {
-        if (want.isBlank() || want.equals("off") || want.equals("false")) return null;
-        try {
-            int port = want.equals("on") || want.equals("true") ? AutomationServer.DEFAULT_PORT : Integer.parseInt(want);
-            AutomationServer server = AutomationServer.start(
-                    new Automation(gui, app.controls(), krono::quiescentAtLastTick), port);
-            System.out.println("automation: localhost:" + server.port());
-            return server;
-        } catch (java.io.IOException | NumberFormatException e) {
-            System.err.println("automation '" + want + "' bound nothing: " + e.getMessage());
-            return null;
-        }
-    }
 }
-

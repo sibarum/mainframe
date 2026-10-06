@@ -22,6 +22,13 @@
     <tactroller.version>1.0-SNAPSHOT</tactroller.version>
     <!-- The automation socket ottermate drives: "off", "on" for the default port, or a port number; 0 is a free one. -->
     <automation>off</automation>
+    <!--
+      Two editions of the same code. The debug edition links the automation socket; the release edition does not
+      contain it at all: -Pnative-release swaps the source root below for src/edition-release (a Driving that does
+      nothing) and drops the automation dependency from every classpath. Default (JVM, tests, exec:exec) = debug.
+    -->
+    <edition.src>src/edition-debug/java</edition.src>
+    <automation.scope>compile</automation.scope>
   </properties>
 
   <dependencies>
@@ -41,6 +48,7 @@
       <groupId>dev.vexelray.gui</groupId>
       <artifactId>vexelray-gui-automation</artifactId>
       <version>${vexelray-gui.version}</version>
+      <scope>${automation.scope}</scope>
     </dependency>
     <dependency>
       <groupId>sibarum.tactroller</groupId>
@@ -61,7 +69,57 @@
   </dependencies>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.graalvm.buildtools</groupId>
+          <artifactId>native-maven-plugin</artifactId>
+          <version>0.10.6</version>
+          <executions>
+            <execution>
+              <id>build-native</id>
+              <goals><goal>compile-no-fork</goal></goals>
+              <phase>package</phase>
+            </execution>
+          </executions>
+          <configuration>
+            <imageName>${native.imageName}</imageName>
+            <mainClass>dev.mainframe.Main</mainClass>
+            <buildArgs>
+              <buildArg>--no-fallback</buildArg>
+              <buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
+              <buildArg>-H:+ForeignAPISupport</buildArg>
+              <buildArg>-H:+SharedArenaSupport</buildArg>
+              <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+              <buildArg>-H:IncludeResources=META-INF/supirvast/shaders/.*</buildArg>
+              <buildArg>-H:IncludeResources=dev/vexelray/text/atlas/.*</buildArg>
+              <!-- WINDOWS needs /ENTRY:mainCRTStartup as well: the linker would otherwise look for WinMain,
+                   and the image's entry is the C main. CONSOLE is the linker's default, spelled out so both
+                   editions pass the same two options. -->
+              <buildArg>-H:NativeLinkerOption=/SUBSYSTEM:${native.subsystem}</buildArg>
+              <buildArg>-H:NativeLinkerOption=/ENTRY:mainCRTStartup</buildArg>
+            </buildArgs>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
+      <!-- The edition's own sources (Driving): src/edition-debug, or src/edition-release under -Pnative-release. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>add-edition-source</id>
+            <phase>generate-sources</phase>
+            <goals><goal>add-source</goal></goals>
+            <configuration>
+              <sources><source>${edition.src}</source></sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -105,6 +163,52 @@
   </build>
 
   <profiles>
+    <!--
+      GraalVM native images; both need a GraalVM JDK (JAVA_HOME) and are profile-gated because native-image takes
+      minutes. Reachability metadata is under src/main/resources/META-INF/native-image/ (a stopgap: it belongs in
+      the backend jars).
+
+        mvn -Pnative-release package -DskipTests  ->  target/mainframe.exe        what ships and gets signed
+        mvn -Pnative package -DskipTests          ->  target/mainframe-debug.exe  for ottermate
+
+      release: Windows GUI subsystem (no console window ever) and no automation socket in the image.
+      debug:   console subsystem (stdout is the `automation: localhost:<port>` protocol line) and automation.
+      The plugin is declared once, in pluginManagement below; the profiles only choose its inputs.
+    -->
+    <profile>
+      <id>native</id>
+      <properties>
+        <native.imageName>mainframe-debug</native.imageName>
+        <native.subsystem>CONSOLE</native.subsystem>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <extensions>true</extensions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>native-release</id>
+      <properties>
+        <native.imageName>mainframe</native.imageName>
+        <native.subsystem>WINDOWS</native.subsystem>
+        <edition.src>src/edition-release/java</edition.src>
+        <automation.scope>test</automation.scope>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <extensions>true</extensions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <!-- v1 is Windows-only: ConPty is the one piece that is. Linux/macOS would add a pty sibling and their own profiles here. -->
     <profile>
       <id>platform-windows</id>
