@@ -1,0 +1,6 @@
+// The executable's icon, linked into mainframe.exe by both native profiles.
+//
+// Ordinal 1, and it is the only icon here, because Windows shows a program's *lowest-numbered* icon resource
+// wherever it shows the program itself -- Explorer, the taskbar's pinned button, a shortcut, the Apps entry.
+// mainframe.ico is the `mainframe` mark from vexelray-icons, rendered at 16 to 256 px.
+1 ICON "mainframe.ico"

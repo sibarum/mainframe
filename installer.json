@@ -15,6 +15,7 @@
       {
         "name": "mainframe",
         "source": "target/mainframe.exe",
+        "icon": "src/main/rc/mainframe.ico",
         "addToPath": true,
         "shortcuts": { "desktop": true, "startMenu": true, "label": "MainFrame" }
       }
