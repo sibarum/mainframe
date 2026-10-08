@@ -111,13 +111,9 @@
             <imageName>${native.imageName}</imageName>
             <mainClass>dev.mainframe.Main</mainClass>
             <buildArgs>
+              <!-- The FFM flags, the shaders and the font atlas come from the libraries' own
+                   META-INF/native-image metadata; only what is this program's is set here. -->
               <buildArg>--no-fallback</buildArg>
-              <buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
-              <buildArg>-H:+ForeignAPISupport</buildArg>
-              <buildArg>-H:+SharedArenaSupport</buildArg>
-              <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
-              <buildArg>-H:IncludeResources=META-INF/supirvast/shaders/.*</buildArg>
-              <buildArg>-H:IncludeResources=dev/vexelray/text/atlas/.*</buildArg>
               <!-- WINDOWS needs /ENTRY:mainCRTStartup as well: the linker would otherwise look for WinMain,
                    and the image's entry is the C main. CONSOLE is the linker's default, spelled out so both
                    editions pass the same two options. -->
@@ -191,8 +187,8 @@
   <profiles>
     <!--
       GraalVM native images; both need a GraalVM JDK (JAVA_HOME) and are profile-gated because native-image takes
-      minutes. Reachability metadata is under src/main/resources/META-INF/native-image/ (a stopgap: it belongs in
-      the backend jars).
+      minutes. Each library jar carries its own reachability metadata (META-INF/native-image/); mainframe's, under
+      src/main/resources, lists only Main and ConPty's calls into kernel32.
 
         mvn -Pnative-release package -DskipTests  ->  target/mainframe.exe        what ships and gets signed
         mvn -Pnative package -DskipTests          ->  target/mainframe-debug.exe  for ottermate
