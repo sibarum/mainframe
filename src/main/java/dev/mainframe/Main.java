@@ -14,6 +14,13 @@ import sibarum.tactroller.atchung.TactrollerInputBridge;
 import sibarum.tactroller.clipboard.Clipboard;
 import sibarum.tactroller.clipboard.ClipboardException;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * MainFrame: a window around the native shell. v1 hosts Windows PowerShell; a command line given as arguments
  * replaces it.
@@ -26,13 +33,27 @@ public final class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        // --automation[=off|on|<port>] (or -Dautomation) opens the loopback socket ottermate drives; the rest is a shell.
+        // Leading options, then the rest is a shell:
+        //   --automation[=off|on|<port>] (or -Dautomation) opens the loopback socket ottermate drives;
+        //   --dir=<path>, repeatable, opens a tab starting in that directory;
+        //   --dirs=<file> opens one such tab per line of the file.
         String automation = System.getProperty("automation", "off");
-        if (args.length >= 1 && args[0].startsWith("--automation")) {
-            int eq = args[0].indexOf('=');
-            automation = eq < 0 ? "on" : args[0].substring(eq + 1);
-            args = java.util.Arrays.copyOfRange(args, 1, args.length);
+        List<Path> dirs = new ArrayList<>();
+        int used = 0;
+        for (; used < args.length; used++) {
+            String a = args[used];
+            if (a.startsWith("--automation")) {
+                int eq = a.indexOf('=');
+                automation = eq < 0 ? "on" : a.substring(eq + 1);
+            } else if (a.startsWith("--dir=")) {
+                addDir(dirs, a.substring("--dir=".length()), Path.of(""));
+            } else if (a.startsWith("--dirs=")) {
+                readDirs(dirs, Path.of(a.substring("--dirs=".length())));
+            } else {
+                break;
+            }
         }
+        args = java.util.Arrays.copyOfRange(args, used, args.length);
         AppSettings settings = new AppSettings(dev.vexelray.gui.core.app.Settings.open("mainframe"));
         if (args.length > 0) settings.overrideShell(String.join(" ", args));
 
@@ -42,7 +63,7 @@ public final class Main {
         java.util.concurrent.atomic.AtomicReference<Runnable> quit = new java.util.concurrent.atomic.AtomicReference<>(() -> { });
         KronoGui krono = KronoGui.attach(gui);
         java.util.concurrent.atomic.AtomicReference<SettingsPanel> menu = new java.util.concurrent.atomic.AtomicReference<>();
-        TerminalTabs view = new TerminalTabs(gui, krono, settings, () -> menu.get().toggle(), () -> quit.get().run());
+        TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> menu.get().toggle(), () -> quit.get().run());
         menu.set(new SettingsPanel(gui, settings, view::focus));
         // Tabs fill what the docked settings panel leaves.
         gui.root().children(gui.row().width(dev.vexelray.gui.core.layout.Length.FILL)
@@ -83,5 +104,44 @@ public final class Main {
         }
         krono.close();
         gui.close();
+    }
+
+    /**
+     * One directory per line; blank lines and lines starting with # are skipped, and a relative path is taken
+     * from the file's own directory, so a list can sit beside the projects it names.
+     */
+    private static void readDirs(List<Path> dirs, Path file) {
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(file);
+        } catch (IOException e) {
+            System.err.println("mainframe: cannot read directory list " + file + ": " + e.getMessage());
+            return;
+        }
+        Path base = file.toAbsolutePath().getParent();
+        for (String line : lines) {
+            String t = line.strip();
+            if (!t.isEmpty() && !t.startsWith("#")) addDir(dirs, t, base);
+        }
+    }
+
+    /**
+     * A directory that is not there is reported and skipped rather than failing the launch, so one stale line does
+     * not cost the other tabs. A leading ~ is the home directory.
+     */
+    private static void addDir(List<Path> dirs, String spec, Path base) {
+        if (spec.length() >= 2 && spec.startsWith("\"") && spec.endsWith("\"")) spec = spec.substring(1, spec.length() - 1);
+        if (spec.equals("~") || spec.startsWith("~/") || spec.startsWith("~\\")) {
+            spec = System.getProperty("user.home") + spec.substring(1);
+        }
+        Path dir;
+        try {
+            dir = base.resolve(spec).toAbsolutePath().normalize();
+        } catch (InvalidPathException e) {
+            System.err.println("mainframe: not a path, skipped: " + spec);
+            return;
+        }
+        if (Files.isDirectory(dir)) dirs.add(dir);
+        else System.err.println("mainframe: no such directory, skipped: " + dir);
     }
 }

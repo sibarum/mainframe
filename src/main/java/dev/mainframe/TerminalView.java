@@ -67,7 +67,8 @@ final class TerminalView {
     private boolean hasSel;
     private int anchorRow, anchorCol, headRow, headCol;
 
-    TerminalView(Gui gui, String commandLine, int cols, int rows, float fontPx,
+    /** {@code cwd} is the directory the shell starts in, or null for MainFrame's own. */
+    TerminalView(Gui gui, String commandLine, String cwd, int cols, int rows, float fontPx,
                  java.util.function.BooleanSupplier remapKeys, Hooks hooks) {
         this.gui = gui;
         this.remapKeys = remapKeys;
@@ -76,7 +77,7 @@ final class TerminalView {
                 .glyphLayout();
         measure(fontPx);
 
-        this.pty = ConPty.start(commandLine, cols, rows, null);
+        this.pty = ConPty.start(commandLine, cols, rows, cwd);
         this.term = new Terminal(cols, rows, new Terminal.Host() {
             @Override public void reply(String s) { pty.write(s); }
             @Override public void title(String title) { pendingTitle = title; }

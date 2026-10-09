@@ -60,7 +60,20 @@ Each tab is its own shell. Ctrl+Shift+T opens one (so does the + in the bar), Ct
 Ctrl+Tab and Ctrl+Shift+Tab cycle, and a tab's right-click menu has Close. A tab whose shell exits closes itself;
 closing the last one closes the window. Tab titles follow the shell's own title.
 Rename a tab with Ctrl+Shift+R, by double-clicking its header, or from its right-click menu: Enter or clicking away keeps the name,
-Escape cancels, and a blank name hands the header back to the shell's own title. Switching tabs slides the new one in over 160 ms (`Tabs.slide` in `TerminalTabs`; swap in `Tabs.crossfade` for a plain dissolve).
+Escape cancels, and a blank name hands the header back to the shell's own title.
+
+To open several tabs at once, each starting in its own directory, give MainFrame the directories when launching it,
+before any shell command line:
+
+```
+mainframe --dir=C:/work/api --dir=C:/work/web --dir=~
+mainframe --dirs=C:/work/projects.txt
+```
+
+`--dir` can be repeated, and `--dirs` reads a file with one directory per line (blank lines and `#` comments are
+skipped, and relative paths are taken from the file's own directory). The two can be mixed, and the tabs open in the
+order given. Each tab is named after its folder, the first one is selected, and a directory that does not exist is
+reported on stderr and skipped. Tabs opened later with + start where MainFrame itself was started. Switching tabs slides the new one in over 160 ms (`Tabs.slide` in `TerminalTabs`; swap in `Tabs.crossfade` for a plain dissolve).
 
 ## Known limits
 

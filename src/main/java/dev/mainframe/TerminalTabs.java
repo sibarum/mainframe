@@ -13,6 +13,7 @@ import dev.vexelray.gui.widget.Tabs;
 import sibarum.kronometer.Dur;
 import sibarum.kronometer.anim.Ease;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,7 +47,12 @@ final class TerminalTabs implements TerminalView.Hooks {
     /** The header being edited: the field standing in for it, and what to undo when editing ends. */
     private record Rename(TerminalView view, TextField field, Node header, Subscription blur) { }
 
-    TerminalTabs(Gui gui, KronoGui krono, AppSettings settings, Runnable openSettings, Runnable onEmpty) {
+    /**
+     * Opens one tab per directory in {@code dirs}, each named after its folder, with the first one selected; an
+     * empty list opens a single tab in MainFrame's own directory.
+     */
+    TerminalTabs(Gui gui, KronoGui krono, AppSettings settings, List<Path> dirs, Runnable openSettings,
+                 Runnable onEmpty) {
         this.gui = gui;
         this.settings = settings;
         this.openSettings = openSettings;
@@ -59,7 +65,12 @@ final class TerminalTabs implements TerminalView.Hooks {
                 });
         applyMotion();
         settings.onChange(this::settingsChanged);
-        newTab();
+        if (dirs.isEmpty()) {
+            newTab();
+        } else {
+            for (Path dir : dirs) openTab(dir);
+            tabs.select(0);
+        }
     }
 
     Node node() {
@@ -132,11 +143,17 @@ final class TerminalTabs implements TerminalView.Hooks {
 
     @Override
     public void newTab() {
+        openTab(null);
+    }
+
+    /** A tab whose shell starts in {@code dir} and is named after it; null is a plain tab in MainFrame's own. */
+    private void openTab(Path dir) {
         // The lock is never held while calling into Tabs: its header menu reaches us from the other side, through
         // onRemove, while it holds its own.
         TerminalView cur = current();
-        TerminalView v = new TerminalView(gui, settings.shellCommand(), cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(),
-                settings.fontPx(), settings::remapKeys, this);
+        TerminalView v = new TerminalView(gui, settings.shellCommand(), dir == null ? null : dir.toString(),
+                cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(), settings.fontPx(), settings::remapKeys, this);
+        if (dir != null) v.customTitle(dir.getFileName() == null ? dir.toString() : dir.getFileName().toString());
         int index;
         synchronized (this) {
             views.add(v);
