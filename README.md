@@ -38,6 +38,12 @@ printf 'settle\nshot C:/work/shot.png\n' > shot.txt
 ottermate --script shot.txt --launch mvn.cmd -q compile exec:exec -Dautomation=0
 ```
 
+## The stack's environment (planned)
+
+MainFrame is to define the stack's environment and hand it to any terminal as a script to source: the stack's
+tools (`ottermate` first) on the `PATH`, and for AI agents every application's automation socket open. The plan is
+[docs/stack-env.md](docs/stack-env.md); none of it is built yet.
+
 ## Keys
 
 Ctrl+Shift+C and Ctrl+Shift+V always copy and paste, right-click copies a selection or pastes, and Shift+PageUp/Down
