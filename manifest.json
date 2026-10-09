@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "mainframe",
+  "name": "MainFrame",
+  "publisher": "sibarum",
+  "description": "A terminal window that wraps the native Windows shell over ConPTY, built on the VexelRay stack.",
+  "repo": "sibarum/mainframe",
+  "latest": "0.1.0",
+  "tools": {
+    "install.ps1": {
+      "url": "https://raw.githubusercontent.com/sibarum/mainframe/main/install.ps1",
+      "sha256": "8f8410b2dcb8cfd5401944ae8ec864d7b3379a153797cff1d05d96dbbd81e8e6"
+    },
+    "uninstall.ps1": {
+      "url": "https://raw.githubusercontent.com/sibarum/mainframe/main/uninstall.ps1",
+      "sha256": "f58f7a1fe7b011c13df4b2c76579465a38b697008b70e5963680f8ed780c262a"
+    },
+    "update.ps1": {
+      "url": "https://raw.githubusercontent.com/sibarum/mainframe/main/update.ps1",
+      "sha256": "c81704e24ff985173de23bb1fc2da9f9187a42cbb9a5cc9991a13252f08bf2b8"
+    }
+  },
+  "versions": [
+    {
+      "version": "0.1.0",
+      "publishedAt": "2026-10-09T23:38:27Z",
+      "notes": "",
+      "installer": {
+        "install.ps1": "8f8410b2dcb8cfd5401944ae8ec864d7b3379a153797cff1d05d96dbbd81e8e6",
+        "uninstall.ps1": "f58f7a1fe7b011c13df4b2c76579465a38b697008b70e5963680f8ed780c262a",
+        "update.ps1": "c81704e24ff985173de23bb1fc2da9f9187a42cbb9a5cc9991a13252f08bf2b8"
+      },
+      "platforms": {
+        "windows": {
+          "installDir": "%LOCALAPPDATA%\\Programs\\MainFrame",
+          "binaries": [
+            {
+              "name": "mainframe",
+              "version": "0.1.0",
+              "kind": "native",
+              "file": "mainframe.exe",
+              "url": "https://github.com/sibarum/mainframe/releases/download/v0.1.0/mainframe.exe",
+              "sha256": "d1ad6c2f932dced95fdafce9ffe0087cab5f3d77020e25194b9c73637f0e426d",
+              "size": 33742848,
+              "installPath": "{installDir}\\mainframe.exe",
+              "executable": true,
+              "addToPath": true,
+              "icon": {
+                "file": "mainframe.ico",
+                "url": "https://github.com/sibarum/mainframe/releases/download/v0.1.0/mainframe.ico",
+                "sha256": "5e78487400fb3e7b35e2c28720e60192e191492b355893a25aad26d6e22a9f17",
+                "size": 12322,
+                "installPath": "{installDir}\\mainframe.ico"
+              },
+              "shortcuts": {
+                "desktop": true,
+                "startMenu": true,
+                "label": "MainFrame",
+                "gui": false
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
