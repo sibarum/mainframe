@@ -2,9 +2,14 @@ package dev.mainframe;
 
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
+import dev.vexelray.gui.core.WindowControls;
 import dev.vexelray.gui.core.app.GuiApp;
+import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.krono.KronoGui;
+import dev.vexelray.gui.nfd.SaveScreenshot;
+import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Decorations;
+import dev.vexelray.os.Icon;
 import dev.vexelray.os.WindowConfig;
 import sibarum.tactroller.api.BackendException;
 import sibarum.tactroller.api.CoordinateSpace;
@@ -15,6 +20,7 @@ import sibarum.tactroller.clipboard.Clipboard;
 import sibarum.tactroller.clipboard.ClipboardException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -65,15 +71,23 @@ public final class Main {
         java.util.concurrent.atomic.AtomicReference<SettingsPanel> menu = new java.util.concurrent.atomic.AtomicReference<>();
         TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> menu.get().toggle(), () -> quit.get().run());
         menu.set(new SettingsPanel(gui, settings, view::focus));
-        // Tabs fill what the docked settings panel leaves.
-        gui.root().children(gui.row().width(dev.vexelray.gui.core.layout.Length.FILL)
-                .height(dev.vexelray.gui.core.layout.Length.FILL)
-                .children(view.node().width(dev.vexelray.gui.core.layout.Length.grow(1)), menu.get().node()));
+        // The window's own title bar; it gets the window and the mark once the window exists.
+        TitleBar bar = new TitleBar(gui, WindowControls.NONE, "MainFrame");
+        Icon mark = mark();
+        // Tabs fill what the docked settings panel leaves, under the title bar.
+        gui.root().children(gui.column().width(Length.FILL).height(Length.FILL).children(
+                bar.node(),
+                gui.row().width(Length.FILL).height(Length.grow(1))
+                        .children(view.node().width(Length.grow(1)), menu.get().node())));
 
         AutoCloseable server = null;
         try (Tactroller input = Tactroller.open();
-             GuiApp app = new GuiApp(WindowConfig.of("MainFrame", 1100, 680).decorations(Decorations.SYSTEM));
+             GuiApp app = new GuiApp(WindowConfig.of("MainFrame", 1100, 680).decorations(Decorations.CLIENT)
+                     .icon(mark));
              Clipboard clip = Clipboard.open()) {
+            // The window exists now: point the bar at it, and give it the framework applications' screenshot button,
+            // which needs real controls to photograph anything.
+            bar.controls(app.controls()).icon(app, mark).instruments(List.of(SaveScreenshot.instrument()));
             input.attach(NativeWindow.ofHwnd(app.windowHandle()));
             input.setCoordinateSpace(CoordinateSpace.CLIENT);
             gui.clipboard(new TextClipboard() {
@@ -104,6 +118,23 @@ public final class Main {
         }
         krono.close();
         gui.close();
+    }
+
+    /**
+     * The mark the window wears in its title bar and, run from a jar, on the taskbar, where a native build already
+     * wears it from its own resources. Null, and said, if it cannot be read: the window is still a window.
+     */
+    private static Icon mark() {
+        try (InputStream in = Main.class.getResourceAsStream("/mainframe.ico")) {
+            if (in == null) {
+                System.err.println("mainframe: no mainframe.ico on the class path; the window goes without a mark");
+                return null;
+            }
+            return Icon.fromIco(in.readAllBytes());
+        } catch (IOException | IllegalArgumentException e) {
+            System.err.println("mainframe: cannot read mainframe.ico: " + e.getMessage());
+            return null;
+        }
     }
 
     /**

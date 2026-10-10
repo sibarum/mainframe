@@ -43,6 +43,12 @@
       <artifactId>vexelray-gui-krono</artifactId>
       <version>${vexelray-gui.version}</version>
     </dependency>
+    <!-- The title bar's screenshot button that asks where to save, as the framework's applications have. -->
+    <dependency>
+      <groupId>dev.vexelray.gui</groupId>
+      <artifactId>vexelray-gui-nfd</artifactId>
+      <version>${vexelray-gui.version}</version>
+    </dependency>
     <!-- The driving socket, off unless asked for. -->
     <dependency>
       <groupId>dev.vexelray.gui</groupId>
@@ -69,6 +75,19 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- The mark, on the class path for the title bar: the same file src/main/rc/mainframe.rc links into the
+           executable, so the two are one file and cannot drift. -->
+      <resource>
+        <directory>src/main/rc</directory>
+        <includes>
+          <include>mainframe.ico</include>
+        </includes>
+      </resource>
+    </resources>
     <pluginManagement>
       <plugins>
         <!-- The executable's icon: a resource linked into the program, so it has to exist as a compiled .res before

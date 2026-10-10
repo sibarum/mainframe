@@ -29,7 +29,8 @@
     { "type": "sun.text.resources.cldr.FormatData" }
   ],
   "resources": [
-    { "glob": "META-INF/services/java.time.zone.ZoneRulesProvider" }
+    { "glob": "META-INF/services/java.time.zone.ZoneRulesProvider" },
+    { "glob": "mainframe.ico" }
   ],
   "foreign": {
     "downcalls": [
