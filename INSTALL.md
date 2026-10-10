@@ -40,7 +40,7 @@ Set these in the same PowerShell window *before* the install command:
 
 | File | Kind | Version | Size | Installed to |
 | --- | --- | --- | --- | --- |
-| `mainframe.exe` | native executable | 0.1.0 | 32.2 MB | `%LOCALAPPDATA%\Programs\MainFrame\mainframe.exe` |
+| `mainframe.exe` | native executable | 0.1.0 | 32.8 MB | `%LOCALAPPDATA%\Programs\MainFrame\mainframe.exe` |
 
 Everything installed is recorded in `%LOCALAPPDATA%\Programs\MainFrame\install-manifest.json`, and a copy
 in `%LOCALAPPDATA%\vexelray-installer\installs\mainframe.json`.

@@ -40,16 +40,16 @@
               "kind": "native",
               "file": "mainframe.exe",
               "url": "https://github.com/sibarum/mainframe/releases/download/v0.1.0/mainframe.exe",
-              "sha256": "d1ad6c2f932dced95fdafce9ffe0087cab5f3d77020e25194b9c73637f0e426d",
-              "size": 33742848,
+              "sha256": "129356fbdf0b1722c89c312502c550f7dae65f2fdbec965724a7d5efe0077002",
+              "size": 34357248,
               "installPath": "{installDir}\\mainframe.exe",
               "executable": true,
               "addToPath": true,
               "icon": {
                 "file": "mainframe.ico",
                 "url": "https://github.com/sibarum/mainframe/releases/download/v0.1.0/mainframe.ico",
-                "sha256": "5e78487400fb3e7b35e2c28720e60192e191492b355893a25aad26d6e22a9f17",
-                "size": 12322,
+                "sha256": "8a18b4537d5689974c75f311b9f71b0c6eb7fa38818aabd94bc8ed48da3d75ee",
+                "size": 24959,
                 "installPath": "{installDir}\\mainframe.ico"
               },
               "shortcuts": {
@@ -61,7 +61,8 @@
             }
           ]
         }
-      }
+      },
+      "updatedAt": "2026-10-10T04:14:25Z"
     }
   ]
 }
