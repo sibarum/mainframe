@@ -93,10 +93,11 @@ public final class Main {
         TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> quit.get().run());
         SettingsWindow settingsWindow = new SettingsWindow(gui, settings, workspaces);
         if (insertPath != null) insert(view.current(), insertPath, dirs, dialect);
-        // The window's own title bar; it gets the window and the mark once the window exists. The gear opens the
-        // settings window, and the keyboard stays with the terminal.
+        // The window's own title bar; it gets the window and the mark once the window exists. The settings button
+        // opens the settings window, and the keyboard stays with the terminal. Its icon is drawn once there is a window.
         TitleBar bar = new TitleBar(gui, WindowControls.NONE, "MainFrame");
-        bar.addLeading(SettingsWindow.gearButton(gui, () -> {
+        Icons icons = new Icons();
+        bar.addLeading(SettingsWindow.settingsButton(gui, icons, () -> {
             settingsWindow.show();
             view.focus();
         }));
@@ -119,6 +120,7 @@ public final class Main {
             app.input(Main::windowInput);
             Modals.install(app, dialog -> dialog.theme(gui.theme()));
             settingsWindow.register(app, mark);
+            icons.bind(app);
             gui.clipboard(new TextClipboard() {
                 @Override public String get() {
                     try { return clip.getText().orElse(""); } catch (ClipboardException e) { return ""; }

@@ -30,7 +30,8 @@
   ],
   "resources": [
     { "glob": "META-INF/services/java.time.zone.ZoneRulesProvider" },
-    { "glob": "mainframe.ico" }
+    { "glob": "mainframe.ico" },
+    { "glob": "dev/mainframe/icons/*.svg" }
   ],
   "foreign": {
     "downcalls": [

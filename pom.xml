@@ -20,6 +20,10 @@
     <vexelray-gui.version>0.1.0-SNAPSHOT</vexelray-gui.version>
     <vexelray.version>0.1.0-SNAPSHOT</vexelray.version>
     <tactroller.version>1.0-SNAPSHOT</tactroller.version>
+    <vexelray-codec.version>0.1.0-SNAPSHOT</vexelray-codec.version>
+    <!-- imagelib's static library (vexelray-codec's decoder), staged by imagelib-wrapper's native/build.sh. Only the
+         native image reads it; a JVM run extracts the DLL from the jar. -->
+    <imagelib.static.dir>${project.basedir}/../imagelib-wrapper/native/dist/static/windows-x86_64</imagelib.static.dir>
     <!-- The automation socket ottermate drives: "off", "on" for the default port, or a port number; 0 is a free one. -->
     <automation>off</automation>
     <!--
@@ -48,6 +52,13 @@
       <groupId>dev.vexelray.gui</groupId>
       <artifactId>vexelray-gui-nfd</artifactId>
       <version>${vexelray-gui.version}</version>
+    </dependency>
+    <!-- The suite's icons are SVGs (vexelray-icons), decoded through imagelib at the size they are drawn and kept on
+         the GPU by its Textures. The GUI decodes nothing itself, by design. -->
+    <dependency>
+      <groupId>dev.vexelray.codec</groupId>
+      <artifactId>vexelray-codec-image</artifactId>
+      <version>${vexelray-codec.version}</version>
     </dependency>
     <!-- The driving socket, off unless asked for. -->
     <dependency>
@@ -139,6 +150,28 @@
               <buildArg>-H:NativeLinkerOption=/SUBSYSTEM:${native.subsystem}</buildArg>
               <buildArg>-H:NativeLinkerOption=/ENTRY:mainCRTStartup</buildArg>
               <buildArg>-H:NativeLinkerOption=${project.build.directory}/mainframe.res</buildArg>
+              <!-- imagelib linked in rather than extracted: its loader finds the symbols in the executable and skips
+                   the DLL. The exports keep the linker from dropping a library nothing calls by name. They are
+                   imagelib-link.args (beside imagelib.lib) copied in, since native-image does not expand an @file
+                   named inside the plugin's own args file. Copy them again when imagelib's header gains a function
+                   or rustc reports other system libraries. -->
+              <buildArg>-H:NativeLinkerOption=${imagelib.static.dir}/imagelib.lib</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_count</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_decode</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_delay_ms</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_free</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_height</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_last_error</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_pixels</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_probe</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_render_svg</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_svg_size</buildArg>
+              <buildArg>-H:NativeLinkerOption=/EXPORT:img_width</buildArg>
+              <buildArg>-H:NativeLinkerOption=kernel32.lib</buildArg>
+              <buildArg>-H:NativeLinkerOption=ntdll.lib</buildArg>
+              <buildArg>-H:NativeLinkerOption=userenv.lib</buildArg>
+              <buildArg>-H:NativeLinkerOption=ws2_32.lib</buildArg>
+              <buildArg>-H:NativeLinkerOption=dbghelp.lib</buildArg>
             </buildArgs>
           </configuration>
         </plugin>

@@ -2,7 +2,6 @@ package dev.mainframe;
 
 import dev.mainframe.AppSettings.Motion;
 import dev.mainframe.AppSettings.Shell;
-import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.WindowControls;
@@ -12,10 +11,10 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.Standing;
 import dev.vexelray.gui.core.app.WindowSpec;
 import dev.vexelray.gui.core.input.InteractionState;
+import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
+import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
-import dev.vexelray.gui.core.layout.Rect;
 import dev.vexelray.gui.core.style.Role;
-import dev.vexelray.gui.draw.Picture;
 import dev.vexelray.gui.nfd.SaveScreenshot;
 import dev.vexelray.gui.widget.Segment;
 import dev.vexelray.gui.widget.Tabs;
@@ -27,12 +26,11 @@ import dev.vexelray.os.Icon;
 import dev.vexelray.os.WindowConfig;
 import dev.vexelray.text.TextLayout;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The settings window: a window of its own, opened by the gear in the main window's title bar, with a tab per
- * group of settings.
+ * The settings window: a window of its own, opened by the settings button in the main window's title bar, with a
+ * tab per group of settings.
  *
  * <p>Every control applies the moment it is touched and is saved by {@link AppSettings}, so there is nothing to
  * confirm. The window's tree is built once and outlives the window, so closing and reopening it shows it as it was
@@ -128,43 +126,24 @@ final class SettingsWindow {
                 .textColor(gui.theme().color(Role.FAINT)).align(TextLayout.HAlign.LEFT, TextLayout.VAlign.TOP);
     }
 
-    // -- the gear ---------------------------------------------------------------------------------------------
+    // -- the button -------------------------------------------------------------------------------------------
 
     /**
-     * The button that opens this window, for the main window's title bar: a gear, sized and shaded like the bar's
-     * own buttons. It sits on the caption, so it declares itself interactive or the click would start a drag.
+     * The button that opens this window, for the main window's title bar: the suite's settings icon, sized and shaded
+     * like the bar's own buttons. It sits on the caption, so it declares itself interactive or the click would start
+     * a drag.
      */
-    static Node gearButton(Gui gui, Runnable open) {
-        Node b = gui.box().role("settings").width(Length.dp(36)).height(Length.dp(32))
+    static Node settingsButton(Gui gui, Icons icons, Runnable open) {
+        Node b = gui.row().role("settings").width(Length.dp(36)).height(Length.dp(32))
+                .justify(Justify.CENTER).alignItems(AlignItems.CENTER)
                 .background(gui.theme().color(Role.NONE)).scroll(false, false)
-                .windowRegion(WindowRegion.INTERACTIVE);
-        // A picture is in pixels, so the gear is redrawn whenever the box changes, as the bar's instruments are.
-        gui.onResizeUi(b, computed -> b.picture(gear(computed.rect(), gui.theme().color(Role.INK))));
+                .windowRegion(WindowRegion.INTERACTIVE)
+                .children(icons.icon(gui, "settings", 16, gui.theme().color(Role.INK)));
         gui.onClick(b, open);
         gui.onState(b, state -> b.background(
                 gui.theme().color(state == InteractionState.NORMAL ? Role.NONE : Role.RAISED)));
         new Tooltip(gui).attach(b, "Settings");
         gui.landmark("settings", b);   // so ottermate can say "click settings"
         return b;
-    }
-
-    /** A ring with eight teeth, drawn rather than typed: the font has no gear glyph. */
-    private static Picture gear(Rect box, Color ink) {
-        double s = Math.min(box.w(), box.h()) * 0.5;
-        double cx = box.w() * 0.5;
-        double cy = box.h() * 0.5;
-        double ring = s * 0.32;
-        double stroke = s * 0.16;
-        double tooth = s * 0.2;
-        List<Picture.Mark> marks = new ArrayList<>();
-        marks.add(new Picture.Outline(cx - ring, cy - ring, ring * 2, ring * 2, ring, ring, stroke, ink));
-        for (int i = 0; i < 8; i++) {
-            double a = i * Math.PI / 4;
-            double from = ring + stroke * 0.25;
-            double to = ring + tooth + stroke * 0.5;
-            marks.add(new Picture.Line(cx + Math.cos(a) * from, cy + Math.sin(a) * from,
-                    cx + Math.cos(a) * to, cy + Math.sin(a) * to, stroke * 1.3, ink));
-        }
-        return new Picture(marks);
     }
 }
