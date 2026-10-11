@@ -39,7 +39,7 @@ public final class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        args = dev.mainframe.pty.CommandLine.unicode(args);   // a native image decoded them through the ANSI page
+        args = dev.vexelray.os.NativePlatform.current().arguments(args);   // a native image decoded them as ANSI
         // Leading options, then the rest is a shell:
         //   --automation[=off|on|<port>] (or -Dautomation) opens the loopback socket ottermate drives;
         //   --dir=<path>, repeatable, opens a tab starting in that directory;
