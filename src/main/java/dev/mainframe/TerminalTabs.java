@@ -5,6 +5,7 @@ import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.input.ClaimScope;
 import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TextField;
 import sibarum.atchung.Subscription;
 import sibarum.tactroller.api.Key;
@@ -40,6 +41,7 @@ final class TerminalTabs implements TerminalView.Hooks {
     private final List<TerminalView> views = new ArrayList<>();
     private Node plus;
     private Rename renaming;
+    private volatile Runnable open = () -> { };
 
     /** The header being edited: the field standing in for it, and what to undo when editing ends. */
     private record Rename(TerminalView view, TextField field, Node header, Subscription blur) { }
@@ -175,6 +177,30 @@ final class TerminalTabs implements TerminalView.Hooks {
             i = views.indexOf(view);
         }
         if (i >= 0) tabs.remove(i);
+    }
+
+    /** Ctrl+W: asks first, as closing a tab ends its shell and whatever it was running. Cancel goes back to it. */
+    @Override
+    public void askClose(TerminalView view) {
+        Modals.confirm("Close " + view.displayTitle() + "?", "Its shell ends, and anything running in it.",
+                "Close", () -> closeTab(view), view::focus);
+    }
+
+    /** What Ctrl+O does is the window's to say; see {@link #onOpen}. */
+    @Override
+    public void open() {
+        open.run();
+    }
+
+    /** What Ctrl+O runs. */
+    TerminalTabs onOpen(Runnable open) {
+        this.open = open;
+        return this;
+    }
+
+    /** A new tab whose shell starts in {@code dir}, named after the folder, selected and focused. */
+    void openFolder(Path dir) {
+        openTab(dir, null);
     }
 
     @Override

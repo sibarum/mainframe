@@ -43,6 +43,10 @@ final class TerminalView {
     interface Hooks {
         void newTab();
         void closeTab(TerminalView view);
+        /** Close {@code view} once the user says so. */
+        void askClose(TerminalView view);
+        /** Open a folder or a workspace: what Ctrl+O asks for. */
+        void open();
         void cycle(int by);
         void rename(TerminalView view);
     }
@@ -384,6 +388,11 @@ final class TerminalView {
             if (ctrl && k == Key.C) { copySelection(); return; }
             if (ctrl && k == Key.V) { paste(); return; }
             if (!ctrl && k == Key.ESCAPE) { send("\u0003"); return; }
+            // Ctrl+T, Ctrl+W and Ctrl+O are the window's, as in a browser. The shell gives up transpose, delete word
+            // and operate-and-get-next; Ctrl+Backspace still deletes a word.
+            if (ctrl && k == Key.T) { hooks.newTab(); return; }
+            if (ctrl && k == Key.W) { hooks.askClose(this); return; }
+            if (ctrl && k == Key.O) { hooks.open(); return; }
         }
         if (shift && k == Key.PAGE_UP) { scrollOffset += term.rows() - 1; dirty.set(true); return; }
         if (shift && k == Key.PAGE_DOWN) { scrollOffset -= term.rows() - 1; dirty.set(true); return; }

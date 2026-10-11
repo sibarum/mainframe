@@ -59,11 +59,13 @@ and the wheel scroll the history.
 
 With **Remap keybindings** on (the default; a switch in Settings) Ctrl+C is copy and Ctrl+V is paste, and since that
 takes the interrupt away, a plain Esc sends it instead (the legacy Ctrl+C character, 0x03). Esc therefore no longer
-reaches programs that want it, such as vim. Turned off, every key goes to the shell as it is.
+reaches programs that want it, such as vim. Ctrl+T opens a tab, Ctrl+W closes one after asking, and Ctrl+O opens a
+folder as a new tab, so the shell gives up those three too (Ctrl+W's delete-word is also Ctrl+Backspace). Turned
+off, every key goes to the shell as it is.
 
 ## Settings
 
-The gear in the title bar opens the settings window (clicking it again brings that window to the front). Its General tab has font size, tab animation (slide,
+The settings button (the gear) in the title bar opens the settings window (clicking it again brings that window to the front). Its General tab has font size, tab animation (slide,
 fade or none), key remapping and the shell new tabs start (Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt).
 Changes apply at once and are saved by vexelray's per-application settings file. A command line given when
 launching MainFrame overrides the shell choice for that run only.

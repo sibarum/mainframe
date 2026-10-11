@@ -103,8 +103,11 @@ final class SettingsWindow {
                         label("Tab animation"), motion.node(),
                         label("Shell for new tabs"), shell.node(),
                         label("Remap keybindings"), remap.node(),
-                        note("On: Ctrl+C copies, Ctrl+V pastes, and Esc sends Ctrl+C (interrupt). "
-                                + "Off: every key goes to the shell as is. Ctrl+Shift+C and Ctrl+Shift+V always copy and paste."),
+                        note("On: Ctrl+C copies, Ctrl+V pastes, and Esc sends Ctrl+C (interrupt). Ctrl+T opens a tab, "
+                                + "Ctrl+W closes one after asking, and Ctrl+O opens a folder as a tab; the shell gives up "
+                                + "those keys (Ctrl+W's delete word is also Ctrl+Backspace). "
+                                + "Off: every key goes to the shell as is. Ctrl+Shift+C and Ctrl+Shift+V always copy and "
+                                + "paste, and Ctrl+Shift+T and Ctrl+Shift+W always open and close a tab."),
                         note("Font size and animation apply at once; a new shell applies to tabs opened from now on."));
     }
 

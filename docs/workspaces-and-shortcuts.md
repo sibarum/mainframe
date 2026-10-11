@@ -1,6 +1,6 @@
 # Workspaces, shortcuts and the Open dialog
 
-Status: **planned**, 2026-10-11. Only the settings icon is built.
+Status: **planned**, 2026-10-11. The settings icon and the shortcuts are built.
 
 Three pieces of work, in the order they will land: the small things (the settings icon, three shortcuts), then the
 Workspaces editor, then an Open dialog that makes a workspace something you open from inside MainFrame rather than
@@ -15,13 +15,13 @@ sun. It wears the suite's `settings` utility icon now ([utility-icons.md](utilit
 
 ### Three more remapped shortcuts
 
-With **Remap keybindings** on, as well as Ctrl+C, Ctrl+V and Esc:
+**Done.** With **Remap keybindings** on, as well as Ctrl+C, Ctrl+V and Esc:
 
 | Keys | Does |
 | --- | --- |
 | Ctrl+T | a new tab, as Ctrl+Shift+T |
 | Ctrl+W | closes the tab, after asking |
-| Ctrl+O | the Open dialog (§3) |
+| Ctrl+O | the Open dialog (§3); until it is built, the folder picker, and the folder opens as a new tab |
 
 Ctrl+Shift+T and Ctrl+Shift+W work whether remapping is on or off, and Ctrl+Shift+W stays immediate: it is the way
 to close a tab without being asked.

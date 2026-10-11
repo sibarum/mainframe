@@ -7,6 +7,7 @@ import dev.vexelray.gui.core.app.GuiApp;
 import dev.vexelray.gui.core.app.WindowInput;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.krono.KronoGui;
+import dev.vexelray.gui.nfd.FileDialog;
 import dev.vexelray.gui.nfd.SaveScreenshot;
 import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
@@ -130,6 +131,15 @@ public final class Main {
                 }
             });
             quit.set(() -> app.window().requestClose());
+            // Ctrl+O: a folder, as a new tab. The Open dialog (docs/workspaces-and-shortcuts.md) takes this over and
+            // keeps the folder picker as its first tile.
+            view.onOpen(() -> FileDialog.pickFolderAsync(app::post, app.windowHandle(),
+                            Path.of(System.getProperty("user.home")))
+                    .thenAccept(picked -> picked.ifPresentOrElse(view::openFolder, view::focus))
+                    .exceptionally(e -> {
+                        Modals.info("Could not open the folder picker", String.valueOf(e.getMessage()));
+                        return null;
+                    }));
             view.focus();
             // The clock goes with the Gui so settle waits out a tab animation, not only the frame loop.
             server = Driving.open(automation, gui, app, krono);
