@@ -39,12 +39,17 @@ public final class Main {
     }
 
     public static void main(String[] args) throws Exception {
+        args = dev.mainframe.pty.CommandLine.unicode(args);   // a native image decoded them through the ANSI page
         // Leading options, then the rest is a shell:
         //   --automation[=off|on|<port>] (or -Dautomation) opens the loopback socket ottermate drives;
         //   --dir=<path>, repeatable, opens a tab starting in that directory;
-        //   --dirs=<file> opens one such tab per line of the file.
+        //   --dirs=<file> opens one such tab per line of the file;
+        //   --insert-path=<file> types that file's name, quoted, on the first tab's input line (see InsertPath).
+        // Any other --option is refused rather than taken for the start of a shell's command line: an option this
+        // build does not know would otherwise be run as a program.
         String automation = System.getProperty("automation", "off");
         List<Path> dirs = new ArrayList<>();
+        String insertPath = null;
         int used = 0;
         for (; used < args.length; used++) {
             String a = args[used];
@@ -55,6 +60,15 @@ public final class Main {
                 addDir(dirs, a.substring("--dir=".length()), Path.of(""));
             } else if (a.startsWith("--dirs=")) {
                 readDirs(dirs, Path.of(a.substring("--dirs=".length())));
+            } else if (a.startsWith("--insert-path=")) {
+                if (insertPath != null) {
+                    System.err.println("mainframe: --insert-path given twice; only the first is used");
+                } else {
+                    insertPath = a.substring("--insert-path=".length());
+                }
+            } else if (a.startsWith("--")) {
+                System.err.println("mainframe: unknown option " + a);
+                System.exit(2);
             } else {
                 break;
             }
@@ -62,6 +76,8 @@ public final class Main {
         args = java.util.Arrays.copyOfRange(args, used, args.length);
         AppSettings settings = new AppSettings(dev.vexelray.gui.core.app.Settings.open("mainframe"));
         if (args.length > 0) settings.overrideShell(String.join(" ", args));
+        // Which shell the tabs run, as far as quoting goes: none MainFrame can vouch for when the command line chose it.
+        InsertPath.Dialect dialect = args.length > 0 ? null : InsertPath.Dialect.of(settings.shell().id()).orElse(null);
 
         Gui gui = new Gui();
         // The window is closed by asking it to, which needs the window; the tabs are built first, so the last
@@ -71,6 +87,7 @@ public final class Main {
         java.util.concurrent.atomic.AtomicReference<SettingsPanel> menu = new java.util.concurrent.atomic.AtomicReference<>();
         TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> menu.get().toggle(), () -> quit.get().run());
         menu.set(new SettingsPanel(gui, settings, view::focus));
+        if (insertPath != null) insert(view.current(), insertPath, dirs, dialect);
         // The window's own title bar; it gets the window and the mark once the window exists.
         TitleBar bar = new TitleBar(gui, WindowControls.NONE, "MainFrame");
         Icon mark = mark();
@@ -135,6 +152,35 @@ public final class Main {
             System.err.println("mainframe: cannot read mainframe.ico: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Put {@code spec}'s name on {@code tab}'s input line, or say on the tab why not. Only a file that exists, named by
+     * an absolute path, and sits directly in the first {@code --dir} (which is where the tab's shell starts) is
+     * considered at all; then {@link InsertPath} decides what, if anything, may be typed for it.
+     */
+    private static void insert(TerminalView tab, String spec, List<Path> dirs, InsertPath.Dialect dialect) {
+        if (tab == null) return;
+        Path file;
+        try {
+            file = Path.of(spec);
+        } catch (InvalidPathException e) {
+            tab.notice("--insert-path is not a path, so nothing was typed.");
+            return;
+        }
+        if (!file.isAbsolute() || !file.normalize().equals(file) || !Files.isRegularFile(file)
+                || file.getFileName() == null) {
+            tab.notice("--insert-path does not name a file by its full path, so nothing was typed.");
+            return;
+        }
+        if (dirs.isEmpty() || !dirs.get(0).equals(file.getParent())) {
+            tab.notice("--insert-path names a file outside this tab's folder, so nothing was typed.");
+            return;
+        }
+        InsertPath.Outcome o = InsertPath.decide(dialect, file.getFileName().toString(),
+                () -> dev.mainframe.pty.ShortName.of(file));
+        if (o.typesSomething()) tab.typeWhenReady(o.text());
+        if (o.notice() != null) tab.notice(o.notice());
     }
 
     /**

@@ -37,6 +37,7 @@ final class TerminalView {
 
     private static final Color DEFAULT_BG = Color.rgb(Palette.DEFAULT_BG);
     private static final Color SELECTION = Color.argb(0xA0264F78);
+    private static final Color NOTICE_BG = Color.rgb(0x4A3A14);
 
     /** What a tab's terminal asks of the window it lives in. */
     interface Hooks {
@@ -49,7 +50,11 @@ final class TerminalView {
     private final Gui gui;
     private final Hooks hooks;
     private final java.util.function.BooleanSupplier remapKeys;
+    /** The cell grid: what draws, takes focus and keys. */
     private final Node node;
+    /** The tab's page: the grid, with a notice above it while there is one. */
+    private final Node frame;
+    private volatile Node notice;
     private final Terminal term;
     private final ConPty pty;
     private final GlyphLayout glyphs;
@@ -62,6 +67,10 @@ final class TerminalView {
     private volatile String shellTitle = "Shell";
     private volatile String customTitle;
     private sibarum.atchung.Subscription scrollSub;
+    /** When the shell last wrote, in nanos; zero until it first does. */
+    private volatile long lastOutput;
+    /** Text to type once the shell has drawn its prompt (see {@link #typeWhenReady}); null when there is none. */
+    private volatile String pendingType;
 
     private int scrollOffset;
     private boolean hasSel;
@@ -83,12 +92,55 @@ final class TerminalView {
             @Override public void title(String title) { pendingTitle = title; }
         });
 
-        this.node = gui.box().width(Length.FILL).height(Length.FILL).font(1).background(DEFAULT_BG);
+        this.node = gui.box().width(Length.FILL).height(Length.grow(1)).font(1).background(DEFAULT_BG);
+        this.frame = gui.column().width(Length.FILL).height(Length.FILL).children(node);
         wire();
         startReader();
     }
 
-    Node node() { return node; }
+    Node node() { return frame; }
+
+    /**
+     * Type {@code text} on the input line, after a space and with the cursor taken home, so what the user types next
+     * is the command it is an argument of. Nothing is typed until the shell has written and then been quiet for a
+     * moment, which is its prompt drawn; and nothing at all if the user types first, since text arriving in the
+     * middle of their own would be a line neither of them wrote. Never a line end: running it is the user's Enter.
+     *
+     * <p>The caller vouches for {@code text} ({@link InsertPath}); this refuses a control character regardless.
+     */
+    void typeWhenReady(String text) {
+        if (InsertPath.hasControl(text)) throw new IllegalArgumentException("not typing a control character");
+        pendingType = text;
+    }
+
+    /** Show {@code text} above the terminal until the user clicks it or presses Enter. */
+    void notice(String text) {
+        Node n = gui.text(text).width(Length.FILL).padding(Length.rem(0.5f), Length.rem(0.75f))
+                .textSize(Length.rem(0.875f)).textColor(Color.rgb(0xF2E6C9)).background(NOTICE_BG);
+        gui.onClick(n, this::dismissNotice);
+        dismissNotice();
+        notice = n;
+        frame.insert(n, 0);
+    }
+
+    private void dismissNotice() {
+        Node n = notice;
+        notice = null;
+        if (n != null) n.remove();
+    }
+
+    /** The prompt counts as drawn once the shell has been quiet this long after writing. */
+    private static final long PROMPT_QUIET_NANOS = 300_000_000L;
+
+    private void typePending() {
+        String text = pendingType;
+        long last = lastOutput;
+        if (text == null || last == 0 || System.nanoTime() - last < PROMPT_QUIET_NANOS) return;
+        pendingType = null;
+        String typed = " " + text;
+        write(term.bracketedPaste() ? "\u001b[200~" + typed + "\u001b[201~" : typed);
+        write(cursorKey('H', 1));
+    }
 
     boolean exited() { return exited; }
 
@@ -158,6 +210,7 @@ final class TerminalView {
 
     /** On the GUI thread, once a frame. */
     void tick() {
+        typePending();
         if (active && dirty.getAndSet(false)) render();
     }
 
@@ -178,6 +231,7 @@ final class TerminalView {
                 out.flip();
                 term.feed(out);
                 out.clear();
+                lastOutput = System.nanoTime();
                 dirty.set(true);
             }
             exited = true;
@@ -283,8 +337,7 @@ final class TerminalView {
         });
         gui.onCharUi(node, cp -> {
             if (cp < 0x20 || cp == 0x7f) return;
-            snapToBottom();
-            pty.write(new String(Character.toChars(cp)));
+            send(new String(Character.toChars(cp)));
         });
         gui.onKeyUi(node, this::key);
         gui.claimUi(node, Shortcut.of(Key.TAB), ClaimScope.FOCUSED, () -> send("\t"));
@@ -380,7 +433,14 @@ final class TerminalView {
         return mod > 1 ? "\u001b[" + n + ";" + mod + "~" : "\u001b[" + n + "~";
     }
 
+    /** What the user typed or pasted: it wins over anything waiting to be typed, and Enter puts a notice away. */
     private void send(String s) {
+        pendingType = null;
+        if (s.indexOf('\r') >= 0) dismissNotice();
+        write(s);
+    }
+
+    private void write(String s) {
         snapToBottom();
         pty.write(s);
     }

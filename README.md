@@ -81,6 +81,17 @@ skipped, and relative paths are taken from the file's own directory). The two ca
 order given. Each tab is named after its folder, the first one is selected, and a directory that does not exist is
 reported on stderr and skipped. Tabs opened later with + start where MainFrame itself was started. Switching tabs slides the new one in over 160 ms (`Tabs.slide` in `TerminalTabs`; swap in `Tabs.crossfade` for a plain dissolve).
 
+`--insert-path=<file>` puts a file's name on the first tab's input line, quoted for its shell, once the prompt is
+drawn: Vexplore's Open MainFrame Here uses it, with the file's folder as the first `--dir`. The name is typed after a
+space with the cursor before it, so what you type next is the command; nothing runs until you press Enter, and
+nothing is typed if you start typing first. It is typed only when it can be proved safe: every character must be one
+that shell's quoting leaves inert (PowerShell's single quotes, cmd's double quotes, which do not stop `%` or `!`). A
+name that fails is replaced by its 8.3 short name if that passes, and otherwise nothing is typed; either way a notice
+above the terminal says so. The file must exist, be named by its full path, and sit directly in the first `--dir`; a
+shell given on the command line is refused, since MainFrame cannot tell how it quotes (`InsertPath`).
+
+An option MainFrame does not know stops it with an error, rather than being taken for the start of a shell command.
+
 ## Known limits
 
 - One mono face (Noto Sans Mono Regular): bold is faked by double-striking, italic is not drawn.
