@@ -13,7 +13,8 @@ vexelray GUI stack.
 | `TerminalView` | Terminal drawn as a vexelray node, plus keyboard, mouse selection, scrollback and clipboard. |
 | `CellArt` | Box drawing, block elements and braille, drawn rather than taken from the font. |
 | `TerminalTabs` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. |
-| `SettingsPanel` / `AppSettings` | The docked settings panel and the saved settings behind it. |
+| `SettingsWindow` / `AppSettings` | The settings window, opened by the gear in the title bar, and the saved settings behind it. |
+| `WorkspacesPage` / `Workspace` / `WorkspaceStore` | The Workspaces tab, and the saved workspaces (one CSV file each) that `--workspace` opens. |
 | `Main` | The window and the frame loop. |
 
 ## Run
@@ -38,6 +39,13 @@ printf 'settle\nshot C:/work/shot.png\n' > shot.txt
 ottermate --script shot.txt --launch mvn.cmd -q compile exec:exec -Dautomation=0
 ```
 
+Every open window can be driven. Commands go to the main window until `window settings` picks the settings
+window, which `click settings` (the gear) opens:
+
+```bash
+printf 'settle\nclick settings\nsettle\nwindow settings\nsettle\nshot C:/work/settings.png\n' > shot.txt
+```
+
 ## The stack's environment (planned)
 
 MainFrame is to define the stack's environment and hand it to any terminal as a script to source: the stack's
@@ -55,7 +63,7 @@ reaches programs that want it, such as vim. Turned off, every key goes to the sh
 
 ## Settings
 
-The Settings button at the end of the tab bar opens a panel docked to the right: font size, tab animation (slide,
+The gear in the title bar opens the settings window (clicking it again brings that window to the front). Its General tab has font size, tab animation (slide,
 fade or none), key remapping and the shell new tabs start (Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt).
 Changes apply at once and are saved by vexelray's per-application settings file. A command line given when
 launching MainFrame overrides the shell choice for that run only.
@@ -80,6 +88,23 @@ mainframe --dirs=C:/work/projects.txt
 skipped, and relative paths are taken from the file's own directory). The two can be mixed, and the tabs open in the
 order given. Each tab is named after its folder, the first one is selected, and a directory that does not exist is
 reported on stderr and skipped. Tabs opened later with + start where MainFrame itself was started. Switching tabs slides the new one in over 160 ms (`Tabs.slide` in `TerminalTabs`; swap in `Tabs.crossfade` for a plain dissolve).
+
+### Workspaces
+
+A workspace is a saved list of folders, opened with `mainframe --workspace=<name>`: one tab per folder, in order,
+each named as the workspace names it. They are made and edited in the settings window's Workspaces tab (New, Delete,
+the name, and per folder its tab name, up, down and remove; Add folder picks one), and every change is saved at once.
+
+Each is a CSV file in `~/.mainframe/workspaces/<name>.csv` with a header row, so it can be edited by hand too:
+
+```
+name,path
+,C:\work\api
+web,C:\work\web-frontend
+```
+
+An empty `name` is the folder's own. Columns other than `name` and `path` are kept when MainFrame writes the file
+back, so later versions can add fields (`Workspace`, `WorkspaceStore`).
 
 `--insert-path=<file>` puts a file's name on the first tab's input line, quoted for its shell, once the prompt is
 drawn: Vexplore's Open MainFrame Here uses it, with the file's folder as the first `--dir`. The name is typed after a

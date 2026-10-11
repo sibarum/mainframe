@@ -34,27 +34,26 @@ final class TerminalTabs implements TerminalView.Hooks {
 
     private final Gui gui;
     private final AppSettings settings;
-    private final Runnable openSettings;
     private final KronoGui krono;
     private final Runnable onEmpty;
     private final Tabs tabs;
     private final List<TerminalView> views = new ArrayList<>();
     private Node plus;
-    private Node gear;
     private Rename renaming;
 
     /** The header being edited: the field standing in for it, and what to undo when editing ends. */
     private record Rename(TerminalView view, TextField field, Node header, Subscription blur) { }
 
+    /** A tab to open at launch: the folder its shell starts in, and its name (null: the folder's own). */
+    record Opening(Path dir, String title) { }
+
     /**
-     * Opens one tab per directory in {@code dirs}, each named after its folder, with the first one selected; an
-     * empty list opens a single tab in MainFrame's own directory.
+     * Opens one tab per entry in {@code dirs}, in order, with the first one selected; an empty list opens a single
+     * tab in MainFrame's own directory.
      */
-    TerminalTabs(Gui gui, KronoGui krono, AppSettings settings, List<Path> dirs, Runnable openSettings,
-                 Runnable onEmpty) {
+    TerminalTabs(Gui gui, KronoGui krono, AppSettings settings, List<Opening> dirs, Runnable onEmpty) {
         this.gui = gui;
         this.settings = settings;
-        this.openSettings = openSettings;
         this.krono = krono;
         this.onEmpty = onEmpty;
         this.tabs = new Tabs(gui).onRemove(this::removed).onSelect(this::selected)
@@ -67,7 +66,7 @@ final class TerminalTabs implements TerminalView.Hooks {
         if (dirs.isEmpty()) {
             newTab();
         } else {
-            for (Path dir : dirs) openTab(dir);
+            for (Opening o : dirs) openTab(o.dir(), o.title());
             tabs.select(0);
         }
     }
@@ -142,17 +141,21 @@ final class TerminalTabs implements TerminalView.Hooks {
 
     @Override
     public void newTab() {
-        openTab(null);
+        openTab(null, null);
     }
 
-    /** A tab whose shell starts in {@code dir} and is named after it; null is a plain tab in MainFrame's own. */
-    private void openTab(Path dir) {
+    /**
+     * A tab whose shell starts in {@code dir}, called {@code title} or else after the folder; a null dir is a plain
+     * tab in MainFrame's own.
+     */
+    private void openTab(Path dir, String title) {
         // The lock is never held while calling into Tabs: its header menu reaches us from the other side, through
         // onRemove, while it holds its own.
         TerminalView cur = current();
         TerminalView v = new TerminalView(gui, settings.shellCommand(), dir == null ? null : dir.toString(),
                 cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(), settings.fontPx(), settings::remapKeys, this);
-        if (dir != null) v.customTitle(dir.getFileName() == null ? dir.toString() : dir.getFileName().toString());
+        if (title != null && !title.isBlank()) v.customTitle(title.strip());
+        else if (dir != null) v.customTitle(dir.getFileName() == null ? dir.toString() : dir.getFileName().toString());
         int index;
         synchronized (this) {
             views.add(v);
@@ -286,9 +289,5 @@ final class TerminalTabs implements TerminalView.Hooks {
         plus = gui.text(PLUS).height(Length.FILL);
         gui.onClick(plus, this::newTab);
         tabs.bar().append(plus);
-        if (gear != null) gear.remove();
-        gear = gui.text(" Settings ").height(Length.FILL);
-        gui.onClick(gear, openSettings);
-        tabs.bar().append(gear);
     }
 }

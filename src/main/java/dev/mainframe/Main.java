@@ -4,9 +4,11 @@ import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.TextClipboard;
 import dev.vexelray.gui.core.WindowControls;
 import dev.vexelray.gui.core.app.GuiApp;
+import dev.vexelray.gui.core.app.WindowInput;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.nfd.SaveScreenshot;
+import dev.vexelray.gui.widget.Modals;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.os.Decorations;
 import dev.vexelray.os.Icon;
@@ -44,11 +46,13 @@ public final class Main {
         //   --automation[=off|on|<port>] (or -Dautomation) opens the loopback socket ottermate drives;
         //   --dir=<path>, repeatable, opens a tab starting in that directory;
         //   --dirs=<file> opens one such tab per line of the file;
+        //   --workspace=<name> opens the tabs of that saved workspace (see Workspace), named as it names them;
         //   --insert-path=<file> types that file's name, quoted, on the first tab's input line (see InsertPath).
         // Any other --option is refused rather than taken for the start of a shell's command line: an option this
         // build does not know would otherwise be run as a program.
         String automation = System.getProperty("automation", "off");
-        List<Path> dirs = new ArrayList<>();
+        List<TerminalTabs.Opening> dirs = new ArrayList<>();
+        WorkspaceStore workspaces = new WorkspaceStore(dev.vexelray.gui.core.app.AppHome.of("mainframe").file("workspaces"));
         String insertPath = null;
         int used = 0;
         for (; used < args.length; used++) {
@@ -57,9 +61,11 @@ public final class Main {
                 int eq = a.indexOf('=');
                 automation = eq < 0 ? "on" : a.substring(eq + 1);
             } else if (a.startsWith("--dir=")) {
-                addDir(dirs, a.substring("--dir=".length()), Path.of(""));
+                addDir(dirs, a.substring("--dir=".length()), Path.of(""), null);
             } else if (a.startsWith("--dirs=")) {
                 readDirs(dirs, Path.of(a.substring("--dirs=".length())));
+            } else if (a.startsWith("--workspace=")) {
+                openWorkspace(dirs, workspaces, a.substring("--workspace=".length()));
             } else if (a.startsWith("--insert-path=")) {
                 if (insertPath != null) {
                     System.err.println("mainframe: --insert-path given twice; only the first is used");
@@ -84,18 +90,20 @@ public final class Main {
         // tab closing goes through this cell.
         java.util.concurrent.atomic.AtomicReference<Runnable> quit = new java.util.concurrent.atomic.AtomicReference<>(() -> { });
         KronoGui krono = KronoGui.attach(gui);
-        java.util.concurrent.atomic.AtomicReference<SettingsPanel> menu = new java.util.concurrent.atomic.AtomicReference<>();
-        TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> menu.get().toggle(), () -> quit.get().run());
-        menu.set(new SettingsPanel(gui, settings, view::focus));
+        TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> quit.get().run());
+        SettingsWindow settingsWindow = new SettingsWindow(gui, settings, workspaces);
         if (insertPath != null) insert(view.current(), insertPath, dirs, dialect);
-        // The window's own title bar; it gets the window and the mark once the window exists.
+        // The window's own title bar; it gets the window and the mark once the window exists. The gear opens the
+        // settings window, and the keyboard stays with the terminal.
         TitleBar bar = new TitleBar(gui, WindowControls.NONE, "MainFrame");
+        bar.addLeading(SettingsWindow.gearButton(gui, () -> {
+            settingsWindow.show();
+            view.focus();
+        }));
         Icon mark = mark();
-        // Tabs fill what the docked settings panel leaves, under the title bar.
+        // Tabs fill the window under the title bar.
         gui.root().children(gui.column().width(Length.FILL).height(Length.FILL).children(
-                bar.node(),
-                gui.row().width(Length.FILL).height(Length.grow(1))
-                        .children(view.node().width(Length.grow(1)), menu.get().node())));
+                bar.node(), view.node().width(Length.FILL).height(Length.grow(1))));
 
         AutoCloseable server = null;
         try (Tactroller input = Tactroller.open();
@@ -107,6 +115,10 @@ public final class Main {
             bar.controls(app.controls()).icon(app, mark).instruments(List.of(SaveScreenshot.instrument()));
             input.attach(NativeWindow.ofHwnd(app.windowHandle()));
             input.setCoordinateSpace(CoordinateSpace.CLIENT);
+            // Windows the framework opens, the settings window among them, get input of their own.
+            app.input(Main::windowInput);
+            Modals.install(app, dialog -> dialog.theme(gui.theme()));
+            settingsWindow.register(app, mark);
             gui.clipboard(new TextClipboard() {
                 @Override public String get() {
                     try { return clip.getText().orElse(""); } catch (ClipboardException e) { return ""; }
@@ -138,6 +150,36 @@ public final class Main {
     }
 
     /**
+     * Input for a window the framework opened: its own backend, attached to that window and bridged onto that
+     * window's bus, which the frame loop pumps and closes with the window. A window that cannot have one still
+     * opens; it just hears nothing.
+     */
+    private static WindowInput windowInput(dev.vexelray.os.NativeWindow window, Gui windowGui) {
+        Tactroller backend;
+        try {
+            backend = Tactroller.open();
+            backend.attach(NativeWindow.ofHwnd(window.osHandle()));
+            backend.setCoordinateSpace(CoordinateSpace.CLIENT);
+        } catch (BackendException e) {
+            System.err.println("mainframe: no input for a new window: " + e.getMessage());
+            return WindowInput.NONE;
+        }
+        TactrollerInputBridge bridge = new TactrollerInputBridge(backend, windowGui.bus());
+        return new WindowInput() {
+            @Override public void pump() {
+                try {
+                    bridge.pump();
+                } catch (BackendException e) {
+                    // a transient poll failure drops one frame of input
+                }
+            }
+            @Override public void close() {
+                backend.close();
+            }
+        };
+    }
+
+    /**
      * The mark the window wears in its title bar and, run from a jar, on the taskbar, where a native build already
      * wears it from its own resources. Null, and said, if it cannot be read: the window is still a window.
      */
@@ -159,7 +201,7 @@ public final class Main {
      * an absolute path, and sits directly in the first {@code --dir} (which is where the tab's shell starts) is
      * considered at all; then {@link InsertPath} decides what, if anything, may be typed for it.
      */
-    private static void insert(TerminalView tab, String spec, List<Path> dirs, InsertPath.Dialect dialect) {
+    private static void insert(TerminalView tab, String spec, List<TerminalTabs.Opening> dirs, InsertPath.Dialect dialect) {
         if (tab == null) return;
         Path file;
         try {
@@ -173,7 +215,7 @@ public final class Main {
             tab.notice("--insert-path does not name a file by its full path, so nothing was typed.");
             return;
         }
-        if (dirs.isEmpty() || !dirs.get(0).equals(file.getParent())) {
+        if (dirs.isEmpty() || !dirs.get(0).dir().equals(file.getParent())) {
             tab.notice("--insert-path names a file outside this tab's folder, so nothing was typed.");
             return;
         }
@@ -187,7 +229,7 @@ public final class Main {
      * One directory per line; blank lines and lines starting with # are skipped, and a relative path is taken
      * from the file's own directory, so a list can sit beside the projects it names.
      */
-    private static void readDirs(List<Path> dirs, Path file) {
+    private static void readDirs(List<TerminalTabs.Opening> dirs, Path file) {
         List<String> lines;
         try {
             lines = Files.readAllLines(file);
@@ -198,15 +240,28 @@ public final class Main {
         Path base = file.toAbsolutePath().getParent();
         for (String line : lines) {
             String t = line.strip();
-            if (!t.isEmpty() && !t.startsWith("#")) addDir(dirs, t, base);
+            if (!t.isEmpty() && !t.startsWith("#")) addDir(dirs, t, base, null);
         }
+    }
+
+    /**
+     * The saved workspace called {@code name}, one tab per folder in its order, each named as the workspace names it.
+     * A workspace that is not there is said and opens nothing, so the launch still gets its plain tab.
+     */
+    private static void openWorkspace(List<TerminalTabs.Opening> dirs, WorkspaceStore store, String name) {
+        Workspace w = store.load(name).orElse(null);
+        if (w == null) {
+            System.err.println("mainframe: no workspace called " + name + " in " + store.dir());
+            return;
+        }
+        for (Workspace.Entry e : w.entries()) addDir(dirs, e.path(), Path.of(""), e.title());
     }
 
     /**
      * A directory that is not there is reported and skipped rather than failing the launch, so one stale line does
      * not cost the other tabs. A leading ~ is the home directory.
      */
-    private static void addDir(List<Path> dirs, String spec, Path base) {
+    private static void addDir(List<TerminalTabs.Opening> dirs, String spec, Path base, String title) {
         if (spec.length() >= 2 && spec.startsWith("\"") && spec.endsWith("\"")) spec = spec.substring(1, spec.length() - 1);
         if (spec.equals("~") || spec.startsWith("~/") || spec.startsWith("~\\")) {
             spec = System.getProperty("user.home") + spec.substring(1);
@@ -218,7 +273,7 @@ public final class Main {
             System.err.println("mainframe: not a path, skipped: " + spec);
             return;
         }
-        if (Files.isDirectory(dir)) dirs.add(dir);
+        if (Files.isDirectory(dir)) dirs.add(new TerminalTabs.Opening(dir, title));
         else System.err.println("mainframe: no such directory, skipped: " + dir);
     }
 }
