@@ -31,7 +31,6 @@ import java.util.List;
 final class TerminalTabs implements TerminalView.Hooks {
 
     private static final String PLUS = " + ";
-    private static final long DOUBLE_CLICK_NANOS = 400_000_000L;
 
     private final Gui gui;
     private final AppSettings settings;
@@ -160,12 +159,7 @@ final class TerminalTabs implements TerminalView.Hooks {
             index = views.size() - 1;
         }
         tabs.add(v.displayTitle(), v.node());
-        long[] lastClick = {0};
-        gui.onClick(tabs.header(index), () -> {   // a second click within the interval is a double-click
-            long now = System.nanoTime();
-            if (now - lastClick[0] < DOUBLE_CLICK_NANOS) rename(v);
-            lastClick[0] = now;
-        });
+        gui.onDoubleClick(tabs.header(index), () -> rename(v));
         tabs.select(index);
         movePlus();
         v.focus();
