@@ -170,6 +170,11 @@ final class WorkspacesPage {
 
     // -- the list ---------------------------------------------------------------------------------------------
 
+    /** Shows the workspace called {@code name}, as clicking it in the list would. */
+    synchronized void select(String name) {
+        refresh(name);
+    }
+
     /** Re-reads the folder and selects {@code select}, or else the first workspace, or shows there are none. */
     private synchronized void refresh(String select) {
         List<String> names = store.names();
@@ -202,7 +207,8 @@ final class WorkspacesPage {
         rebuildRows();
     }
 
-    private void create() {
+    /** A new workspace, as the New button makes one: a step in the history, its name selected to type over. */
+    void create() {
         String name = store.freshName();
         history.perform(created(new Workspace(name, List.of())));
         gui.focus(nameField.node());

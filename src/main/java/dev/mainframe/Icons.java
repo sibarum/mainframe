@@ -17,8 +17,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The suite's utility icons, from {@code vexelray-icons/utility/small}: the masks, one solid shape each, drawn in a
- * colour of the theme's at the pixel size of their box.
+ * The suite's icons (vexelray-icons) at the pixel size of their box: a utility icon's mask, one solid shape, drawn
+ * in a colour of the theme's ({@link #icon}), or a colour drawing such as the folder as it was drawn ({@link #picture}).
  *
  * <p>An icon is an SVG decoded by vexelray-codec whenever its box changes size, so it is sharp at any display scale or
  * zoom, and the 16-unit art lands on whole pixels at 16 and 32. A mask's one fill is {@code currentColor}, so the
@@ -49,9 +49,19 @@ final class Icons {
     /** A box {@code sizeDp} square showing the mask {@code name} in {@code ink}. */
     Node icon(Gui gui, String name, float sizeDp, Color ink) {
         // Keyed by name and colour: the codec takes one name to be one image.
-        String key = "icon:" + name + ":" + hex(ink);
-        byte[] svg = tinted(read(name + "-mask.svg"), ink);
+        String svg = read(name + "-mask.svg");
+        return box(gui, name, "icon:" + name + ":" + hex(ink), svg == null ? null : tinted(svg, ink), sizeDp);
+    }
+
+    /** A box {@code sizeDp} square showing the colour drawing {@code name} as drawn: the suite's folder, say. */
+    Node picture(Gui gui, String name, float sizeDp) {
+        String svg = read(name + ".svg");
+        return box(gui, name, "picture:" + name, svg == null ? null : svg.getBytes(StandardCharsets.UTF_8), sizeDp);
+    }
+
+    private Node box(Gui gui, String name, String key, byte[] svg, float sizeDp) {
         Node node = gui.box().width(Length.dp(sizeDp)).height(Length.dp(sizeDp)).scroll(false, false);
+        if (svg == null) return node;   // said already; an empty box keeps the layout, and the control works
         gui.onResize(node, layout -> {
             int side = Math.round(Math.max(layout.rect().w(), layout.rect().h()));
             if (side <= 0) return;
@@ -92,12 +102,17 @@ final class Icons {
         return Math.round(Math.max(0f, Math.min(1f, c)) * 255f);
     }
 
+    /** The icon file's text, or null, and said, when it is not on the class path or cannot be read. */
     private static String read(String file) {
         try (InputStream in = Icons.class.getResourceAsStream("icons/" + file)) {
-            if (in == null) throw new IllegalStateException("no icon " + file + " on the class path");
+            if (in == null) {
+                System.err.println("mainframe: no icon " + file + " on the class path");
+                return null;
+            }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new IllegalStateException("cannot read icon " + file + ": " + e.getMessage(), e);
+            System.err.println("mainframe: cannot read icon " + file + ": " + e.getMessage());
+            return null;
         }
     }
 }

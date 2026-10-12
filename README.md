@@ -15,6 +15,8 @@ vexelray GUI stack.
 | `TerminalTabs` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. |
 | `SettingsWindow` / `AppSettings` | The settings window, opened by the gear in the title bar, and the saved settings behind it. |
 | `WorkspacesPage` / `Workspace` / `WorkspaceStore` | The Workspaces tab, and the saved workspaces (one CSV file each) that `--workspace` opens. |
+| `OpenDialog` / `SelfLaunch` | What Ctrl+O opens: a tile per workspace, and starting another MainFrame to open one in. |
+| `Icons` | The suite's icons from `vexelray-icons`, drawn through vexelray-codec at the size of their box. |
 | `Main` | The window and the frame loop. |
 
 ## Run
@@ -60,8 +62,8 @@ and the wheel scroll the history.
 With **Remap keybindings** on (the default; a switch in Settings) Ctrl+C is copy and Ctrl+V is paste, and since that
 takes the interrupt away, a plain Esc sends it instead (the legacy Ctrl+C character, 0x03). Esc therefore no longer
 reaches programs that want it, such as vim. Ctrl+T opens a tab, Ctrl+W closes one after asking, and Ctrl+O opens a
-folder as a new tab, so the shell gives up those three too (Ctrl+W's delete-word is also Ctrl+Backspace). Turned
-off, every key goes to the shell as it is.
+workspace or a folder (see Workspaces), so the shell gives up those three too (Ctrl+W's delete-word is also
+Ctrl+Backspace). Turned off, every key goes to the shell as it is.
 
 ## Settings
 
@@ -94,7 +96,9 @@ reported on stderr and skipped. Tabs opened later with + start where MainFrame i
 ### Workspaces
 
 A workspace is a saved list of folders, opened with `mainframe --workspace=<name>`: one tab per folder, in order,
-each named as the workspace names it. They are made and edited in the settings window's Workspaces tab: New, Delete
+each named as the workspace names it. Ctrl+O shows them as tiles, after an Open folder… tile: Enter (or a click)
+opens a workspace in a new MainFrame window, Ctrl+Enter opens its tabs in this one, and a tile's right-click menu has
+Edit…. With no workspaces saved, Ctrl+O goes straight to the folder picker. They are made and edited in the settings window's Workspaces tab: New, Delete
 and the name, and a card per folder with its tab name over its path. Drag a card to reorder (or Alt+Up/Down), and
 remove one from its right-click menu or with Backspace or Delete; Add folder picks one. A tab name left blank gets the
 folder's name back. Every change is saved at once, and Ctrl+Z and Ctrl+Y undo and redo them, deleting a workspace

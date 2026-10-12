@@ -131,15 +131,30 @@ public final class Main {
                 }
             });
             quit.set(() -> app.window().requestClose());
-            // Ctrl+O: a folder, as a new tab. The Open dialog (docs/workspaces-and-shortcuts.md) takes this over and
-            // keeps the folder picker as its first tile.
-            view.onOpen(() -> FileDialog.pickFolderAsync(app::post, app.windowHandle(),
+            // Ctrl+O: the Open dialog, or with no workspaces to choose from, straight to the folder picker.
+            Runnable pickFolder = () -> FileDialog.pickFolderAsync(app::post, app.windowHandle(),
                             Path.of(System.getProperty("user.home")))
                     .thenAccept(picked -> picked.ifPresentOrElse(view::openFolder, view::focus))
                     .exceptionally(e -> {
                         Modals.info("Could not open the folder picker", String.valueOf(e.getMessage()));
                         return null;
-                    }));
+                    });
+            OpenDialog open = new OpenDialog(gui, workspaces, icons, new OpenDialog.Actions() {
+                @Override public void openFolder() { pickFolder.run(); }
+                @Override public void openWindow(Workspace w) { launch(w); }
+                @Override public void openHere(Workspace w) {
+                    List<TerminalTabs.Opening> tabs = new ArrayList<>();
+                    for (Workspace.Entry e : w.entries()) addDir(tabs, e.path(), Path.of(""), e.title());
+                    view.openAll(tabs);
+                }
+                @Override public void edit(String name) { settingsWindow.showWorkspace(name); }
+                @Override public void create() { settingsWindow.newWorkspace(); }
+            });
+            open.attach(app, mark);
+            view.onOpen(() -> {
+                if (workspaces.names().isEmpty()) pickFolder.run();
+                else open.show();
+            });
             view.focus();
             // The clock goes with the Gui so settle waits out a tab animation, not only the frame loop.
             server = Driving.open(automation, gui, app, krono);
@@ -253,6 +268,17 @@ public final class Main {
         for (String line : lines) {
             String t = line.strip();
             if (!t.isEmpty() && !t.startsWith("#")) addDir(dirs, t, base, null);
+        }
+    }
+
+    /**
+     * {@code w} in a MainFrame window of its own, a process of its own; said in a dialog if it cannot be started.
+     */
+    private static void launch(Workspace w) {
+        try {
+            SelfLaunch.start(List.of("--workspace=" + w.name()));
+        } catch (java.io.IOException | RuntimeException e) {
+            Modals.info("Could not open " + w.name(), "A new MainFrame did not start: " + e.getMessage());
         }
     }
 

@@ -203,6 +203,18 @@ final class TerminalTabs implements TerminalView.Hooks {
         openTab(dir, null);
     }
 
+    /** A new tab per opening, in order, the first of them selected: a workspace opened in this window. */
+    void openAll(List<Opening> openings) {
+        if (openings.isEmpty()) return;
+        int first;
+        synchronized (this) {
+            first = views.size();
+        }
+        for (Opening o : openings) openTab(o.dir(), o.title());
+        tabs.select(first);
+        focus();
+    }
+
     @Override
     public void cycle(int by) {
         int n;

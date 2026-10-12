@@ -1,6 +1,6 @@
 # Workspaces, shortcuts and the Open dialog
 
-Status: 2026-10-11. The settings icon, the shortcuts and the Workspaces editor are built; the Open dialog is planned.
+Status: 2026-10-11. All built, but for Save tabs as workspace (§3).
 
 Three pieces of work, in the order they will land: the small things (the settings icon, three shortcuts), then the
 Workspaces editor, then an Open dialog that makes a workspace something you open from inside MainFrame rather than
@@ -21,7 +21,7 @@ sun. It wears the suite's `settings` utility icon now ([utility-icons.md](utilit
 | --- | --- |
 | Ctrl+T | a new tab, as Ctrl+Shift+T |
 | Ctrl+W | closes the tab, after asking |
-| Ctrl+O | the Open dialog (§3); until it is built, the folder picker, and the folder opens as a new tab |
+| Ctrl+O | the Open dialog (§3), or with no workspaces saved, the folder picker |
 
 Ctrl+Shift+T and Ctrl+Shift+W work whether remapping is on or off, and Ctrl+Shift+W stays immediate: it is the way
 to close a tab without being asked.
@@ -60,16 +60,24 @@ letting go of the button keeps the card in hand, and the next click puts it down
 
 ## 3. The Open dialog
 
-Ctrl+O opens a modal in the MainFrame window: a grid of tiles, one per saved workspace, showing its name, how many
-folders it has and the first few tab names.
+**Done** ([OpenDialog](../src/main/java/dev/mainframe/OpenDialog.java)). Ctrl+O opens a dialog over the MainFrame
+window: a grid of tiles, one per saved workspace, showing its name, how many folders it has and the first few tab
+names. The first workspace has the keyboard; the arrows move between tiles, Enter opens the one with it, and Esc
+closes.
+
+It is a window of its own, not a `Modal`: a `Modal` is a title, a message and buttons, and has no room for tiles.
+vexelray-gui's dialog is a window that blocks the others while it is up (`GuiApp.modalWindow`), which is what
+`Modals` does too. It is asked for each time with `GuiApp.requestWindow` and gone when it closes, so it registers no
+window by name.
 
 - The first tile is always **Open folder…**: the system folder picker, and the folder opens as a new tab in this
   window.
 - With no workspaces saved, Ctrl+O goes straight to the folder picker.
-- Choosing a workspace starts a new MainFrame process with `--workspace=<name>`, in a window of its own. Each program
-  is its own process, so windows share nothing. Ctrl+Enter (or the tile's menu) opens its tabs in this window
+- Choosing a workspace starts a new MainFrame process with `--workspace=<name>`, in a window of its own
+  ([SelfLaunch](../src/main/java/dev/mainframe/SelfLaunch.java): the executable itself, or the same Java and class
+  path). Each program is its own process, so windows share nothing. Ctrl+Enter (or the tile's menu) opens its tabs in this window
   instead.
 - The last tile is **+ New**, and each workspace tile's menu has **Edit…**. Both open Settings, Workspaces, on that
   workspace. There is one editor, and it stays in Settings: a modal inside a terminal window is a cramped place to
   drag cards about, and two editors would drift apart.
-- Perhaps: **Save tabs as workspace**, which makes a workspace of the tabs open now.
+- Not built: **Save tabs as workspace**, which would make a workspace of the tabs open now.

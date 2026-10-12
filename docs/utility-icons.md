@@ -33,10 +33,10 @@ the pom, as vexplore has them).
 | --- | --- | --- |
 | `utility/small/settings` | the title bar's settings button | **done**, replacing the drawn gear |
 | `utility/small/grip` | the leading edge of a folder card in the Workspaces editor | **done** |
-| `utility/small/new` | the **+ New** tile in the Open dialog, and New on the Workspaces page | with the dialog |
-| `utility/small/edit` | **Edit…** on a workspace tile | with the dialog |
-| `utility/small/close` | closing a tab | later; a context menu marks items with font glyphs, not pictures |
-| `file-types/dark/folder` | **Open folder…** in the Open dialog | with the dialog |
+| `utility/small/new` | the **New workspace** tile in the Open dialog | **done** |
+| `utility/small/edit` | **Edit…** on a workspace tile | not used: it is a context menu item, which marks with glyphs |
+| `utility/small/close` | closing a tab | not here: a tab header's close is drawn by vexelray-gui's `Tabs` |
+| `file-types/dark/folder` | **Open folder…** in the Open dialog, drawn in colour (`Icons.picture`) | **done** |
 
 The title bar's screenshot button is `SaveScreenshot` in vexelray-gui-nfd, shared by every application, so its icon
 is a change there rather than here.

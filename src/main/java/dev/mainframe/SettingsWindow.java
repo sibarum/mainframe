@@ -44,6 +44,7 @@ final class SettingsWindow {
     private final Gui gui;
     private final TitleBar bar;
     private final WorkspacesPage workspaces;
+    private final Tabs tabs;
     private volatile AppWindow window;
 
     /** Builds the tree; there is no window until {@link #register} is given the application. */
@@ -51,7 +52,7 @@ final class SettingsWindow {
         this.gui = new Gui();
         gui.theme(main.theme());
         this.bar = new TitleBar(gui, WindowControls.NONE, "MainFrame Settings");
-        Tabs tabs = new Tabs(gui).closable(false);
+        tabs = new Tabs(gui).closable(false);
         workspaces = new WorkspacesPage(gui, store, icons);
         tabs.add("General", general(settings));
         tabs.add("Workspaces", workspaces.node());
@@ -76,6 +77,20 @@ final class SettingsWindow {
     void show() {
         AppWindow w = window;
         if (w != null) w.show();
+    }
+
+    /** Opens the window on the Workspaces tab, with the workspace called {@code name} selected. */
+    void showWorkspace(String name) {
+        tabs.select(1);
+        workspaces.select(name);
+        show();
+    }
+
+    /** Opens the window on the Workspaces tab with a new workspace, its name ready to type over. */
+    void newWorkspace() {
+        tabs.select(1);
+        show();
+        workspaces.create();
     }
 
     // -- the General tab --------------------------------------------------------------------------------------
@@ -104,8 +119,8 @@ final class SettingsWindow {
                         label("Shell for new tabs"), shell.node(),
                         label("Remap keybindings"), remap.node(),
                         note("On: Ctrl+C copies, Ctrl+V pastes, and Esc sends Ctrl+C (interrupt). Ctrl+T opens a tab, "
-                                + "Ctrl+W closes one after asking, and Ctrl+O opens a folder as a tab; the shell gives up "
-                                + "those keys (Ctrl+W's delete word is also Ctrl+Backspace). "
+                                + "Ctrl+W closes one after asking, and Ctrl+O opens a workspace or a folder; the shell "
+                                + "gives up those keys (Ctrl+W's delete word is also Ctrl+Backspace). "
                                 + "Off: every key goes to the shell as is. Ctrl+Shift+C and Ctrl+Shift+V always copy and "
                                 + "paste, and Ctrl+Shift+T and Ctrl+Shift+W always open and close a tab."),
                         note("Font size and animation apply at once; a new shell applies to tabs opened from now on."));
