@@ -92,12 +92,12 @@ public final class Main {
         java.util.concurrent.atomic.AtomicReference<Runnable> quit = new java.util.concurrent.atomic.AtomicReference<>(() -> { });
         KronoGui krono = KronoGui.attach(gui);
         TerminalTabs view = new TerminalTabs(gui, krono, settings, dirs, () -> quit.get().run());
-        SettingsWindow settingsWindow = new SettingsWindow(gui, settings, workspaces);
+        Icons icons = new Icons();
+        SettingsWindow settingsWindow = new SettingsWindow(gui, settings, workspaces, icons);
         if (insertPath != null) insert(view.current(), insertPath, dirs, dialect);
         // The window's own title bar; it gets the window and the mark once the window exists. The settings button
         // opens the settings window, and the keyboard stays with the terminal. Its icon is drawn once there is a window.
         TitleBar bar = new TitleBar(gui, WindowControls.NONE, "MainFrame");
-        Icons icons = new Icons();
         bar.addLeading(SettingsWindow.settingsButton(gui, icons, () -> {
             settingsWindow.show();
             view.focus();

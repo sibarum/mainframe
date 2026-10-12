@@ -94,8 +94,11 @@ reported on stderr and skipped. Tabs opened later with + start where MainFrame i
 ### Workspaces
 
 A workspace is a saved list of folders, opened with `mainframe --workspace=<name>`: one tab per folder, in order,
-each named as the workspace names it. They are made and edited in the settings window's Workspaces tab (New, Delete,
-the name, and per folder its tab name, up, down and remove; Add folder picks one), and every change is saved at once.
+each named as the workspace names it. They are made and edited in the settings window's Workspaces tab: New, Delete
+and the name, and a card per folder with its tab name over its path. Drag a card to reorder (or Alt+Up/Down), and
+remove one from its right-click menu or with Backspace or Delete; Add folder picks one. A tab name left blank gets the
+folder's name back. Every change is saved at once, and Ctrl+Z and Ctrl+Y undo and redo them, deleting a workspace
+included.
 
 Each is a CSV file in `~/.mainframe/workspaces/<name>.csv` with a header row, so it can be edited by hand too:
 

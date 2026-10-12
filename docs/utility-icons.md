@@ -32,10 +32,10 @@ the pom, as vexplore has them).
 | Icon | Where | |
 | --- | --- | --- |
 | `utility/small/settings` | the title bar's settings button | **done**, replacing the drawn gear |
-| `utility/small/grip` | the leading edge of a folder card in the Workspaces editor | with the editor |
+| `utility/small/grip` | the leading edge of a folder card in the Workspaces editor | **done** |
 | `utility/small/new` | the **+ New** tile in the Open dialog, and New on the Workspaces page | with the dialog |
 | `utility/small/edit` | **Edit…** on a workspace tile | with the dialog |
-| `utility/small/close` | Remove on a folder card's menu, and closing a tab | with the editor |
+| `utility/small/close` | closing a tab | later; a context menu marks items with font glyphs, not pictures |
 | `file-types/dark/folder` | **Open folder…** in the Open dialog | with the dialog |
 
 The title bar's screenshot button is `SaveScreenshot` in vexelray-gui-nfd, shared by every application, so its icon

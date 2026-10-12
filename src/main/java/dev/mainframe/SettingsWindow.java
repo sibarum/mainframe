@@ -47,12 +47,12 @@ final class SettingsWindow {
     private volatile AppWindow window;
 
     /** Builds the tree; there is no window until {@link #register} is given the application. */
-    SettingsWindow(Gui main, AppSettings settings, WorkspaceStore store) {
+    SettingsWindow(Gui main, AppSettings settings, WorkspaceStore store, Icons icons) {
         this.gui = new Gui();
         gui.theme(main.theme());
         this.bar = new TitleBar(gui, WindowControls.NONE, "MainFrame Settings");
         Tabs tabs = new Tabs(gui).closable(false);
-        workspaces = new WorkspacesPage(gui, store);
+        workspaces = new WorkspacesPage(gui, store, icons);
         tabs.add("General", general(settings));
         tabs.add("Workspaces", workspaces.node());
         gui.landmark("settings.general", tabs.header(0)).landmark("settings.workspaces", tabs.header(1));

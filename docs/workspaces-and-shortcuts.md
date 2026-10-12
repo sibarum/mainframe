@@ -1,6 +1,6 @@
 # Workspaces, shortcuts and the Open dialog
 
-Status: **planned**, 2026-10-11. The settings icon and the shortcuts are built.
+Status: 2026-10-11. The settings icon, the shortcuts and the Workspaces editor are built; the Open dialog is planned.
 
 Three pieces of work, in the order they will land: the small things (the settings icon, three shortcuts), then the
 Workspaces editor, then an Open dialog that makes a workspace something you open from inside MainFrame rather than
@@ -32,14 +32,15 @@ still deletes a word. The setting's note says what is given up.
 
 ## 2. The Workspaces editor
 
-The page keeps its shape (the workspaces down the left, the selected one on the right), and its folder rows become
-cards.
+**Done** ([WorkspacesPage](../src/main/java/dev/mainframe/WorkspacesPage.java)). The page keeps its shape (the
+workspaces down the left, the selected one on the right), and its folder rows become cards.
 
 **A card** is the tab's label, a text field, over the folder's path, a static line: dim, or red with "(not found)"
 when the folder is missing. A `grip` icon on its leading edge says it can be dragged. The ↑ ↓ × buttons go.
 
 - **Selecting.** A click anywhere on a card selects it. A click in the label puts the caret there, and the card shows
-  as selected while it does. Esc leaves the field and leaves the card selected.
+  as selected while it does. Esc or Enter leaves the field and leaves the card selected; on a selected card, ↑ and ↓
+  select the next one, and Enter or F2 edits its label.
 - **Reordering.** Drag a card, and a drop line shows where it will land. From the keyboard, Alt+↑ and Alt+↓ move the
   selected card, which is what the arrow buttons did.
 - **Removing.** Right-click, Remove; or Backspace or Delete on a selected card. Inside the label, Backspace edits the
@@ -47,14 +48,15 @@ when the folder is missing. A `grip` icon on its leading edge says it can be dra
 - **A label is never empty.** Leaving the field blank fills it with the folder's own name. A hand-edited file with a
   blank name still opens as now, with the folder's name.
 
-**Undo.** Today only a label's own typing can be undone; moving, adding, removing and renaming are saved the moment
-they happen, for good. The page gets a history of its own (`dev.vexelray.gui.core.edit.History`), with Ctrl+Z and
-Ctrl+Y: moving, adding, removing and relabelling a folder, and renaming a workspace, each one step. A run of typing
-in one label is one step. Deleting a whole workspace still asks first.
+**Undo.** The page has a history of its own (`dev.vexelray.gui.core.edit.History`), with Ctrl+Z and Ctrl+Y:
+moving, adding, removing and relabelling a folder, and creating, renaming and deleting a workspace, each one step.
+Typing in a label is saved as it happens and undone by the field itself; leaving the label records the relabel as
+one step of the page's. Deleting a whole workspace still asks first, and Ctrl+Z brings it back.
 
-**How the drag is built** is decided when it is built. The framework's reorder (`Reorder`, a `Change` per drop,
-recorded so it can be undone) belongs to `TreeView`, and these cards are hand-built rows. Either the cards become a
-flat `TreeView`, or they use the drag-source and drop calls under it directly. Neither needs vexelray-gui to change.
+**How the drag is built.** Each card is a drag source, and the list is one drop target that answers for every
+point: the seam on whichever side of the cards' midlines the pointer is, lit while the drag is over it. The drop is
+a `Change` recorded in the page's history, which is also the window's drop history. As everywhere in vexelray-gui,
+letting go of the button keeps the card in hand, and the next click puts it down; Esc or a right click takes it home.
 
 ## 3. The Open dialog
 
