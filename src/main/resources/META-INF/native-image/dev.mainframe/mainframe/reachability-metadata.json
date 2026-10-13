@@ -1,0 +1,72 @@
+{
+  "comment": [
+    "This program's own native-image metadata: the entry point the launcher reaches by JNI, and the JDK's",
+    "locale and time-zone data a native run of the calculator was seen to read. Everything else registers",
+    "itself: the libraries carry their own (Win32, tactroller, DXGI, the shaders, the font atlas), and the processor writes the icon's.",
+    "Add to it when a native run of this program fails on something the JVM run did not: run the debug",
+    "edition on a JVM under -agentlib:native-image-agent and keep only the entries naming this program."
+  ],
+  "reflection": [
+    {
+      "type": "dev.mainframe.MainFrame",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "main",
+          "parameterTypes": ["java.lang.String[]"]
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Boolean",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "getBoolean",
+          "parameterTypes": ["java.lang.String"]
+        }
+      ]
+    },
+    {
+      "type": "java.lang.String[]"
+    },
+    {
+      "type": "sun.launcher.LauncherHelper",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "isStaticMain"
+        },
+        {
+          "name": "noArgMain"
+        }
+      ],
+      "methods": [
+        {
+          "name": "getApplicationClass",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "sun.text.resources.FormatData"
+    },
+    {
+      "type": "sun.text.resources.FormatData_en"
+    },
+    {
+      "type": "sun.text.resources.JavaTimeSupplementary"
+    },
+    {
+      "type": "sun.text.resources.cldr.FormatData"
+    },
+    {
+      "type": "sun.text.resources.cldr.FormatData_en"
+    }
+  ],
+  "resources": [
+    {
+      "glob": "META-INF/services/java.time.zone.ZoneRulesProvider"
+    }
+  ]
+}

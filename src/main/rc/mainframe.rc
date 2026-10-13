@@ -1,0 +1,10 @@
+// The executable's icon, linked into mainframe.exe (-Pnative-release) and mainframe-debug.exe (-Pnative).
+//
+// Ordinal 1, and it is the only icon here, because Windows shows a program's *lowest-numbered* icon resource
+// wherever it shows the program itself -- Explorer, the taskbar's pinned button, a shortcut, the Apps entry.
+//
+// The running window wears the same file: the pom also puts mainframe.ico on the class path, and @VexelApp's
+// icon names it, so the window, its taskbar button and the .exe cannot drift apart. It starts as the framework's
+// "new app" mark, and mainframe.svg is its source. To make it yours, draw an SVG and render it at every size
+// Windows asks for (16 to 256 px) into this one .ico; vex-suite-common's tools/Ico.java does exactly that.
+1 ICON "mainframe.ico"

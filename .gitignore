@@ -1,0 +1,6 @@
+# Captures are what this means to ignore; a blanket *.png also hides docs/ screenshots.
+target/
+capture*.png
+.idea/
+*.iml
+.vscode/
