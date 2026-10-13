@@ -92,7 +92,8 @@ window no way to do even that.
 Ctrl+O's Open dialog is a grid of tiles, so it is not a `Modal` (a title, a message and buttons), and the hand-wired
 one was a window of its own made modal with `GuiApp.modalWindow`, as `Modals` does: the main window ignored input
 until it closed. On the framework it is a `NamedWindow`, a satellite, and nothing makes it modal, since the
-`GuiApp` is no longer the application's to hold. So while it is up the terminal behind it still takes keys.
+`GuiApp` is no longer the application's to hold. So nothing stops the main window taking input while it is up
+(inferred from the code, not driven).
 
 It is also built once and kept, as every named window's tree is, where the old dialog built a fresh tree each time
 it opened; so `OpenDialog` replaces its contents on each `show`, and has to close the focus subscriptions of the
