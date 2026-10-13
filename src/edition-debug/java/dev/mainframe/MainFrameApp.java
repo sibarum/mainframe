@@ -1,14 +1,12 @@
 package dev.mainframe;
 
-import dev.vexelray.codec.image.gui.ImageStarter;
 import dev.vexelray.framework.api.VexelApp;
 import dev.vexelray.framework.automation.AutomationStarter;
 
 /**
- * The debug edition's application declaration: {@link MainFrame}'s facts, {@link ImageStarter} (the icons'
- * textures, bound to the window), and {@link AutomationStarter}, the driving socket:
- * off unless {@code --automation} or {@code -Dautomation} asks, and loopback-only when it is, because it hands
- * whoever reaches it full control of the application's input.
+ * The debug edition's application declaration: {@link MainFrame}'s facts and {@link AutomationStarter}, the
+ * driving socket: off unless {@code --automation} or {@code -Dautomation} asks, and loopback-only when it is, because
+ * it hands whoever reaches it full control of the application's input.
  *
  * <p>The processor generates {@code MainFrameAppWiring} from this, and it is what {@code mvn compile exec:exec},
  * the tests and {@code -Pnative} compile. The release edition, {@code src/edition-release}, declares the same
@@ -21,7 +19,7 @@ import dev.vexelray.framework.automation.AutomationStarter;
  * one file; see the README, <i>The icon</i>.
  */
 @VexelApp(name = MainFrame.APP, title = MainFrame.TITLE, width = MainFrame.W, height = MainFrame.H,
-        icon = MainFrame.ICON, starters = {ImageStarter.class, AutomationStarter.class})
+        icon = MainFrame.ICON, starters = AutomationStarter.class)
 final class MainFrameApp {
 
     private MainFrameApp() {

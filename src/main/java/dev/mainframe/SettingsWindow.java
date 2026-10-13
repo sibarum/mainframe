@@ -14,6 +14,8 @@ import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.LayoutEnums.Justify;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.icons.Icon;
+import dev.vexelray.gui.icons.IconView;
 import dev.vexelray.gui.widget.Segment;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.Toggle;
@@ -43,13 +45,14 @@ final class SettingsWindow {
     private final Tabs tabs;
     private final WorkspacesPage workspaces;
 
-    SettingsWindow(Window window, AppSettings settings, WorkspaceStore store, Icons icons, Dialogs dialogs) {
+    SettingsWindow(Window window, AppSettings settings, WorkspaceStore store, Dialogs dialogs,
+                   Motion motion) {
         this.window = window;
         this.gui = window.gui();
         tabs = new Tabs(gui).closable(false);
-        workspaces = new WorkspacesPage(gui, store, icons, dialogs);
-        tabs.add("General", general(settings));
-        tabs.add("Workspaces", workspaces.node());
+        workspaces = new WorkspacesPage(gui, store, dialogs, motion);
+        tabs.add("General", sheet(general(settings)));
+        tabs.add("Workspaces", sheet(workspaces.node()));
         gui.landmark(Landmarks.SETTINGS_GENERAL, tabs.header(0));
         gui.landmark(Landmarks.SETTINGS_WORKSPACES, tabs.header(1));
         tabs.select(0);
@@ -75,6 +78,19 @@ final class SettingsWindow {
         tabs.select(1);
         show();
         workspaces.create();
+    }
+
+    /**
+     * A page under its tab: the page with a rule along its top edge, under the whole row of tabs. The tabs are
+     * meant to read as physical ones, tabs on the edge of a sheet, and without the edge the page and the bar are
+     * one surface with the headers floating on it. The rule is the selected tab's own colour, so the tab in front
+     * runs straight into the edge of its sheet. Part of the page rather than the bar, which the panel keeps to
+     * itself; the settings tabs do not slide, so the rule never moves.
+     */
+    private Node sheet(Node page) {
+        return gui.column().width(Length.FILL).height(Length.FILL).children(
+                gui.box().width(Length.FILL).height(Length.dp(1)).background(gui.theme().color(Role.LINE)),
+                page.width(Length.FILL).height(Length.grow(1)));
     }
 
     // -- the General tab --------------------------------------------------------------------------------------
@@ -141,12 +157,12 @@ final class SettingsWindow {
      * like the bar's own buttons. It sits on the caption, so it declares itself interactive or the click would start
      * a drag.
      */
-    static Node button(Gui gui, Icons icons, Runnable open) {
+    static Node button(Gui gui, Runnable open) {
         Node b = gui.row().role("settings").width(Length.dp(36)).height(Length.dp(32))
                 .justify(Justify.CENTER).alignItems(AlignItems.CENTER)
                 .background(gui.theme().color(Role.NONE)).scroll(false, false)
                 .windowRegion(WindowRegion.INTERACTIVE)
-                .children(icons.icon(gui, "settings", 16, gui.theme().color(Role.INK)));
+                .children(IconView.of(gui, Icon.SETTINGS).size(Length.dp(16)).tint(Role.INK).node());
         gui.onClick(b, open);
         gui.onState(b, state -> b.background(
                 gui.theme().color(state == InteractionState.NORMAL ? Role.NONE : Role.RAISED)));

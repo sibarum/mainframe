@@ -15,9 +15,9 @@ import dev.vexelray.gui.widget.TitleBar;
  */
 final class Ui {
 
-    Ui(Gui gui, TitleBar titleBar, Terminals terminals, Icons icons, SettingsWindow settings) {
+    Ui(Gui gui, TitleBar titleBar, Terminals terminals, SettingsWindow settings) {
         // The settings window comes forward, and the keyboard stays with the terminal.
-        titleBar.addLeading(SettingsWindow.button(gui, icons, () -> {
+        titleBar.addLeading(SettingsWindow.button(gui, () -> {
             settings.show();
             terminals.focus();
         }));

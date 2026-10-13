@@ -1,6 +1,7 @@
 package dev.mainframe;
 
 import dev.mainframe.Workspace.Entry;
+import dev.vexelray.canvas.Color;
 import dev.vexelray.framework.shell.NamedWindow;
 import dev.vexelray.framework.shell.Window;
 import dev.vexelray.gui.core.Gui;
@@ -11,6 +12,8 @@ import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.icons.Icon;
+import dev.vexelray.gui.icons.IconView;
 import dev.vexelray.gui.widget.ContextMenu;
 import dev.vexelray.text.TextLayout;
 import sibarum.atchung.Subscription;
@@ -60,10 +63,12 @@ final class OpenDialog {
 
     private static final int COLUMNS = 3;
 
+    /** The folder in the colour of the suite's folder drawing: the atlas holds its shape, and the colour is the tint. */
+    private static final Color FOLDER_INK = Color.rgb(0xe4b750);
+
     private final Window window;
     private final Gui gui;
     private final WorkspaceStore store;
-    private final Icons icons;
     private final Actions actions;
     private final Node page;
     /** The tiles and the hint, replaced whole each time the window opens. Guarded by {@code this}. */
@@ -73,11 +78,10 @@ final class OpenDialog {
     /** The tile that takes the keyboard when the window opens. Guarded by {@code this}. */
     private Node first;
 
-    OpenDialog(Window window, WorkspaceStore store, Icons icons, Actions actions) {
+    OpenDialog(Window window, WorkspaceStore store, Actions actions) {
         this.window = window;
         this.gui = window.gui();
         this.store = store;
-        this.icons = icons;
         this.actions = actions;
         page = gui.column().width(Length.FILL).height(Length.grow(1)).padding(Length.rem(1)).gap(Length.rem(0.75f));
         gui.root().direction(Direction.COLUMN)
@@ -113,7 +117,8 @@ final class OpenDialog {
             gui.async(then);
         };
         List<Node> tiles = new ArrayList<>();
-        tiles.add(tile(icons.picture(gui, "folder", 32), "Open folder…", "A folder, as a new tab here",
+        tiles.add(tile(IconView.of(gui, Icon.FOLDER).size(Length.dp(32)).tint(FOLDER_INK).node(), "Open folder…",
+                "A folder, as a new tab here",
                 closing.apply(actions::openFolder)));
         List<Workspace> spaces = store.names().stream()
                 .map(n -> store.load(n).orElse(new Workspace(n, List.of()))).toList();
@@ -127,7 +132,7 @@ final class OpenDialog {
                     .item("Edit…", closing.apply(() -> actions.edit(w.name()))));
             tiles.add(t);
         }
-        tiles.add(tile(icons.icon(gui, "new", 32, gui.theme().color(Role.DIM)), "New workspace",
+        tiles.add(tile(IconView.of(gui, Icon.NEW).size(Length.dp(32)).tint(Role.DIM).node(), "New workspace",
                 "Folders that open together, each a tab", closing.apply(actions::create)));
 
         Node grid = gui.column().width(Length.FILL).height(Length.grow(1)).gap(Length.rem(0.75f)).scroll(false, true);

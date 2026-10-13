@@ -129,7 +129,6 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 | `SettingsWindow` / `AppSettings` | The settings window (a framework `NamedWindow`) and the saved settings behind it |
 | `WorkspacesPage` / `Workspace` / `WorkspaceStore` | The Workspaces tab, and the saved workspaces |
 | `OpenDialog` / `SelfLaunch` | What Ctrl+O opens, and starting another MainFrame to open a workspace in |
-| `Icons` | The suite's icons from `vexelray-icons`, decoded through vexelray-codec into the `Textures` its `ImageStarter` binds |
 
 What is not here is the point: input, the clipboard, window memory, the clock, the frame loop and its pacing, the
 dialogs, the title bar and closing everything in order are the framework's.
@@ -157,8 +156,7 @@ tools (`ottermate` first) on the `PATH`, and for AI agents every application's a
 ## Native builds
 
 Windows, GraalVM 25 as `JAVA_HOME`, from a Visual Studio developer prompt (or after `vcvars64.bat`) so `link.exe` is
-MSVC's and `rc.exe` is on the path. imagelib's static library must have been staged by
-`imagelib-wrapper/native/build.sh`. Two profiles build the same code as two editions:
+MSVC's and `rc.exe` is on the path. Two profiles build the same code as two editions:
 
 ```
 mvn -Pnative-release package -DskipTests   # target/mainframe.exe        what ships and is signed
@@ -174,7 +172,7 @@ mvn -Pnative package -DskipTests           # target/mainframe-debug.exe  for ott
 
 The plain JVM build, the tests and `exec:exec` are the debug edition. This program's own native-image metadata is
 `src/main/resources/META-INF/native-image/.../reachability-metadata.json`: the entry point, the pseudoconsole's
-kernel32 downcalls and the icons; the libraries and the processor register the rest.
+kernel32 downcalls; the libraries and the processor register the rest, the icon atlas included.
 
 The mark is `src/main/rc/mainframe.ico` (the window, its taskbar button and the `.exe` all wear it), and
 `mainframe-window.ico` is what the settings and Open windows wear. Both are rendered from the SVGs beside them by

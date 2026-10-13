@@ -1,45 +1,41 @@
 # The suite's icons in MainFrame
 
-Status: **started**, 2026-10-11. The settings button wears its icon; the rest arrive with the features that use them.
+Status: **done**, 2026-10-13. Every icon MainFrame shows comes from vexelray-gui's icon atlas; MainFrame carries no
+art of its own and decodes nothing.
 
-MainFrame's controls take their icons from the suite's art. The master copy is `vexelray-icons` beside this
-repository: its README says where each set comes from (the design canvas), how it is refreshed, and which projects
-hold copies. That folder is not a repository, so MainFrame copies in the files it uses, and commits them, under
-[src/main/resources/dev/mainframe/icons](../src/main/resources/dev/mainframe/icons).
+The master copy of the suite's art is `vexelray-icons` beside this repository: its README says where each set comes
+from (the design canvas) and how it is refreshed. vexelray-gui bakes every mask in it into one distance-field atlas
+(`vexelray-gui-icons`: `vexelray-icons/tools/Bake.java` writes the atlas and the `Icon` enum), so MainFrame names an
+icon rather than copying its file.
 
 ## How an icon is drawn
 
-[Icons](../src/main/java/dev/mainframe/Icons.java), on vexelray-codec's image module, the suite's one way of getting
-a picture onto a node. An icon is an SVG decoded by `Pictures` whenever its box changes size, and handed to the
-node by `Textures`, which uploads each icon at each size once and gives back what has not been shown for a while.
-So it is sharp at any display scale or zoom, and the small art, drawn on a 16-unit pixel grid, lands on whole pixels
-at 16 and 32.
+```java
+IconView.of(gui, Icon.GRIP).size(Length.dp(16)).tint(Role.FAINT).node()
+```
 
-MainFrame draws the **masks**, one solid shape each with the details knocked out, in a colour of the theme's: their
-one fill is `currentColor`, and the root's `color` is set to the theme's ink before rasterising. The chrome is drawn
-in ink, and a coloured icon among the window's own buttons would stand out from them.
+An `IconView` is a node that draws one cell of the atlas, cut at its edge by the shader: sharp at any size, display
+scale or zoom, in the colour it is tinted, from one texture the renderer uploads once per device. Nothing at run time
+reads an SVG, so nothing waits for a window to exist before it can be drawn, and nothing has to be redrawn when a box
+moves.
 
-A texture belongs to the window's device, so an icon sized before the window exists is drawn when `Icons.bind` is
-given it. MainFrame is not a framework application, so it binds `Textures` itself rather than through the codec's
-`ImageStarter`. A rasterisation that fails leaves the box empty and says why on
-stderr; the button still works and still has its tooltip.
+The atlas holds **masks**, one solid shape each with the details knocked out, so an icon is one colour: a theme role
+for the chrome (`tint(Role.INK)`), or a colour of its own (`tint(Color)`) where the suite's drawing is coloured.
 
-imagelib is linked into the native image rather than extracted (the `imagelib.lib` and `/EXPORT` linker options in
-the pom, as vexplore has them).
+This replaced `Icons`, which decoded SVG copies through vexelray-codec and imagelib whenever an icon's box changed.
+A box that moves counts as changed, so a card carried or scrolled re-rasterised its grip every frame, on the handler
+lane, until the lane had a thread per decode: choppy frames, a busy idle, and a shutdown that overran its bound and
+was halted. MainFrame no longer depends on vexelray-codec or links imagelib.
 
 ## Where MainFrame uses them
 
-| Icon | Where | |
+| Icon | Where | Drawn |
 | --- | --- | --- |
-| `utility/small/settings` | the title bar's settings button | **done**, replacing the drawn gear |
-| `utility/small/grip` | the leading edge of a folder card in the Workspaces editor | **done** |
-| `utility/small/new` | the **New workspace** tile in the Open dialog | **done** |
-| `utility/small/edit` | **Edit…** on a workspace tile | not used: it is a context menu item, which marks with glyphs |
-| `utility/small/close` | closing a tab | not here: a tab header's close is drawn by vexelray-gui's `Tabs` |
-| `file-types/dark/folder` | **Open folder…** in the Open dialog, drawn in colour (`Icons.picture`) | **done** |
+| `Icon.SETTINGS` | the title bar's settings button | `Role.INK`, 16 dp |
+| `Icon.GRIP` | the leading edge of a folder card in the Workspaces editor | `Role.FAINT`, 16 dp |
+| `Icon.NEW` | the **New workspace** tile in the Open dialog | `Role.DIM`, 32 dp |
+| `Icon.FOLDER` | the **Open folder…** tile in the Open dialog | `#e4b750`, the body of the suite's colour folder drawing, 32 dp |
 
-The title bar's screenshot button is `SaveScreenshot` in vexelray-gui-nfd, shared by every application, so its icon
-is a change there rather than here.
-
-The suite has **no open or workspace icon**. The Open dialog can do without them (the folder icon, and each tile's
-own name), or they are drawn on the canvas's Utility icons page and extracted with the rest.
+Not used: `edit` on a workspace tile is a context-menu item, which marks with glyphs; a tab's close is drawn by
+vexelray-gui's `Tabs`; the title bar's screenshot button is `SaveScreenshot` in vexelray-gui-nfd, shared by every
+application. The atlas now has `Icon.OPEN` and `Icon.WORKSPACE`, which the Open dialog's tiles could wear.
