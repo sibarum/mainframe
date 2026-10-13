@@ -21,6 +21,7 @@
         <vexelray-gui.version>0.1.0-SNAPSHOT</vexelray-gui.version>
         <vexelray.version>0.1.0-SNAPSHOT</vexelray.version>
         <tactroller.version>1.0-SNAPSHOT</tactroller.version>
+        <vexelray-codec.version>0.1.0-SNAPSHOT</vexelray-codec.version>
         <junit.version>5.11.4</junit.version>
 
         <app.mainClass>dev.mainframe.MainFrame</app.mainClass>
@@ -81,6 +82,14 @@
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-krono</artifactId>
             <version>${vexelray-gui.version}</version>
+        </dependency>
+        <!-- The suite's icons are SVGs (vexelray-icons), decoded through imagelib at the size they are drawn and kept on
+             the GPU by its Textures, which its ImageStarter builds and binds to the window. The GUI decodes nothing
+             itself, by design. -->
+        <dependency>
+            <groupId>dev.vexelray.codec</groupId>
+            <artifactId>vexelray-codec-image</artifactId>
+            <version>${vexelray-codec.version}</version>
         </dependency>
         <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop.
              A troubleshooting instrument, not a shipped feature - see vexelray-gui/docs/automation.md. -->

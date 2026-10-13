@@ -19,6 +19,12 @@ final class Landmarks {
     /** The notice over a terminal: why {@code --insert-path} typed nothing, say. */
     static final String NOTICE = "notice";
 
+    /** The settings button in the main window's title bar. */
+    static final String SETTINGS = "settings";
+
+    /** The settings window's General tab. */
+    static final String SETTINGS_GENERAL = "settings.general";
+
     private Landmarks() {
     }
 }

@@ -1,6 +1,8 @@
 package dev.mainframe;
 
+import dev.vexelray.codec.image.gui.Textures;
 import dev.vexelray.framework.api.Configuration;
+import dev.vexelray.framework.api.MainThread;
 import dev.vexelray.framework.api.Provides;
 import dev.vexelray.framework.shell.Appearance;
 import dev.vexelray.framework.shell.Dialogs;
@@ -67,10 +69,43 @@ final class Recipes {
         return new Terminals(gui, new Motion(krono), settings, dialogs, windows.main());
     }
 
+    /**
+     * The suite's icons, drawn into the {@code Textures} the codec's {@code ImageStarter} provides and binds to the
+     * window once there is one.
+     */
+    @Provides
+    Icons icons(Textures textures) {
+        return new Icons(textures);
+    }
+
+    /**
+     * The settings window. One declaration: the framework builds its tree now, beside the main one, and claims the
+     * window once there is a device, so this needs no window. Its handle is safe from any thread.
+     */
+    @Provides
+    SettingsWindow settingsWindow(Windows windows, AppSettings settings) {
+        return new SettingsWindow(windows.named(SettingsWindow.DECLARED), settings);
+    }
+
     /** The main window's contents. */
     @Provides
-    Ui ui(Gui gui, TitleBar titleBar, Terminals terminals) {
-        return new Ui(gui, titleBar, terminals);
+    Ui ui(Gui gui, TitleBar titleBar, Terminals terminals, Icons icons, SettingsWindow settings) {
+        return new Ui(gui, titleBar, terminals, icons, settings);
+    }
+
+    /**
+     * Draws the icons that were sized before there was a device to upload them into. Taking the binding is what puts
+     * this after it: {@code ImageStarter} binds the {@code Textures} to the window.
+     */
+    @Provides
+    @MainThread
+    IconsShown iconsShown(Textures.Binding binding, Icons icons) {
+        icons.bound();
+        return new IconsShown();
+    }
+
+    /** That {@link #iconsShown} has run. */
+    static final class IconsShown {
     }
 
     /**
