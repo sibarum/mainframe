@@ -481,6 +481,22 @@ final class TerminalView implements AutoCloseable {
         gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.CONTROL), ClaimScope.FOCUSED, () -> hooks.cycle(1));
         gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED,
                 () -> hooks.cycle(-1));
+        // Claimed here as well as by the window (Terminals), which takes them wherever else the keyboard is: a
+        // focused claim outranks the window's, so these three still reach the shell when Remap keybindings is off.
+        remappable(Key.T, hooks::newTab);
+        remappable(Key.W, () -> hooks.askClose(this));
+        remappable(Key.O, hooks::open);
+    }
+
+    /** Ctrl+{@code k}: {@code action} with <i>Remap keybindings</i> on, the shell's control character with it off. */
+    private void remappable(Key k, Runnable action) {
+        gui.claimUi(node, Shortcut.of(k, Modifier.CONTROL), ClaimScope.FOCUSED, () -> {
+            if (remapKeys.getAsBoolean()) {
+                action.run();
+            } else {
+                send(String.valueOf((char) (k.name().charAt(0) - 'A' + 1)));
+            }
+        });
     }
 
     private void key(KeyEvent e) {
@@ -515,9 +531,8 @@ final class TerminalView implements AutoCloseable {
 
     /**
      * With <i>Remap keybindings</i> on: Ctrl+C and Ctrl+V are the clipboard's, which leaves the shell without its
-     * interrupt, so Esc sends it. Ctrl+T, Ctrl+W and Ctrl+O are the window's, as in a browser; the shell gives up
-     * transpose, delete word and operate-and-get-next, and Ctrl+Backspace still deletes a word. True when the key was
-     * one of these.
+     * interrupt, so Esc sends it. True when the key was one of these. Ctrl+T, Ctrl+W and Ctrl+O, the window's when
+     * remapped, are claims ({@link #remappable}).
      */
     private boolean remapped(Key k, boolean ctrl) {
         if (ctrl && k == Key.C) {
@@ -526,12 +541,6 @@ final class TerminalView implements AutoCloseable {
             paste();
         } else if (!ctrl && k == Key.ESCAPE) {
             send("\u0003");
-        } else if (ctrl && k == Key.T) {
-            hooks.newTab();
-        } else if (ctrl && k == Key.W) {
-            hooks.askClose(this);
-        } else if (ctrl && k == Key.O) {
-            hooks.open();
         } else {
             return false;
         }

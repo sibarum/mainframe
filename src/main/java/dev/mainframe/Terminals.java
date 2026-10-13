@@ -17,6 +17,7 @@ import dev.vexelray.text.TextLayout;
 import sibarum.atchung.Subscription;
 import sibarum.probe.Log;
 import sibarum.tactroller.api.Key;
+import sibarum.tactroller.api.Modifier;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -90,6 +91,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
                 });
         tabs.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(Landmarks.TABS, tabs.node());
+        claimWindowKeys();
         applyMotion();
         settings.onChange(this::settingsChanged);
     }
@@ -179,6 +181,41 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
             views.clear();
         }
         all.forEach(TerminalView::close);
+    }
+
+    // -- keys -------------------------------------------------------------------------------------------------
+
+    /**
+     * The window's keys, wherever the keyboard is: on a tab's header, in the rename field, or nowhere. The terminal
+     * with the keyboard claims the same chords for itself ({@link TerminalView}), which outranks these, so with it
+     * focused nothing here runs. Ctrl+T, Ctrl+W and Ctrl+O are the window's only with Remap keybindings on.
+     */
+    private void claimWindowKeys() {
+        windowKey(Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), this::newTab);
+        windowKey(Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT), () -> withCurrent(this::closeTab));
+        windowKey(Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT), () -> withCurrent(this::rename));
+        windowKey(Shortcut.of(Key.TAB, Modifier.CONTROL), () -> cycle(1));
+        windowKey(Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), () -> cycle(-1));
+        windowKey(Shortcut.of(Key.T, Modifier.CONTROL), () -> remapped(this::newTab));
+        windowKey(Shortcut.of(Key.W, Modifier.CONTROL), () -> remapped(() -> withCurrent(this::askClose)));
+        windowKey(Shortcut.of(Key.O, Modifier.CONTROL), () -> remapped(this::open));
+    }
+
+    private void windowKey(Shortcut chord, Runnable command) {
+        gui.claimUi(tabs.node(), chord, ClaimScope.VISIBLE, command);
+    }
+
+    private void remapped(Runnable command) {
+        if (settings.remapKeys()) {
+            command.run();
+        }
+    }
+
+    private void withCurrent(java.util.function.Consumer<TerminalView> command) {
+        TerminalView v = current();
+        if (v != null) {
+            command.accept(v);
+        }
     }
 
     // -- settings --------------------------------------------------------------------------------------------
