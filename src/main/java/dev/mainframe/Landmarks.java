@@ -28,6 +28,15 @@ final class Landmarks {
     /** The settings window's Workspaces tab. The page's own parts are {@code workspaces.*}: see {@link WorkspacesPage}. */
     static final String SETTINGS_WORKSPACES = "settings.workspaces";
 
+    /** The Open dialog's first tile, Open folder…. */
+    static final String OPEN_FOLDER = "open.folder";
+
+    /** The Open dialog's last tile, New workspace. */
+    static final String OPEN_NEW = "open.new";
+
+    /** The Open dialog's workspace tiles, by position: {@code open.workspace.0} is the first. */
+    static final String OPEN_WORKSPACE = "open.workspace.";
+
     private Landmarks() {
     }
 }

@@ -16,6 +16,7 @@ import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.probe.Log;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -88,6 +89,61 @@ final class Recipes {
         return new SettingsWindow(windows.named(SettingsWindow.DECLARED), settings, workspaces, icons, dialogs);
     }
 
+    /**
+     * What Ctrl+O opens: the Open dialog, or with no workspaces to choose from, straight to the folder picker. A
+     * workspace chosen there opens in a MainFrame of its own ({@link SelfLaunch}), or here.
+     */
+    @Provides
+    OpenDialog openDialog(Windows windows, WorkspaceStore workspaces, Icons icons, Terminals terminals,
+                          SettingsWindow settings, Dialogs dialogs) {
+        Runnable pickFolder = () -> dialogs.openFolder(Path.of(System.getProperty("user.home")),
+                terminals::openFolder, terminals::focus);
+        OpenDialog open = new OpenDialog(windows.named(OpenDialog.DECLARED), workspaces, icons, new OpenDialog.Actions() {
+            @Override
+            public void openFolder() {
+                pickFolder.run();
+            }
+
+            @Override
+            public void openWindow(Workspace w) {
+                try {
+                    SelfLaunch.start(List.of("--workspace=" + w.name()));
+                } catch (IOException | RuntimeException e) {
+                    LOG.warn("could not start a MainFrame for {}", w.name(), e);
+                    dialogs.info("Could not open " + w.name(), "A new MainFrame did not start: " + e.getMessage());
+                }
+            }
+
+            @Override
+            public void openHere(Workspace w) {
+                List<Terminals.Opening> tabs = Startup.openings(w);
+                if (tabs.isEmpty()) {
+                    terminals.focus();   // no folder of it is there: nothing to open, rather than a plain tab
+                } else {
+                    terminals.openAll(tabs);
+                }
+            }
+
+            @Override
+            public void edit(String name) {
+                settings.showWorkspace(name);
+            }
+
+            @Override
+            public void create() {
+                settings.newWorkspace();
+            }
+        });
+        terminals.onOpen(() -> {
+            if (workspaces.names().isEmpty()) {
+                pickFolder.run();
+            } else {
+                open.show();
+            }
+        });
+        return open;
+    }
+
     /** The main window's contents. */
     @Provides
     Ui ui(Gui gui, TitleBar titleBar, Terminals terminals, Icons icons, SettingsWindow settings) {
@@ -126,8 +182,6 @@ final class Recipes {
         if (line != null) {
             settings.overrideShell(line);
         }
-        terminals.onOpen(() -> dialogs.openFolder(Path.of(System.getProperty("user.home")),
-                terminals::openFolder, terminals::focus));
         List<Terminals.Opening> openings = Startup.openings(command, workspaces);
         terminals.openAll(openings);
         TerminalView first = terminals.current();
