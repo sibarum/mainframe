@@ -2,16 +2,17 @@ package dev.mainframe;
 
 import dev.vexelray.framework.api.Configuration;
 import dev.vexelray.framework.api.Provides;
-import dev.vexelray.framework.core.Launch;
 import dev.vexelray.framework.shell.Appearance;
 import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.Windows;
 import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.app.AppHome;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
+import sibarum.probe.Log;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -37,6 +38,8 @@ import java.util.List;
 @Configuration
 final class Recipes {
 
+    private static final Log LOG = Log.of("mainframe");
+
     /** The look, and the smallest window this UI is still coherent in. Applied before the first widget. */
     @Provides
     Appearance look() {
@@ -47,6 +50,12 @@ final class Recipes {
     @Provides
     AppSettings appSettings(Settings store) {
         return new AppSettings(store);
+    }
+
+    /** The saved workspaces: a CSV file each, in the {@code workspaces} folder beside the settings. */
+    @Provides
+    WorkspaceStore workspaces() {
+        return new WorkspaceStore(AppHome.of(MainFrame.APP).file("workspaces"));
     }
 
     /**
@@ -68,17 +77,30 @@ final class Recipes {
      * Connect the tabs to the frame loop's wake, and open the first tab. Takes the {@code Shell} to be last: a wake
      * can only be connected once there is a loop to wake, and a shell is a process a headless test must not start.
      *
-     * <p>A command line after the options replaces the shell for this run.
+     * <p>The tabs are the command line's ({@link Startup}), or one plain tab; a command line after the options
+     * replaces the shell for this run, and {@code --insert-path} types into the first tab. The command line is read
+     * from {@link Command#launched}, not taken as a parameter: it is a value, and the framework hands a recipe parts.
      */
     @Provides
-    Started start(Shell shell, Terminals terminals, AppSettings settings, Dialogs dialogs, Launch launch) {
+    Started start(Shell shell, Terminals terminals, AppSettings settings, Dialogs dialogs,
+                  WorkspaceStore workspaces) {
         shell.wake(terminals);
-        if (!launch.rest().isEmpty()) {
-            settings.overrideShell(String.join(" ", launch.rest()));
+        Command command = Command.launched();
+        String line = command.shellLine();
+        if (line != null) {
+            settings.overrideShell(line);
         }
         terminals.onOpen(() -> dialogs.openFolder(Path.of(System.getProperty("user.home")),
                 terminals::openFolder, terminals::focus));
-        terminals.openAll(List.of());
+        List<Terminals.Opening> openings = Startup.openings(command, workspaces);
+        terminals.openAll(openings);
+        TerminalView first = terminals.current();
+        if (first != null && command.insertPath() != null) {
+            // Which shell the tab runs, as far as quoting goes: none MainFrame can vouch for if the command line chose it.
+            InsertPath.Dialect dialect = line != null ? null : InsertPath.Dialect.of(settings.shell().id()).orElse(null);
+            Startup.insert(first, command.insertPath(), openings, dialect);
+        }
+        command.notes().forEach(note -> LOG.warn("{}", note));
         return new Started();
     }
 

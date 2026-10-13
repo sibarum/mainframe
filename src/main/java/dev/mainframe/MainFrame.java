@@ -1,6 +1,7 @@
 package dev.mainframe;
 
 import dev.vexelray.framework.shell.VexelApplication;
+import dev.vexelray.os.NativePlatform;
 
 /**
  * MainFrame: a terminal window around the native shell. v1 hosts Windows PowerShell on a pseudoconsole (ConPTY).
@@ -13,11 +14,7 @@ import dev.vexelray.framework.shell.VexelApplication;
  * in {@link Recipes}, one method per part; {@code MainFrameAppWiring}, which builds those parts in order, is generated
  * from them and from the {@code @VexelApp} on {@code MainFrameApp} while the project compiles.
  *
- * <pre>
- * mainframe                     one tab, running the shell chosen in Settings
- * mainframe &lt;command line&gt;      one tab running that instead, for this run
- * mainframe --key=value         override a setting for this launch
- * </pre>
+ * <p>The command line is MainFrame's own before it is the framework's: see {@link Command}.
  *
  * <p>Needs {@code --enable-native-access=ALL-UNNAMED}.
  *
@@ -48,9 +45,27 @@ public final class MainFrame {
     static final float MIN_W_EM = 30;
     static final float MIN_H_EM = 12;
 
-    /** Entry point. Screenshots are {@code ottermate}'s; see the README. */
+    /**
+     * Entry point: MainFrame's part of the command line is taken out first, and the rest is the framework's.
+     * Screenshots are {@code ottermate}'s; see the README.
+     */
     public static void main(String[] args) {
-        VexelApplication.run(new MainFrameAppWiring(), args);
+        Command command = Command.parse(osArguments(args));
+        Command.launched(command);
+        VexelApplication.run(new MainFrameAppWiring(), command.framework().toArray(String[]::new));
+    }
+
+    /**
+     * The arguments as the OS holds them: a native image is handed them decoded as ANSI, which loses any character
+     * outside the code page, and a folder named in one would not be found. The framework does this too, but only to
+     * what it is handed, which is after this has read the folders.
+     */
+    private static String[] osArguments(String[] args) {
+        try {
+            return NativePlatform.current().arguments(args);
+        } catch (RuntimeException e) {
+            return args;
+        }
     }
 
     private MainFrame() {
