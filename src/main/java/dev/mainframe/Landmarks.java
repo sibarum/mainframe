@@ -25,6 +25,9 @@ final class Landmarks {
     /** The settings window's General tab. */
     static final String SETTINGS_GENERAL = "settings.general";
 
+    /** The settings window's Workspaces tab. The page's own parts are {@code workspaces.*}: see {@link WorkspacesPage}. */
+    static final String SETTINGS_WORKSPACES = "settings.workspaces";
+
     private Landmarks() {
     }
 }

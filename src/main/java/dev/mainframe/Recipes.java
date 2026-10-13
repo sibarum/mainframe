@@ -83,8 +83,9 @@ final class Recipes {
      * window once there is a device, so this needs no window. Its handle is safe from any thread.
      */
     @Provides
-    SettingsWindow settingsWindow(Windows windows, AppSettings settings) {
-        return new SettingsWindow(windows.named(SettingsWindow.DECLARED), settings);
+    SettingsWindow settingsWindow(Windows windows, AppSettings settings, WorkspaceStore workspaces, Icons icons,
+                                  Dialogs dialogs) {
+        return new SettingsWindow(windows.named(SettingsWindow.DECLARED), settings, workspaces, icons, dialogs);
     }
 
     /** The main window's contents. */

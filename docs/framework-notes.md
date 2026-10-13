@@ -74,3 +74,15 @@ so driving it meant polling `ottermate windows` from outside until it said `ok`.
 **For the framework:** print the port once the main window is listed, or have `Windows.command` wait (bounded) for
 the first window rather than answering `err`. **For v1:** behaviour only.
 
+
+## FN-3 · A question asked from a named window is asked over the main one 🔬
+
+The Workspaces editor lives in the settings window, and asks before deleting a workspace. `Dialogs` is one value,
+parented to the main window, so the confirmation opens over the main window and dims it, while the user is looking
+at the settings window. The folder picker behind *Add folder…* is parented the same way. The hand-wired MainFrame
+did no better (`Modals` was installed on the application, which is the main window), so nothing regressed, but
+the old code had at least found the settings window's handle for the picker, and the framework gives a named
+window no way to do even that.
+
+**For the framework:** `Window.dialogs()`, the same `Dialogs` parented to that window, or a `Dialogs.over(Window)`.
+**For v1:** additive.

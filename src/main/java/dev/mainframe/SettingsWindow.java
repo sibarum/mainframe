@@ -2,6 +2,7 @@ package dev.mainframe;
 
 import dev.mainframe.AppSettings.ShellOption;
 import dev.mainframe.AppSettings.TabMotion;
+import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.NamedWindow;
 import dev.vexelray.framework.shell.Window;
 import dev.vexelray.gui.core.Gui;
@@ -40,13 +41,17 @@ final class SettingsWindow {
     private final Window window;
     private final Gui gui;
     private final Tabs tabs;
+    private final WorkspacesPage workspaces;
 
-    SettingsWindow(Window window, AppSettings settings) {
+    SettingsWindow(Window window, AppSettings settings, WorkspaceStore store, Icons icons, Dialogs dialogs) {
         this.window = window;
         this.gui = window.gui();
         tabs = new Tabs(gui).closable(false);
+        workspaces = new WorkspacesPage(gui, store, icons, dialogs);
         tabs.add("General", general(settings));
+        tabs.add("Workspaces", workspaces.node());
         gui.landmark(Landmarks.SETTINGS_GENERAL, tabs.header(0));
+        gui.landmark(Landmarks.SETTINGS_WORKSPACES, tabs.header(1));
         tabs.select(0);
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.CHROME))
@@ -56,6 +61,20 @@ final class SettingsWindow {
     /** Opens the window, or raises it if it is open already. */
     void show() {
         window.show();
+    }
+
+    /** Opens the window on the Workspaces tab, with the workspace called {@code name} selected. */
+    void showWorkspace(String name) {
+        tabs.select(1);
+        workspaces.select(name);
+        show();
+    }
+
+    /** Opens the window on the Workspaces tab with a new workspace, its name ready to type over. */
+    void newWorkspace() {
+        tabs.select(1);
+        show();
+        workspaces.create();
     }
 
     // -- the General tab --------------------------------------------------------------------------------------
