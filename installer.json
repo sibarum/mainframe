@@ -5,10 +5,11 @@
   "description": "A terminal window that wraps the native Windows shell over ConPTY, built on the VexelRay stack.",
   "version": "0.1.0",
 
-  "repo": "sibarum/mainframe",
+  "repo": "sibarum/vexelray-dist",
   "branch": "main",
-  "releasesRepo": "sibarum/mainframe",
-  "tagFormat": "v{version}",
+  "repoPath": "apps/mainframe",
+  "releasesRepo": "sibarum/vexelray-dist",
+  "tagFormat": "mainframe-v{version}",
 
   "windows": {
     "binaries": [
