@@ -56,6 +56,10 @@ record Workspace(String name, List<Entry> entries) {
         Entry withName(String newName) {
             return new Entry(newName, path, extra);
         }
+
+        Entry withPath(String newPath) {
+            return new Entry(name, newPath, extra);
+        }
     }
 
     Workspace {

@@ -41,8 +41,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>A folder is a card on a {@link Board}: the tab's label, a field, over the folder's path. A card is selected by
  * clicking it or by focusing its label; it is dragged to reorder (or moved with Alt+Up and Alt+Down), and removed from
- * its right-click menu or with Backspace or Delete while it, rather than its label, has the keyboard. A label is never
- * left empty: leaving it blank gives it back the folder's own name.
+ * its right-click menu or with Backspace or Delete while it, rather than its label, has the keyboard. Its folder is
+ * changed from the same menu or by double-clicking it anywhere but the label. A label is never left empty: leaving
+ * it blank gives it back the folder's own name.
  *
  * <p>The board is the drag: it picks a card up, carries it, opens the gap where it would land and puts it down, and
  * a press on the label is the label's, for selecting text. This page says what a card looks like ({@link #face}),
@@ -50,8 +51,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * change ends in, undo included, so they all move alike.
  *
  * <p>Like the rest of the settings, every change is saved the moment it is made, and every change but a run of
- * typing is a step in this page's history: Ctrl+Z and Ctrl+Y undo and redo moving, adding, removing and relabelling
- * folders, and creating, renaming and deleting workspaces. Inside a field they undo its typing instead, and leaving a
+ * typing is a step in this page's history: Ctrl+Z and Ctrl+Y undo and redo moving, adding, removing, relabelling and
+ * repointing folders, and creating, renaming and deleting workspaces. Inside a field they undo its typing instead, and leaving a
  * label it has changed records the relabel as one step. A workspace is opened by starting MainFrame with
  * {@code --workspace=<name>}.
  */
@@ -69,8 +70,8 @@ final class WorkspacesPage {
         }
     }
 
-    /** A folder's card, as built for the board: the node it carries, and the label on it. */
-    private record Face(Node box, TextField label) { }
+    /** A folder's card, as built for the board: the node it carries, the label on it, and the path under that. */
+    private record Face(Node box, TextField label, Node path) { }
 
     private final Gui gui;
     private final WorkspaceStore store;
@@ -135,7 +136,7 @@ final class WorkspacesPage {
         launchLine = note("");
         editor = gui.column().width(Length.grow(1)).height(Length.FILL).gap(Length.rem(0.5f)).children(
                 label("Name"), nameField.node(), nameProblem,
-                label("Folders, one tab each. Drag to reorder; right-click to remove."), noFolders, deck.node(),
+                label("Folders, one tab each. Drag to reorder; right-click to change or remove."), noFolders, deck.node(),
                 gui.row().children(addFolder.node()), launchLine);
         empty = note("No workspaces yet. New makes one: a list of folders that MainFrame opens as tabs, each in its "
                 + "own folder.").width(Length.grow(1));
@@ -221,6 +222,7 @@ final class WorkspacesPage {
             Face face = faces.get(f);
             String title = f.entry.title();
             if (face != null && !face.label.text().equals(title)) face.label.text(title);
+            if (face != null) showPath(face.path, f.entry.path());
         }
         noFolders.visible(folders.isEmpty());
         deck.items(folders);
@@ -289,27 +291,30 @@ final class WorkspacesPage {
         label.node().width(Length.FILL);
         label.onChange(text -> relabel(folder, text));
         label.onSubmit(text -> focusCard(folder));
-        boolean there = isDirectory(entry.path());
-        Node path = gui.text(there ? entry.path() : entry.path() + "  (not found)").width(Length.FILL)
-                .height(Length.rem(1.25f)).textSize(Length.rem(0.75f))
-                .textColor(gui.theme().color(there ? Role.DIM : Role.DANGER))
+        Node path = gui.text("").width(Length.FILL).height(Length.rem(1.25f)).textSize(Length.rem(0.75f))
                 .align(TextLayout.HAlign.LEFT, TextLayout.VAlign.MIDDLE);
+        showPath(path, entry.path());
         Node grip = IconView.of(gui, Icon.GRIP).size(Length.dp(16)).tint(Role.FAINT).node();
         Node box = gui.row().width(Length.FILL).padding(Length.rem(0.5f)).gap(Length.rem(0.5f))
                 .alignItems(AlignItems.CENTER).corner(Length.rem(0.4f))
                 .children(grip, gui.column().width(Length.grow(1)).gap(Length.rem(0.25f))
                         .children(label.node(), path));
-        Face built = new Face(box, label);
+        Face built = new Face(box, label, path);
         Face old = faces.put(folder, built);
         if (old != null) old.label.close();   // the board built it again: the folder came back after leaving
         paint(built, folder == selected);
         gui.onContextMenu(box, menu -> {
             List<Folder> now = folders;
             int at = now.indexOf(folder);
-            menu.item("Move up", at > 0, () -> move(folder, -1))
+            menu.item("Change folder…", () -> pickNewPath(folder))
+                    .item("Move up", at > 0, () -> move(folder, -1))
                     .item("Move down", at >= 0 && at < now.size() - 1, () -> move(folder, 1))
                     .item("Remove", () -> remove(folder));
         });
+        // Anywhere on the card but the label, where a double-click selects a word: double-clicks bubble to the
+        // nearest handler, so the label has one that does nothing.
+        gui.onDoubleClick(box, () -> pickNewPath(folder));
+        gui.onDoubleClick(label.node(), () -> { });
         // While the card has the keyboard, rather than its label.
         gui.claimUi(box, Shortcut.of(Key.BACKSPACE), ClaimScope.FOCUSED, () -> remove(folder));
         gui.claimUi(box, Shortcut.of(Key.DELETE), ClaimScope.FOCUSED, () -> remove(folder));
@@ -472,6 +477,32 @@ final class WorkspacesPage {
         history.perform(order(name, next, added));
     }
 
+    /**
+     * Points {@code folder} at {@code dir}, as one step in the history. A label that was the old folder's own name
+     * becomes the new one's; one typed by hand stays.
+     */
+    private void repath(Folder folder, Path dir) {
+        String name = shown;
+        List<Folder> now = folders;
+        int at = now.indexOf(folder);
+        if (name == null || at < 0) return;
+        String p = dir.toAbsolutePath().normalize().toString();
+        Entry e = folder.entry;
+        if (p.equals(e.path())) return;
+        boolean ownName = e.name().isBlank() || e.name().strip().equals(e.withName("").title());
+        Entry moved = e.withPath(p);
+        if (ownName) moved = moved.withName(moved.withName("").title());
+        List<Entry> entries = new ArrayList<>(entriesOf(now));
+        entries.set(at, moved);
+        history.perform(folders(name, now, entries, folder));
+    }
+
+    /** Asks the OS for the folder {@code folder} should be, starting beside the one it is. */
+    private void pickNewPath(Folder folder) {
+        if (shown == null || !folders.contains(folder)) return;
+        dialogs.openFolder(parentOf(folder.entry.path()), dir -> repath(folder, dir), () -> { });
+    }
+
     /** Asks the OS for a folder, starting beside the last one added. */
     private void pickFolder() {
         List<Folder> now = folders;
@@ -580,6 +611,13 @@ final class WorkspacesPage {
         List<Entry> entries = new ArrayList<>(folders.size());
         for (Folder f : folders) entries.add(f.entry);
         return entries;
+    }
+
+    /** A card's path line: the folder, or that it is not there. */
+    private void showPath(Node node, String path) {
+        boolean there = isDirectory(path);
+        node.text(there ? path : path + "  (not found)")
+                .textColor(gui.theme().color(there ? Role.DIM : Role.DANGER));
     }
 
     private static boolean isDirectory(String path) {
