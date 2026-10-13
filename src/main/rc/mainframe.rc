@@ -4,7 +4,7 @@
 // wherever it shows the program itself -- Explorer, the taskbar's pinned button, a shortcut, the Apps entry.
 //
 // The running window wears the same file: the pom also puts mainframe.ico on the class path, and @VexelApp's
-// icon names it, so the window, its taskbar button and the .exe cannot drift apart. It starts as the framework's
-// "new app" mark, and mainframe.svg is its source. To make it yours, draw an SVG and render it at every size
-// Windows asks for (16 to 256 px) into this one .ico; vex-suite-common's tools/Ico.java does exactly that.
+// icon names it, so the window, its taskbar button and the .exe cannot drift apart. mainframe.ico is
+// mainframe.svg (the suite icon canvas's MainFrame primary, dark; vexelray-icons is the master) rendered at 16 to
+// 256 px by vex-suite-common's tools/Ico.java. The window, file and light variants are kept beside it.
 1 ICON "mainframe.ico"

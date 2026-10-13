@@ -8,13 +8,19 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 
 ## Next
 
-- [ ] Decide what this application is. It starts as an editor because an editor reaches every seam; keep the parts
-      yours needs and delete the rest. `Recipes` is the place to start, since every part is one method there.
-- [ ] Replace the palette anchors in `Look.java` with the design's, measured in Oklab. See the note in that file
-      about which authored colours the construction can reproduce and which have to be declared.
+- [ ] **Save tabs as workspace**: a workspace made of the tabs open now. The one part of
+      [workspaces-and-shortcuts.md](workspaces-and-shortcuts.md) not built.
+- [ ] **The terminal as a library**, [terminal-library.md](terminal-library.md): cut the view's tie to `ConPty` in place
+      first (a `Channel`), then move `term`, `pty` and the view out.
+- [ ] **The stack's environment**, [stack-env.md](stack-env.md). None of it is built.
 
 ## Later
 
-- [ ] Automation coverage: `--automation=0` (or `-Dautomation=0`) opens a driving socket on a free port and prints it, and the landmarks in `Landmarks.java` are
-      already the names a script would use. One scripted run through the main path is worth more than several
-      unit tests of the view.
+- [ ] The font size is pixels in a picture, so it ignores the display's scale and the window's zoom. Measure it in
+      em (`units.md`, *what to use instead*) once the framework hands a picture its em.
+- [ ] Mouse reporting to applications (xterm's 1000/1002/1006 modes), so vim and less take the wheel and clicks.
+- [ ] A scripted `ottermate` run through the main path (tabs, rename, settings, a workspace, Ctrl+O), kept in the repo.
+      A shell's first prompt is invisible to `settle`; publishing the cursor line as the terminal's accessible name
+      would let a script `await` it instead of sleeping.
+- [ ] The settings window's questions open over the main window, and the Open dialog is not modal
+      (framework-notes FN-3, FN-4): revisit when the framework has a way.

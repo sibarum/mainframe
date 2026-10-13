@@ -1,0 +1,5 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="s56"><path d="M17 5 H40 L53 18 V56 Q53 59 50 59 H17 Q14 59 14 56 V8 Q14 5 17 5 Z"/></clipPath></defs><path d="M17 5 H40 L53 18 V56 Q53 59 50 59 H17 Q14 59 14 56 V8 Q14 5 17 5 Z" fill="#f6fcf7" stroke="#a1c1a7" stroke-width="1.1"/><path d="M40 5 V15 Q40 18 43 18 H53 Z" fill="#c6dfca" stroke="#a1c1a7" stroke-width="1.1" stroke-linejoin="round"/><g transform="translate(33.5 30) scale(.5) translate(-32 -32)">
+<rect x="11" y="14" width="42" height="36" rx="6" fill="none" stroke="#05893e" stroke-width="4.4"/>
+<path d="M11 22.5 H53" stroke="#05893e" stroke-width="3"/>
+<path d="M20 30 L26.5 35.5 L20 41" fill="none" stroke="#7cc58c" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M31 41 H42" stroke="#7cc58c" stroke-width="3.8" stroke-linecap="round"/></g><rect x="14" y="44" width="39" height="15" fill="#05893e" clip-path="url(#s56)"/><text x="33.5" y="54.6" text-anchor="middle" font-family="IBM Plex Mono, ui-monospace, monospace" font-weight="600" font-size="8.2" letter-spacing=".3" fill="#f7fef8">MF</text></svg>
