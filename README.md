@@ -2,6 +2,8 @@
 
 A terminal window that wraps the native OS shell. v1 is Windows PowerShell; the design is cross-platform.
 
+**Install it** on Windows, with the other VexelRay applications, from [sibarum.github.io](https://sibarum.github.io/).
+
 It is a real terminal emulator, not a shell of its own: PowerShell runs unmodified inside a Windows pseudoconsole
 (ConPTY), and MainFrame draws what it emits and sends it your keys. It is a VexelRay application, built on
 `vexelray-framework` from its `vexel-desktop` template, so the window, input, clipboard, clock, frame loop, dialogs
