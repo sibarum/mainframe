@@ -40,6 +40,19 @@ final class Startup {
         return out;
     }
 
+    /**
+     * {@code command}'s sources as tabs; or, when it names none, the folders of {@code startWorkspace} (null for
+     * none). A start workspace that is gone leaves the one plain tab, as any launch that ends up with none does.
+     */
+    static List<Terminals.Opening> openings(Command command, WorkspaceStore workspaces, String startWorkspace) {
+        if (!command.sources().isEmpty() || startWorkspace == null) {
+            return openings(command, workspaces);
+        }
+        List<Terminals.Opening> out = new ArrayList<>();
+        workspace(out, workspaces, startWorkspace);
+        return out;
+    }
+
     /** {@code w}'s folders as tabs, each named as {@code w} names it. */
     static List<Terminals.Opening> openings(Workspace w) {
         List<Terminals.Opening> out = new ArrayList<>();

@@ -49,7 +49,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private static final Log LOG = Log.of("mainframe.tabs");
     private static final String PLUS = " + ";
 
-    /** A tab to open: the folder its shell starts in (null for MainFrame's own), and its name (null: the folder's). */
+    /** A tab to open: the folder its shell starts in (null: the new tab directory), and its name (null: the folder's). */
     record Opening(Path dir, String title) {
     }
 
@@ -63,6 +63,8 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private final AtomicLong ids = new AtomicLong();
     /** Parallel to the bar's tabs. Guarded by {@code this}. */
     private final List<TerminalView> views = new ArrayList<>();
+    /** The plain tab opened because the launch asked for none, while it may still be there (see {@link #spare}). */
+    private volatile TerminalView defaultTab;
     /** The loop's wake, once there is a loop; before that a frame is coming anyway. */
     private volatile Runnable wake = () -> { };
     private volatile Runnable open = () -> { };
@@ -119,12 +121,13 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     }
 
     /**
-     * Open {@code openings} as tabs, in order, with the first of them selected; with none, one tab in MainFrame's own
+     * Open {@code openings} as tabs, in order, with the first of them selected; with none, one plain tab in the new tab
      * directory.
      */
     void openAll(List<Opening> openings) {
         if (openings.isEmpty()) {
             newTab();
+            defaultTab = current();
             return;
         }
         int first;
@@ -136,6 +139,24 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         }
         tabs.select(first);
         focus();
+    }
+
+    /**
+     * The tab nobody has used, which whatever Ctrl+O opens may take the place of, or null. It is the plain tab the
+     * launch opened, no other tab has been opened since, and the user has sent its shell nothing.
+     */
+    synchronized TerminalView spare() {
+        TerminalView d = defaultTab;
+        return d != null && views.size() == 1 && views.getFirst() == d && !d.touched() ? d : null;
+    }
+
+    /** Run {@code open}, and if it opened a tab, close the {@link #spare} tab there was before it. */
+    void replacingSpare(Runnable open) {
+        TerminalView spare = spare();
+        open.run();
+        if (spare != null && current() != spare) {
+            closeTab(spare);
+        }
     }
 
     /** A new tab whose shell starts in {@code dir}, named after the folder, selected and focused. */
@@ -251,14 +272,16 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
     /**
      * A tab whose shell starts in {@code dir}, called {@code title} or else after the folder; a null dir is a plain
-     * tab in MainFrame's own. A shell that cannot be started is said rather than thrown, and opens no tab.
+     * tab in the new tab directory ({@link AppSettings#tabDir}). A shell that cannot be started is said rather than
+     * thrown, and opens no tab.
      */
     private void openTab(Path dir, String title) {
+        defaultTab = null;   // any tab after the first, and the first is no longer spare
         TerminalView cur = current();
         TerminalView v;
         try {
             v = new TerminalView(ids.incrementAndGet(), gui, glyphs, settings.shellCommand(),
-                    dir == null ? null : dir.toString(), cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(),
+                    (dir == null ? settings.tabDir() : dir).toString(), cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(),
                     settings.fontPx(), settings::remapKeys, this);
         } catch (RuntimeException e) {
             LOG.warn("could not start {}", settings.shellCommand(), e);

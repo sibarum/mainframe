@@ -28,6 +28,12 @@ final class Landmarks {
     /** The settings window's Workspaces tab. The page's own parts are {@code workspaces.*}: see {@link WorkspacesPage}. */
     static final String SETTINGS_WORKSPACES = "settings.workspaces";
 
+    /** General's Change… button for the new tab directory. */
+    static final String SETTINGS_TAB_DIR = "settings.tabdir";
+
+    /** General's drop-down of the workspace to open at start. */
+    static final String SETTINGS_START_WORKSPACE = "settings.startworkspace";
+
     /** The Open dialog's first tile, Open folder…. */
     static final String OPEN_FOLDER = "open.folder";
 

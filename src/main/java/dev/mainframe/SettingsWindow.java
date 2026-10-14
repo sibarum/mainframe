@@ -16,11 +16,16 @@ import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.icons.Icon;
 import dev.vexelray.gui.icons.IconView;
+import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.Segment;
+import dev.vexelray.gui.widget.Select;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.Toggle;
 import dev.vexelray.gui.widget.Tooltip;
 import dev.vexelray.text.TextLayout;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The settings window: a window of its own, opened by the settings button in the main window's title bar, with a
@@ -44,13 +49,26 @@ final class SettingsWindow {
     private final Gui gui;
     private final Tabs tabs;
     private final WorkspacesPage workspaces;
+    private final AppSettings settings;
+    private final WorkspaceStore store;
+    private final Dialogs dialogs;
+    /** The start workspace's drop-down: "" is none. Its options are the saved workspaces, re-read as they change. */
+    private final Select<String> startWorkspace;
 
     SettingsWindow(Window window, AppSettings settings, WorkspaceStore store, Dialogs dialogs,
                    Motion motion) {
         this.window = window;
         this.gui = window.gui();
+        this.settings = settings;
+        this.store = store;
+        this.dialogs = dialogs;
         tabs = new Tabs(gui).closable(false);
         workspaces = new WorkspacesPage(gui, store, dialogs, motion);
+        startWorkspace = new Select<String>(gui, name -> name.isEmpty() ? "None" : name);
+        startWorkspace.onCommit(chosen -> settings.startWorkspace(chosen.isEmpty() ? null : chosen.iterator().next()));
+        gui.landmark(Landmarks.SETTINGS_START_WORKSPACE, startWorkspace.node());
+        workspaces.onRename(this::workspaceRenamed);
+        refreshStartWorkspaces();
         tabs.add("General", sheet(general(settings)));
         tabs.add("Workspaces", sheet(workspaces.node()));
         gui.landmark(Landmarks.SETTINGS_GENERAL, tabs.header(0));
@@ -63,6 +81,7 @@ final class SettingsWindow {
 
     /** Opens the window, or raises it if it is open already. */
     void show() {
+        refreshStartWorkspaces();   // a workspace may have come or gone on disk since
         window.show();
     }
 
@@ -121,13 +140,60 @@ final class SettingsWindow {
                         label("Font size"), font.node(),
                         label("Tab animation"), motion.node(),
                         label("Shell for new tabs"), shell.node(),
+                        label("New tab directory"), tabDir(settings),
+                        label("Workspace to open at start"), startWorkspace.node().width(Length.rem(16)),
                         label("Remap keybindings"), remap.node(),
                         note("On: Ctrl+C copies, Ctrl+V pastes, and Esc sends Ctrl+C (interrupt). Ctrl+T opens a tab, "
                                 + "Ctrl+W closes one after asking, and Ctrl+O opens a workspace or a folder; the shell "
                                 + "gives up those keys (Ctrl+W's delete word is also Ctrl+Backspace). "
                                 + "Off: every key goes to the shell as is. Ctrl+Shift+C and Ctrl+Shift+V always copy and "
                                 + "paste, and Ctrl+Shift+T and Ctrl+Shift+W always open and close a tab."),
-                        note("Font size and animation apply at once; a new shell applies to tabs opened from now on."));
+                        note("Font size and animation apply at once; a new shell and directory apply to tabs opened "
+                                + "from now on, and the workspace to the next MainFrame started without one named."));
+    }
+
+    /**
+     * The folder plain tabs start in, with a button to choose another and one to go back to the profile, which is
+     * where they start until something else is chosen.
+     */
+    private Node tabDir(AppSettings settings) {
+        Node path = gui.text(settings.tabDir().toString()).width(Length.grow(1)).height(Length.rem(2))
+                .font(Type.UI).textSize(Type.BODY).textColor(gui.theme().color(Role.INK))
+                .align(TextLayout.HAlign.LEFT, TextLayout.VAlign.MIDDLE);
+        Button reset = new Button(gui, "Use profile");
+        reset.enabled(!settings.tabDirIsDefault());
+        Runnable shown = () -> {
+            path.text(settings.tabDir().toString());
+            reset.enabled(!settings.tabDirIsDefault());
+        };
+        Button choose = new Button(gui, "Change…").onPress(() -> dialogs.openFolder(settings.tabDir(), dir -> {
+            settings.tabDir(dir);
+            shown.run();
+        }, () -> { }));
+        reset.onPress(() -> {
+            settings.tabDir(null);
+            shown.run();
+        });
+        gui.landmark(Landmarks.SETTINGS_TAB_DIR, choose.node());
+        return gui.row().width(Length.FILL).gap(Length.rem(0.5f)).alignItems(AlignItems.CENTER)
+                .children(path, choose.node(), reset.node());
+    }
+
+    /** The drop-down's options: none, then every saved workspace; and what it shows, the saved choice. */
+    private void refreshStartWorkspaces() {
+        List<String> options = new ArrayList<>();
+        options.add("");
+        options.addAll(store.names());
+        String chosen = settings.startWorkspace();
+        startWorkspace.options(options).show(chosen != null && options.contains(chosen) ? chosen : "");
+    }
+
+    /** The start workspace follows its own renaming, and goes back to none when it is deleted. */
+    private void workspaceRenamed(String from, String to) {
+        if (from != null && from.equals(settings.startWorkspace())) {
+            settings.startWorkspace(to);
+        }
+        refreshStartWorkspaces();
     }
 
     private static float nearest(float px) {

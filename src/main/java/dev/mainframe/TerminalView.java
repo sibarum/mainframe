@@ -95,6 +95,8 @@ final class TerminalView implements AutoCloseable {
     private volatile long lastOutput;
     /** Text to type once the shell has drawn its prompt (see {@link #typeWhenReady}); null when there is none. */
     private volatile String pendingType;
+    /** Whether the user has typed or pasted anything into this tab's shell (see {@link #touched}). */
+    private volatile boolean touched;
 
     private volatile int scrollOffset;
     private volatile boolean hasSel;
@@ -152,6 +154,14 @@ final class TerminalView implements AutoCloseable {
      * wait is a thread of its own rather than a frame's work, because the frame loop parks while nothing changes,
      * and a quiet shell is exactly nothing changing.
      */
+    /**
+     * Whether the user has sent this tab's shell anything: a key, a paste. What MainFrame answers the shell on its
+     * own, and what {@link #typeWhenReady} types, do not count.
+     */
+    boolean touched() {
+        return touched;
+    }
+
     void typeWhenReady(String text) {
         if (InsertPath.hasControl(text)) {
             throw new IllegalArgumentException("not typing a control character");
@@ -602,6 +612,7 @@ final class TerminalView implements AutoCloseable {
 
     /** What the user typed or pasted: it wins over anything waiting to be typed, and Enter puts a notice away. */
     private void send(String s) {
+        touched = true;
         pendingType = null;
         if (s.indexOf('\r') >= 0) {
             dismissNotice();

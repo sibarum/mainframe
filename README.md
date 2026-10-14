@@ -76,8 +76,10 @@ nobody knows stops MainFrame with an error rather than being run as a program (`
 ## Settings
 
 The settings button (the gear) in the title bar opens the settings window; clicking it again brings that window to
-the front. Its General tab has font size, tab animation (slide, fade or none), key remapping and the shell new tabs
-start (Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt). Changes apply at once and are saved
+the front. Its General tab has font size, tab animation (slide, fade or none), key remapping, the shell new tabs
+start (Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt), the folder they start in (your user
+profile unless another is chosen), and a workspace to open whenever MainFrame is launched without folders or a
+workspace named (None by default: one plain tab). Changes apply at once and are saved
 in the framework's settings store, `~/.mainframe/settings.properties`, which also remembers where each window was. A
 command line given when launching MainFrame overrides the shell choice for that run only.
 
@@ -86,7 +88,9 @@ command line given when launching MainFrame overrides the shell choice for that 
 A workspace is a saved list of folders, opened with `mainframe --workspace=<name>`: one tab per folder, in order,
 each named as the workspace names it. Ctrl+O shows them as tiles, after an Open folder… tile: Enter (or a click)
 opens a workspace in a new MainFrame window, Ctrl+Enter opens its tabs in this one, and a tile's right-click menu has
-Edit…. With no workspaces saved, Ctrl+O goes straight to the folder picker.
+Edit…. With no workspaces saved, Ctrl+O goes straight to the folder picker. If the window still has only the plain
+tab it started with, and nothing has been typed or pasted into it, whatever Ctrl+O opens takes its place: the tab
+closes, and when the workspace opens in a new window, this window closes with it.
 
 They are made and edited in the settings window's Workspaces tab: New, Delete and the name, and a card per folder
 with its tab name over its path. Drag a card to reorder (or Alt+Up/Down), and remove one from its right-click menu or

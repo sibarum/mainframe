@@ -81,13 +81,15 @@ final class Recipes {
 
     /**
      * What Ctrl+O opens: the Open dialog, or with no workspaces to choose from, straight to the folder picker. A
-     * workspace chosen there opens in a MainFrame of its own ({@link SelfLaunch}), or here.
+     * workspace chosen there opens in a MainFrame of its own ({@link SelfLaunch}), or here. Whatever it opens takes
+     * the place of the plain first tab while that is still unused ({@link Terminals#spare}): it closes, and with a new
+     * window, so does this one.
      */
     @Provides
     OpenDialog openDialog(Windows windows, WorkspaceStore workspaces, Terminals terminals,
                           SettingsWindow settings, Dialogs dialogs) {
         Runnable pickFolder = () -> dialogs.openFolder(Path.of(System.getProperty("user.home")),
-                terminals::openFolder, terminals::focus);
+                dir -> terminals.replacingSpare(() -> terminals.openFolder(dir)), terminals::focus);
         OpenDialog open = new OpenDialog(windows.named(OpenDialog.DECLARED), workspaces, new OpenDialog.Actions() {
             @Override
             public void openFolder() {
@@ -96,8 +98,12 @@ final class Recipes {
 
             @Override
             public void openWindow(Workspace w) {
+                TerminalView spare = terminals.spare();
                 try {
                     SelfLaunch.start(List.of("--workspace=" + w.name()));
+                    if (spare != null) {
+                        terminals.closeTab(spare);   // the last tab: this window closes, and the new one stands in
+                    }
                 } catch (IOException | RuntimeException e) {
                     LOG.warn("could not start a MainFrame for {}", w.name(), e);
                     dialogs.info("Could not open " + w.name(), "A new MainFrame did not start: " + e.getMessage());
@@ -110,7 +116,7 @@ final class Recipes {
                 if (tabs.isEmpty()) {
                     terminals.focus();   // no folder of it is there: nothing to open, rather than a plain tab
                 } else {
-                    terminals.openAll(tabs);
+                    terminals.replacingSpare(() -> terminals.openAll(tabs));
                 }
             }
 
@@ -144,7 +150,7 @@ final class Recipes {
      * Connect the tabs to the frame loop's wake, and open the first tab. Takes the {@code Shell} to be last: a wake
      * can only be connected once there is a loop to wake, and a shell is a process a headless test must not start.
      *
-     * <p>The tabs are the command line's ({@link Startup}), or one plain tab; a command line after the options
+     * <p>The tabs are the command line's ({@link Startup}), or the start workspace's from Settings, or one plain tab; a command line after the options
      * replaces the shell for this run, and {@code --insert-path} types into the first tab. The command line is read
      * from {@link Command#launched}, not taken as a parameter: it is a value, and the framework hands a recipe parts.
      */
@@ -157,7 +163,7 @@ final class Recipes {
         if (line != null) {
             settings.overrideShell(line);
         }
-        List<Terminals.Opening> openings = Startup.openings(command, workspaces);
+        List<Terminals.Opening> openings = Startup.openings(command, workspaces, settings.startWorkspace());
         terminals.openAll(openings);
         TerminalView first = terminals.current();
         if (first != null && command.insertPath() != null) {

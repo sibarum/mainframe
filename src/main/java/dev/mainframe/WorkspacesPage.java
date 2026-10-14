@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 
 /**
  * The Workspaces tab: the saved workspaces down the left, and the one selected on the right, with its name and its
@@ -90,6 +91,8 @@ final class WorkspacesPage {
     private final Node launchLine;
     /** Every card the board has had built, by folder. */
     private final Map<Folder, Face> faces = new ConcurrentHashMap<>();
+    /** Told of each workspace made, renamed or deleted, as (old name, new name), null on the side there is none. */
+    private volatile BiConsumer<String, String> renames = (from, to) -> { };
 
     // Volatile, and replaced whole rather than changed, because the board reads them without the page's lock: it
     // asks place() under a lock of its own, and the page calls the board under this one.
@@ -162,6 +165,14 @@ final class WorkspacesPage {
     /** The page's undo history: every change it makes, as one step each. */
     History history() {
         return history;
+    }
+
+    /**
+     * Be told of each workspace made, renamed or deleted, undone or redone, as (old name, new name): null for the
+     * old name of one made, and for the new name of one deleted.
+     */
+    void onRename(BiConsumer<String, String> listener) {
+        this.renames = listener;
     }
 
     // -- the list ---------------------------------------------------------------------------------------------
@@ -564,6 +575,7 @@ final class WorkspacesPage {
                 shown = null;
                 refresh(to);
             }
+            renames.accept(from, to);
             return renamed(to, from);
         };
     }
@@ -575,6 +587,7 @@ final class WorkspacesPage {
                 shown = null;
                 refresh(w.name());
             }
+            renames.accept(null, w.name());
             return deleted(w.name());
         };
     }
@@ -591,6 +604,7 @@ final class WorkspacesPage {
                 shown = null;
                 refresh(null);
             }
+            renames.accept(name, null);
             return created(w);
         };
     }

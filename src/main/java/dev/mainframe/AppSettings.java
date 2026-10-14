@@ -3,6 +3,9 @@ package dev.mainframe;
 import dev.vexelray.gui.core.app.Settings;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -75,6 +78,59 @@ final class AppSettings {
     void remapKeys(boolean on) {
         store.putBoolean("keys.remap", on);
         changed();
+    }
+
+    // -- starting ---------------------------------------------------------------------------------------------
+
+    /** The workspace a launch that names no tabs opens, or null for one plain tab. */
+    String startWorkspace() {
+        String name = store.getString("start.workspace", "");
+        return name.isEmpty() ? null : name;
+    }
+
+    void startWorkspace(String name) {
+        if (name == null || name.isEmpty()) {
+            store.remove("start.workspace");
+        } else {
+            store.putString("start.workspace", name);
+        }
+        changed();
+    }
+
+    /**
+     * The folder a plain new tab's shell starts in: the one chosen, while it is there, or else the user's profile.
+     * Not MainFrame's own working directory, which for an installed copy is wherever its shortcut said.
+     */
+    Path tabDir() {
+        String chosen = store.getString("tabs.dir", "");
+        if (!chosen.isEmpty()) {
+            try {
+                Path p = Path.of(chosen);
+                if (Files.isDirectory(p)) return p;
+            } catch (InvalidPathException e) {
+                // fall through to the profile
+            }
+        }
+        return home();
+    }
+
+    /** Whether {@link #tabDir} is the profile because nothing else was chosen. */
+    boolean tabDirIsDefault() {
+        return store.getString("tabs.dir", "").isEmpty();
+    }
+
+    /** A folder for new tabs; null goes back to the profile. */
+    void tabDir(Path dir) {
+        if (dir == null) {
+            store.remove("tabs.dir");
+        } else {
+            store.putString("tabs.dir", dir.toString());
+        }
+        changed();
+    }
+
+    static Path home() {
+        return Path.of(System.getProperty("user.home"));
     }
 
     // -- shell ------------------------------------------------------------------------------------------------
