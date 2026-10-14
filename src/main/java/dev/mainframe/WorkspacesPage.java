@@ -126,7 +126,8 @@ final class WorkspacesPage {
                         .corner(Length.rem(0.4f)),
                 gui.row().gap(Length.rem(0.5f)).children(add.node(), delete.node()));
 
-        nameField = new TextField(gui);
+        // Inline editors keep their typing to themselves: committing the name is the step the page records.
+        nameField = new TextField(gui).history(new History());
         nameField.node().width(Length.FILL);
         nameField.onSubmit(text -> commitName());
         nameProblem = note("").textColor(gui.theme().color(Role.DANGER)).visible(false);
@@ -298,7 +299,8 @@ final class WorkspacesPage {
      */
     private Node face(Folder folder) {
         Entry entry = folder.entry;
-        TextField label = new TextField(gui, entry.title());
+        // Its typing is its own; leaving it records the relabel as one step in the page's history.
+        TextField label = new TextField(gui, entry.title()).history(new History());
         label.node().width(Length.FILL);
         label.onChange(text -> relabel(folder, text));
         label.onSubmit(text -> focusCard(folder));

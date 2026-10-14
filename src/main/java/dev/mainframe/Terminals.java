@@ -6,6 +6,7 @@ import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Window;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
+import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.core.input.ClaimScope;
 import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.core.layout.Length;
@@ -403,7 +404,9 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
             return;
         }
         Node header = tabs.header(i);
-        TextField field = new TextField(gui, view.displayTitle());
+        // An inline rename, gone once it commits: its typing is its own, so none of it is left in the window's
+        // history pointing at a field that no longer exists.
+        TextField field = new TextField(gui, view.displayTitle()).history(new History());
         field.node().width(Length.rem(12)).height(Length.FILL);
         Subscription blur = gui.bus().subscribe(gui.focusEvents(), e -> {
             if (!e.gained() && e.nodeId() == field.node().id()) {
