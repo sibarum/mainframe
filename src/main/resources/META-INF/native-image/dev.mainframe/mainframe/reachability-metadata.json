@@ -1,10 +1,9 @@
 {
   "comment": [
     "This program's own native-image metadata: the entry point the launcher reaches by JNI, the JDK's locale and",
-    "time-zone data a native run was seen to read, and the kernel32 downcalls pty/ConPty makes (CreatePipe,",
-    "CreatePseudoConsole, ResizePseudoConsole, ClosePseudoConsole, the process-thread attribute list, CreateProcessW,",
-    "ReadFile, WriteFile, CloseHandle, WaitForSingleObject, GetExitCodeProcess, TerminateProcess,",
-    "SetConsoleCtrlHandler), by shape. Everything else registers itself: the libraries carry their own (Win32,",
+    "time-zone data a native run was seen to read, and the one kernel32 downcall of its own, pty/ShortName's",
+    "GetShortPathNameW, by shape. The pseudoconsole's downcalls are declared by vex-suite-common's jar, beside",
+    "ConPty. Everything else registers itself: the libraries carry their own (Win32,",
     "tactroller, DXGI, the shaders, the font atlas, the icon atlas), and the processor writes the icon's. Add to it",
     "when a native run of this program fails on something the JVM run did not: run the",
     "debug edition on a JVM under -agentlib:native-image-agent and keep only the entries naming this program."
@@ -47,16 +46,6 @@
   ],
   "foreign": {
     "downcalls": [
-      { "returnType": "jint", "parameterTypes": ["void*", "void*", "void*", "jint"] },
-      { "returnType": "jint", "parameterTypes": ["jint", "void*", "void*", "jint", "void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*", "jint"] },
-      { "returnType": "void", "parameterTypes": ["void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*", "jint", "jint", "void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*", "jint", "jlong", "void*", "jlong", "void*", "void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*", "void*", "void*", "void*", "jint", "jint", "void*", "void*", "void*", "void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*", "void*", "jint", "void*", "void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*"] },
-      { "returnType": "jint", "parameterTypes": ["void*", "void*"] },
       { "returnType": "jint", "parameterTypes": ["void*", "void*", "jint"] }
     ]
   }

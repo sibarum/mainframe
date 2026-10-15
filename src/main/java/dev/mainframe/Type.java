@@ -20,7 +20,7 @@ import dev.vexelray.gui.core.layout.Length;
  * <p>The framework's text atlas is baked at build time from the fonts in {@code vexelray-text}, so face 0 and face
  * 1 are whatever it shipped -- a sans and a mono -- and so is which characters each has. A character the atlas lacks
  * draws as the missing-glyph box; the terminal draws box drawing, block elements and braille itself
- * ({@link CellArt}) for that reason.
+ * (vex-suite-common's {@code CellArt}) for that reason.
  */
 final class Type {
 

@@ -1,6 +1,19 @@
 # The terminal as a library
 
-Status: **planned**, 2026-10-11. Nothing has moved yet.
+Status: **moved, more simply than planned below**, 2026-10-15. The emulator is the `tty` package of
+[vex-suite-common](../../vex-suite-common), not a repository of its own, because Vex's build console wanted it first
+and both applications already sit beside that library. What moved, and how the tie below was cut:
+
+- `Terminal`, `ConPty` and `CellArt` moved unchanged, with `TerminalTest` and `ConPtyTest`, and `ConPty`'s downcalls
+  moved into that jar's `reachability-metadata.json`. `ShortName` stayed, as planned.
+- No `Channel`. The tie is cut the other way round: the shared view, **`TerminalScreen`**, owns no input at all. It
+  draws a `Terminal`, fits it to its node (telling its owner the new size through `onFit`, which MainFrame hands to
+  `ConPty.resize`), scrolls, selects and copies, and says what a key or a paste would send (`keySequence`,
+  `pasteText`) without sending it. `Pump` reads a pty or a stream into a `Terminal`. So a read-only console is simply a
+  screen whose owner sends nothing, and the remap question below is answered: it stays in MainFrame's `TerminalView`.
+- The face is passed in, as is the colour behind the default background, so Vex's console can be grey.
+
+The rest of this note is the plan as it was written, kept for its reasoning.
 
 MainFrame is two things in one artifact: a terminal emulator, and an application around it (tabs, settings,
 workspaces, `--insert-path`). The emulator is wanted elsewhere. Vexplore wants a read-only console that shows the

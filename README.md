@@ -11,7 +11,8 @@ and shutdown are the framework's, and what is here is the terminal.
 
 ## Run it
 
-Needs the local VexelRay stack installed (`vexelray-framework/docs/getting-started.md` gives the order), Java 25 and
+Needs the local VexelRay stack installed (`vexelray-framework/docs/getting-started.md` gives the order) and
+[vex-suite-common](../vex-suite-common) (`mvn install` there), Java 25 and
 Maven.
 
 ```bash
@@ -33,8 +34,9 @@ mvn compile exec:exec "-Dapp.args=cmd.exe"
 mvn test
 ```
 
-The tests cover the VT screen, the pseudoconsole, the command line, the workspace files, what `--insert-path` may
-type, and the real window contents built headless with no shell started (`TreeTest`).
+The tests cover the command line, the workspace files, what `--insert-path` may
+type, and the real window contents built headless with no shell started (`TreeTest`). The VT screen and the
+pseudoconsole are tested where they live, in vex-suite-common.
 
 ## Keys
 
@@ -126,10 +128,7 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 | --- | --- |
 | `MainFrame` | The entry point. Takes MainFrame's own options out of the command line (`Command`) and hands the framework the rest |
 | `Recipes` | The parts, and the start: the first tabs open in the one recipe that takes the `Shell`, so a test's headless tree starts no shell |
-| `pty/ConPty` | `powershell.exe` on a pseudoconsole, through the foreign function API (kernel32). The only Windows-specific part |
-| `term/Terminal` | The VT screen: cells, colours, scrollback, alternate screen. Knows nothing about windows or ptys |
-| `TerminalView` | A terminal drawn as a vexelray node, plus keyboard, mouse selection, scrollback and clipboard |
-| `CellArt` | Box drawing, block elements and braille, drawn rather than taken from the font |
+| `TerminalView` | One tab: a shell on vex-suite-common's `ConPty`, drawn by its `TerminalScreen`, with the window's chords, *Remap keybindings*, the notice and `--insert-path`'s typing |
 | `Terminals` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. Its `tick` is the frame's `@BeforeFrame` work, and it is a `WakeSource`, so a shell writing into an idle window wakes the parked loop |
 | `Command` / `Startup` | MainFrame's command line, and the tabs and `--insert-path` it comes to on disk |
 | `SettingsWindow` / `AppSettings` | The settings window (a framework `NamedWindow`) and the saved settings behind it |
@@ -138,6 +137,11 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 
 What is not here is the point: input, the clipboard, window memory, the clock, the frame loop and its pacing, the
 dialogs, the title bar and closing everything in order are the framework's.
+
+The terminal itself is [vex-suite-common](../vex-suite-common)'s `tty` package, shared with Vex's build console: the
+pseudoconsole (`ConPty`, kernel32 through the foreign function API, the only Windows-specific part), the VT screen
+(`Terminal`), reading one into the other (`Pump`), the screen drawn as a node with scrolling, selection and copying
+(`TerminalScreen`), and box drawing, block elements and braille drawn rather than taken from the font (`CellArt`).
 
 ## Taking a screenshot
 
