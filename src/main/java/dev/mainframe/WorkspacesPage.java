@@ -52,7 +52,7 @@ import java.util.function.BiConsumer;
  * change ends in, undo included, so they all move alike.
  *
  * <p>Like the rest of the settings, every change is saved the moment it is made, and every change but a run of
- * typing is a step in this page's history: Ctrl+Z and Ctrl+Y undo and redo moving, adding, removing, relabelling and
+ * typing is a step in the settings window's history: Ctrl+Z and Ctrl+Y undo and redo moving, adding, removing, relabelling and
  * repointing folders, and creating, renaming and deleting workspaces. Inside a field they undo its typing instead, and leaving a
  * label it has changed records the relabel as one step. A workspace is opened by starting MainFrame with
  * {@code --workspace=<name>}.
@@ -77,7 +77,8 @@ final class WorkspacesPage {
     private final Gui gui;
     private final WorkspaceStore store;
     private final Dialogs dialogs;
-    private final History history = new History();
+    /** The settings window's undo history, which the framework binds; this page records its steps there. */
+    private final History history;
     private final Node root;
     private final ListView<String> list;
     private final Button delete;
@@ -109,6 +110,15 @@ final class WorkspacesPage {
         this.gui = gui;
         this.dialogs = dialogs;
         this.store = store;
+        // The window's, bound by the framework to Ctrl+Z and Ctrl+Y and to every drop: this page's moves, adds and
+        // renames undo with everything else changed in the settings window, by the same keys. A tree the framework
+        // did not build has none, and then this page brings one.
+        History bound = gui.history();
+        if (bound == null) {
+            bound = new History();
+            gui.history(bound).dropHistory(bound);
+        }
+        this.history = bound;
         ContextMenu.presentOn(gui);
 
         list = new ListView<String>(gui, 2f, (g, name) -> g.text(name).width(Length.FILL).height(Length.FILL)
@@ -147,10 +157,6 @@ final class WorkspacesPage {
 
         root = gui.row().width(Length.FILL).height(Length.FILL).padding(Length.rem(1)).gap(Length.rem(1))
                 .children(left, editor, empty);
-        gui.history(root, history, ClaimScope.VISIBLE);
-        // Where a drop and the board's Alt+arrow moves are recorded: the page's own history, so Ctrl+Z takes them
-        // back with everything else.
-        gui.dropHistory(history);
         gui.bus().subscribe(gui.focusEvents(), e -> focusChanged(e.nodeId(), e.gained()));
         // Names for ottermate and agents: "click workspaces.new".
         gui.landmark("workspaces.list", list.node()).landmark("workspaces.new", add.node())
@@ -163,7 +169,7 @@ final class WorkspacesPage {
         return root;
     }
 
-    /** The page's undo history: every change it makes, as one step each. */
+    /** The history this page records into — its window's: every change it makes, as one step each. */
     History history() {
         return history;
     }
