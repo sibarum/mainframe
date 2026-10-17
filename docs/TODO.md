@@ -13,6 +13,11 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 - [ ] **The terminal as a library**, [terminal-library.md](terminal-library.md): cut the view's tie to `ConPty` in place
       first (a `Channel`), then move `term`, `pty` and the view out.
 - [ ] **The stack's environment**, [stack-env.md](stack-env.md). None of it is built.
+- [ ] **`--insert-command=<text>`**, for the Inspector's *Open in MainFrame*
+      (`vexelray-inspector/docs/roadmap.md`, *The command menu*). A sibling of `--insert-path`, with the same contract:
+      typed once the prompt is drawn, never run, not typed if the user types first, refused with a shell given on the
+      command line. The safety rule is a character set rather than one quoted name: letters, digits, space and
+      `-_.=:/\~` only (no `#`, `,`, `@` or quotes), and otherwise nothing is typed and the notice says why.
 
 ## Later
 
