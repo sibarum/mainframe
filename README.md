@@ -143,6 +143,33 @@ pseudoconsole (`ConPty`, kernel32 through the foreign function API, the only Win
 (`Terminal`), reading one into the other (`Pump`), the screen drawn as a node with scrolling, selection and copying
 (`TerminalScreen`), and box drawing, block elements and braille drawn rather than taken from the font (`CellArt`).
 
+## Automation
+
+MainFrame can be driven and read from outside, by a script, a macro or an agent, through the framework's two loopback
+sockets: **remote control** (the keys, clicks and reads a person has) and **diagnostics** (the flight recorder, the
+log, the Inspector). Both are in every build, the release one too, and both start off.
+
+- **Switched on by hand**: the plug in the title bar opens the switches, one per socket, each with a port (blank for
+  a free one).
+- **Switched on at launch**, for an agent that means to: `--automation=0` (both, on a free port),
+  `--automation.control=<port>`, `--automation.diagnostics=<port>`, or `VEXELRAY_AUTOMATION=0` in the environment.
+- **Not there at all**: `--automation.available=none` (or `control`, or `diagnostics`), or
+  `VEXELRAY_AUTOMATION_AVAILABLE` in the environment. A socket that is not available cannot be switched on by
+  anything, and with neither available the plug is gone.
+
+Whatever turned it on, **the plug's lamps say what each socket is doing**, remote control's (red) left of the plug and
+diagnostics' (blue) right:
+
+| Lamp | Means |
+| --- | --- |
+| none | off, and nothing has connected to it this session |
+| ring | open, and nothing has connected yet |
+| filled ring | open, and something is connected now |
+| ring with a grey dot | open; something was connected and has gone |
+| grey dot | off, after something had connected to it this session |
+
+The plug's tooltip and the switches' window say the same in words, with the port and how many are connected.
+
 ## Taking a screenshot
 
 Screenshots are `ottermate`'s (`vexelray-gui/docs/guides/ottermate.md`), which drives the running window over its
@@ -166,7 +193,7 @@ tools (`ottermate` first) on the `PATH`, and for AI agents every application's a
 ## Native builds
 
 Windows, GraalVM 25 as `JAVA_HOME`, from a Visual Studio developer prompt (or after `vcvars64.bat`) so `link.exe` is
-MSVC's and `rc.exe` is on the path. Two profiles build the same code as two editions:
+MSVC's and `rc.exe` is on the path. Two profiles build the same code:
 
 ```
 mvn -Pnative-release package -DskipTests   # target/mainframe.exe        what ships and is signed
@@ -174,13 +201,11 @@ mvn -Pnative package -DskipTests           # target/mainframe-debug.exe  for ott
 ```
 
 - **release** (`installer.json` points at this one): linked as a Windows GUI subsystem program, so no console window
-  ever appears, and built without the automation module: `src/edition-release` declares the application without
-  `AutomationStarter`, and `vexelray-framework-automation` is not on its class path, so the binary cannot open a
-  driving socket. The log goes to `~/.mainframe/logs/`.
-- **debug**: console subsystem, automation present: `mainframe-debug.exe --automation=0` prints
-  `automation: localhost:<port>` for `ottermate`.
+  ever appears. The log goes to `~/.mainframe/logs/`.
+- **debug**: console subsystem: `mainframe-debug.exe --automation=0` prints `automation: localhost:<port>` for
+  `ottermate`.
 
-The plain JVM build, the tests and `exec:exec` are the debug edition. This program's own native-image metadata is
+Both carry the automation sockets, off until asked for ([Automation](#automation)). This program's own native-image metadata is
 `src/main/resources/META-INF/native-image/.../reachability-metadata.json`: the entry point, the pseudoconsole's
 kernel32 downcalls; the libraries and the processor register the rest, the icon atlas included.
 

@@ -39,8 +39,9 @@ the people's environment, so a tab and a sourced terminal agree.
 ### 1. vexelray-framework: automation from the environment
 
 `Driver.open` resolves `automation` from `--automation`, then `-Dautomation`, then the environment variable
-`VEXELRAY_AUTOMATION`, then off. The order keeps a launch's own flag the most specific. The release editions have no
-automation module, so they ignore all three; an agent's environment can never open a socket in a shipped binary.
+`VEXELRAY_AUTOMATION`, then off. The order keeps a launch's own flag the most specific. Release builds carry the
+automation sockets too, so an agent's environment opens them in a shipped binary as well; the title bar's plug shows
+that they are open, and `--automation.available=none` (or `VEXELRAY_AUTOMATION_AVAILABLE`) takes them out of a run.
 
 When the socket binds, the Driver also writes a **session file**, `~/.vexelray/automation/<app>-<pid>.port`, holding
 the port, and deletes it at shutdown. A file whose pid is gone is stale, and whoever reads it deletes it. The

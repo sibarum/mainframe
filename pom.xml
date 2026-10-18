@@ -36,15 +36,6 @@
         <automation>off</automation>
 
         <!--
-          Two editions of the same code. The debug edition links the automation socket; the release edition does not
-          contain it at all: -Pnative-release swaps the source root below for src/edition-release (a MainFrameApp
-          that names no AutomationStarter) and drops both automation dependencies from every classpath. Default (JVM,
-          tests, exec:exec, -Pnative) = debug.
-        -->
-        <edition.src>src/edition-debug/java</edition.src>
-        <automation.scope>compile</automation.scope>
-
-        <!--
           Extra JVM flags for exec:exec, split on whitespace. Needed because a -D on the mvn command line sets a
           MAVEN property, which reaches the forked JVM only if the command line below names it: without this,
           "mvn exec:exec -Dmy.setting=48" runs the app with the default and reports a measurement of nothing.
@@ -61,13 +52,13 @@
             <artifactId>vexelray-framework-shell</artifactId>
             <version>${vexelray-framework.version}</version>
         </dependency>
-        <!-- The driving socket, as a framework component. Its own module, so a binary that never wants to be
-             driven does not link a listening socket. -->
+        <!-- The automation sockets, remote control and diagnostics, as a framework component: in every build, the
+             release one too, off until the launch or the title bar's plug switches one on, and the plug's lamps
+             showing what is open and what is or was connected. -->
         <dependency>
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-automation</artifactId>
             <version>${vexelray-framework.version}</version>
-            <scope>${automation.scope}</scope>
         </dependency>
         <!-- The widget shelf, and the framework core and draw modules behind it. Reached through -shell as
              well; named here because this project's own Ui builds against it directly. -->
@@ -91,13 +82,12 @@
             <artifactId>vexelray-gui-icons</artifactId>
             <version>${vexelray-gui.version}</version>
         </dependency>
-        <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop.
-             A troubleshooting instrument, not a shipped feature - see vexelray-gui/docs/automation.md. -->
+        <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop
+             (vexelray-gui/docs/reference/automation.md). -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-automation</artifactId>
             <version>${vexelray-gui.version}</version>
-            <scope>${automation.scope}</scope>
         </dependency>
         <!-- Input at the application edge: the tactroller->atchung bridge (brings tactroller-api and
              atchung-core transitively, which is where State and Committer come from). -->
@@ -175,7 +165,7 @@
                             <buildArg>--no-fallback</buildArg>
                             <!-- WINDOWS needs /ENTRY:mainCRTStartup as well: the linker would otherwise look for
                                  WinMain, and the image's entry is the C main. CONSOLE is the linker's default,
-                                 spelled out so both editions pass the same two options. -->
+                                 spelled out so both builds pass the same two options. -->
                             <buildArg>-H:NativeLinkerOption=/SUBSYSTEM:${native.subsystem}</buildArg>
                             <buildArg>-H:NativeLinkerOption=/ENTRY:mainCRTStartup</buildArg>
                             <buildArg>-H:NativeLinkerOption=${project.build.directory}/mainframe.res</buildArg>
@@ -210,23 +200,6 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- The edition's own sources (MainFrameApp): src/edition-debug, or src/edition-release under
-                 -Pnative-release. -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.6.0</version>
-                <executions>
-                    <execution>
-                        <id>add-edition-source</id>
-                        <phase>generate-sources</phase>
-                        <goals><goal>add-source</goal></goals>
-                        <configuration>
-                            <sources><source>${edition.src}</source></sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -313,8 +286,9 @@
             mvn -Pnative-release package -DskipTests  ->  target/mainframe.exe        what ships
             mvn -Pnative package -DskipTests          ->  target/mainframe-debug.exe  for ottermate
 
-          release: Windows GUI subsystem (no console window ever) and no automation socket in the image.
-          debug:   console subsystem (stdout is the `automation: localhost:<port>` protocol line) and automation.
+          release: Windows GUI subsystem (no console window ever).
+          debug:   console subsystem (stdout is the `automation: localhost:<port>` protocol line).
+          Both carry the automation sockets, off until asked for, with the title bar's plug showing their state.
           The plugins are declared once, in pluginManagement; the profiles only choose their inputs. Both run rc.exe
           for the icon (src/main/rc), so run them from a Visual Studio developer prompt.
         -->
@@ -343,8 +317,6 @@
             <properties>
                 <native.imageName>mainframe</native.imageName>
                 <native.subsystem>WINDOWS</native.subsystem>
-                <edition.src>src/edition-release/java</edition.src>
-                <automation.scope>test</automation.scope>
             </properties>
             <build>
                 <plugins>

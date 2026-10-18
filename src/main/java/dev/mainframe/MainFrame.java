@@ -18,10 +18,8 @@ import dev.vexelray.os.NativePlatform;
  *
  * <p>Needs {@code --enable-native-access=ALL-UNNAMED}.
  *
- * <p><b>Two editions declare the application.</b> {@code MainFrameApp} is in {@code src/edition-debug} and
- * {@code src/edition-release}, and the pom compiles one of them. The debug edition's names {@code AutomationStarter},
- * the driving socket; the release edition names none, and {@code -Pnative-release} drops the automation modules from
- * the class path, so the shipped binary links no socket at all.
+ * <p><b>{@code MainFrameApp} declares the application.</b> It names {@code AutomationStarter}, the automation sockets,
+ * in every build, the release one included: off until the launch or the title bar's plug switches them on.
  */
 public final class MainFrame {
 

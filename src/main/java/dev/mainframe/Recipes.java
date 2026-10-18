@@ -33,8 +33,8 @@ import java.util.List;
  * <p>No shell is started before {@link #start}. A tree built headless for a test ({@code VexelApplication.tree})
  * stops short of it, so a test gets the real window contents and no processes.
  *
- * <p>The driving socket is not here. It comes from {@code AutomationStarter}, which the debug edition of
- * {@code MainFrameApp} names in its {@code @VexelApp} (see {@link MainFrame}).
+ * <p>The automation sockets are not here. They come from {@code AutomationStarter}, which {@code MainFrameApp}
+ * names in its {@code @VexelApp} (see {@link MainFrame}).
  */
 @Configuration
 final class Recipes {
