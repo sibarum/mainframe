@@ -17,6 +17,7 @@ import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.icons.Icon;
 import dev.vexelray.gui.icons.IconView;
 import dev.vexelray.gui.widget.Button;
+import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Segment;
 import dev.vexelray.gui.widget.Select;
 import dev.vexelray.gui.widget.Tabs;
@@ -68,6 +69,7 @@ final class SettingsWindow {
         startWorkspace.onCommit(chosen -> settings.startWorkspace(chosen.isEmpty() ? null : chosen.iterator().next()));
         gui.landmark(Landmarks.SETTINGS_START_WORKSPACE, startWorkspace.node());
         workspaces.onRename(this::workspaceRenamed);
+        workspaces.onCreate(this::offerStart);
         refreshStartWorkspaces();
         tabs.add("General", sheet(general(settings)));
         tabs.add("Workspaces", sheet(workspaces.node()));
@@ -186,6 +188,25 @@ final class SettingsWindow {
         options.addAll(store.names());
         String chosen = settings.startWorkspace();
         startWorkspace.options(options).show(chosen != null && options.contains(chosen) ? chosen : "");
+    }
+
+    /**
+     * A new workspace, while there is no start workspace, is offered as it: asked once, as New makes it. A start
+     * workspace that names no saved one counts as none, as the drop-down shows it. Either answer gives the name field
+     * back the keyboard, where New left it.
+     */
+    private void offerStart(String name) {
+        String start = settings.startWorkspace();
+        if (start != null && store.exists(start)) return;
+        dialogs.ask(Modal.of("Open this workspace at start?",
+                        "No workspace opens when MainFrame starts. This one can, whenever MainFrame is launched "
+                                + "without folders or a workspace named. The General tab can change it later.")
+                .defaultButton("Open at start", () -> {
+                    settings.startWorkspace(name);
+                    refreshStartWorkspaces();
+                    workspaces.editName();
+                })
+                .cancelButton("Not now", workspaces::editName));
     }
 
     /** The start workspace follows its own renaming, and goes back to none when it is deleted. */

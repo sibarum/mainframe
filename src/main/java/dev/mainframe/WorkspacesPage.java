@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * The Workspaces tab: the saved workspaces down the left, and the one selected on the right, with its name and its
@@ -94,6 +95,8 @@ final class WorkspacesPage {
     private final Map<Folder, Face> faces = new ConcurrentHashMap<>();
     /** Told of each workspace made, renamed or deleted, as (old name, new name), null on the side there is none. */
     private volatile BiConsumer<String, String> renames = (from, to) -> { };
+    /** Told of each workspace New makes, by name; not of one brought back by undo or redo. */
+    private volatile Consumer<String> creations = name -> { };
 
     // Volatile, and replaced whole rather than changed, because the board reads them without the page's lock: it
     // asks place() under a lock of its own, and the page calls the board under this one.
@@ -182,6 +185,11 @@ final class WorkspacesPage {
         this.renames = listener;
     }
 
+    /** Be told of each workspace New makes, once it is made and shown. Undo and redo bringing one back do not count. */
+    void onCreate(Consumer<String> listener) {
+        this.creations = listener;
+    }
+
     // -- the list ---------------------------------------------------------------------------------------------
 
     /** Shows the workspace called {@code name}, as clicking it in the list would. */
@@ -255,8 +263,14 @@ final class WorkspacesPage {
     void create() {
         String name = store.freshName();
         history.perform(created(new Workspace(name, List.of())));
+        editName();
+        creations.accept(name);
+    }
+
+    /** Gives the name field the keyboard with the whole name selected, to type over. */
+    void editName() {
         gui.focus(nameField.node());
-        nameField.select(0, name.length());
+        nameField.select(0, nameField.text().length());
     }
 
     private void confirmDelete() {

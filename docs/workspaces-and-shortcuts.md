@@ -45,6 +45,9 @@ when the folder is missing. A `grip` icon on its leading edge says it can be dra
   selected card, which is what the arrow buttons did.
 - **Removing.** Right-click, Remove; or Backspace or Delete on a selected card. Inside the label, Backspace edits the
   text.
+- **Offered as the start workspace.** While General's *Workspace to open at start* is None (or names a workspace
+  that is gone), New asks whether the new workspace should open at start: *Open at start* or *Not now*. Either
+  answer gives the name field back the keyboard. Undo and redo bringing a workspace back do not ask.
 - **A label is never empty.** Leaving the field blank fills it with the folder's own name. A hand-edited file with a
   blank name still opens as now, with the folder's name.
 
