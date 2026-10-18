@@ -44,7 +44,7 @@ final class Recipes {
     /** The look, and the smallest window this UI is still coherent in. Applied before the first widget. */
     @Provides
     Appearance look() {
-        return Appearance.of(Look.THEME, Length.em(MainFrame.MIN_W_EM), Length.em(MainFrame.MIN_H_EM));
+        return Appearance.of(Look.THEME, Length.rem(MainFrame.MIN_W_EM), Length.rem(MainFrame.MIN_H_EM));
     }
 
     /** What the user can change, over the framework's one settings store. */
