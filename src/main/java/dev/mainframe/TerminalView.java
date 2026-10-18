@@ -109,13 +109,14 @@ final class TerminalView implements AutoCloseable {
             }
         });
         this.screen = new TerminalScreen(gui, glyphs, Type.MONO, term, fontPx, hooks::wake)
-                .onFit(pty::resize);
+                .onFit(pty::resize)
+                .pseudoconsole();
         this.node = screen.node();
         this.frame = gui.column().width(Length.FILL).height(Length.FILL).children(node);
         wire();
         Pump.start(Pump.of(pty), term, () -> {
             lastOutput = System.nanoTime();
-            screen.invalidate();
+            screen.wrote();
         }, () -> {
             exited = true;
             hooks.wake();
