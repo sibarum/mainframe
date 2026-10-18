@@ -13,7 +13,7 @@ import dev.vexelray.gui.core.layout.Length;
  *
  * <p>The terminal's own text is the exception, and on purpose: a cell grid is drawn as a picture, whose marks are in
  * box-local pixels, so its size is the <i>Font size</i> setting in pixels ({@link AppSettings#fontPx}) and nothing
- * here.
+ * here. Zoom reaches it by hand: {@code Terminals} multiplies the setting by it.
  *
  * <h2>The faces are the atlas's, not yours</h2>
  *

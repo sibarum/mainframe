@@ -71,6 +71,8 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private volatile Runnable open = () -> { };
     private Node plus;
     private Rename renaming;
+    /** The zoom the tabs' type was last sized for (see {@link #fontPx}). Written by the frame loop. */
+    private volatile float zoom;
 
     /** The header being edited: the field standing in for it, and what to undo when editing ends. */
     private record Rename(TerminalView view, TextField field, Node header, Subscription blur) {
@@ -92,6 +94,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
                         menu.item("Rename", () -> rename(v));
                     }
                 });
+        this.zoom = gui.zoom().value();
         tabs.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(Landmarks.TABS, tabs.node());
         claimWindowKeys();
@@ -182,6 +185,11 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         synchronized (this) {
             snapshot = List.copyOf(views);
         }
+        float z = gui.zoom().value();
+        if (z != zoom) {
+            zoom = z;
+            snapshot.forEach(v -> v.fontPx(fontPx()));
+        }
         for (TerminalView v : snapshot) {
             v.tick();
             String title = v.takeTitle();
@@ -211,8 +219,17 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
      * The window's keys, wherever the keyboard is: on a tab's header, in the rename field, or nowhere. The terminal
      * with the keyboard claims the same chords for itself ({@link TerminalView}), which outranks these, so with it
      * focused nothing here runs. Ctrl+T, Ctrl+W and Ctrl+O are the window's only with Remap keybindings on.
+     *
+     * <p>Zoom is the window's whatever the keyboard is on and whatever Remap keybindings says: Ctrl+=, Ctrl+- and
+     * Ctrl+0 send a shell nothing, so there is nothing to give back to it. How far it goes is the framework's.
      */
     private void claimWindowKeys() {
+        windowKey(Shortcut.of(Key.EQUAL, Modifier.CONTROL), gui::zoomIn);
+        windowKey(Shortcut.of(Key.MINUS, Modifier.CONTROL), gui::zoomOut);
+        windowKey(Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), gui::resetZoom);
+        windowKey(Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL), gui::zoomIn);
+        windowKey(Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL), gui::zoomOut);
+        windowKey(Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL), gui::resetZoom);
         windowKey(Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), this::newTab);
         windowKey(Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT), () -> withCurrent(this::closeTab));
         windowKey(Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT), () -> withCurrent(this::rename));
@@ -248,7 +265,15 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         synchronized (this) {
             snapshot = List.copyOf(views);
         }
-        snapshot.forEach(v -> v.fontPx(settings.fontPx()));
+        snapshot.forEach(v -> v.fontPx(fontPx()));
+    }
+
+    /**
+     * The terminal's type size: the Font size setting, zoomed. The grid is a picture in pixels, which no
+     * {@code Length} reaches, so without this Ctrl+= would grow the tab headers and leave the text it was pressed for.
+     */
+    private float fontPx() {
+        return settings.fontPx() * zoom;
     }
 
     /**
@@ -283,7 +308,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         try {
             v = new TerminalView(ids.incrementAndGet(), gui, glyphs, settings.shellCommand(),
                     (dir == null ? settings.tabDir() : dir).toString(), cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(),
-                    settings.fontPx(), settings::remapKeys, this);
+                    fontPx(), settings::remapKeys, this);
         } catch (RuntimeException e) {
             LOG.warn("could not start {}", settings.shellCommand(), e);
             dialogs.info("Could not start the shell", settings.shellCommand() + ": " + e.getMessage());
