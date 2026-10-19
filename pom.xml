@@ -138,6 +138,7 @@
                 <directory>src/main/rc</directory>
                 <includes>
                     <include>mainframe.ico</include>
+                    <include>mainframe-background.ico</include>
                     <include>mainframe-window.ico</include>
                 </includes>
             </resource>
