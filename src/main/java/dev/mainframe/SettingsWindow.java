@@ -26,7 +26,9 @@ import dev.vexelray.gui.widget.Tooltip;
 import dev.vexelray.text.TextLayout;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The settings window: a window of its own, opened by the settings button in the main window's title bar, with a
@@ -53,6 +55,9 @@ final class SettingsWindow {
     private final AppSettings settings;
     private final WorkspaceStore store;
     private final Dialogs dialogs;
+    private final Motion motion;
+    /** Each tab's sheet, and the page on it: what a tab change moves. */
+    private final Map<Node, Node> onSheet = new HashMap<>();
     /** The start workspace's drop-down: "" is none. Its options are the saved workspaces, re-read as they change. */
     private final Select<String> startWorkspace;
 
@@ -63,7 +68,8 @@ final class SettingsWindow {
         this.settings = settings;
         this.store = store;
         this.dialogs = dialogs;
-        tabs = new Tabs(gui).closable(false);
+        this.motion = motion;
+        tabs =new Tabs(gui).closable(false);
         workspaces = new WorkspacesPage(gui, store, dialogs, motion);
         startWorkspace = new Select<String>(gui, name -> name.isEmpty() ? "None" : name);
         startWorkspace.onCommit(chosen -> settings.startWorkspace(chosen.isEmpty() ? null : chosen.iterator().next()));
@@ -76,6 +82,8 @@ final class SettingsWindow {
         gui.landmark(Landmarks.SETTINGS_GENERAL, tabs.header(0));
         gui.landmark(Landmarks.SETTINGS_WORKSPACES, tabs.header(1));
         tabs.select(0);
+        applyMotion();
+        settings.onChange(this::applyMotion);
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.CHROME))
                 .children(window.titleBar().node(), tabs.node().width(Length.FILL).height(Length.grow(1)));
@@ -106,12 +114,41 @@ final class SettingsWindow {
      * meant to read as physical ones, tabs on the edge of a sheet, and without the edge the page and the bar are
      * one surface with the headers floating on it. The rule is the selected tab's own colour, so the tab in front
      * runs straight into the edge of its sheet. Part of the page rather than the bar, which the panel keeps to
-     * itself; the settings tabs do not slide, so the rule never moves.
+     * itself; so a tab change moves what is on the sheet and not the sheet ({@link #applyMotion}), and the rule
+     * never moves.
      */
     private Node sheet(Node page) {
-        return gui.column().width(Length.FILL).height(Length.FILL).children(
+        Node sheet = gui.column().width(Length.FILL).height(Length.FILL).children(
                 gui.box().width(Length.FILL).height(Length.dp(1)).background(gui.theme().color(Role.LINE)),
                 page.width(Length.FILL).height(Length.grow(1)));
+        onSheet.put(sheet, page);
+        return sheet;
+    }
+
+    /**
+     * The tab change the Tab animation setting asks for, the main window's own, played on what is on the two sheets
+     * rather than on the sheets. Handed the sheets, the rule along the top would slide in from the side and dim to
+     * half through the dissolve, and the selected tab would stop running into its edge for the length of it. The
+     * sheets hold still, both shown and solid with their rules in one place, while their pages move.
+     *
+     * <p>{@code Tabs} puts back what it gave the transition, the sheets, and nothing under them, so the pages are put
+     * back here when the change is done.
+     */
+    private void applyMotion() {
+        Tabs.TabTransition change = switch (settings.motion()) {
+            case SLIDE -> Tabs.slide(motion.change);
+            case FADE -> Tabs.crossfade(motion.change);
+            case NONE -> Tabs.TabTransition.NONE;
+        };
+        tabs.transition((sheets, done) -> {
+            Node out = onSheet.get(sheets.outgoing());
+            Node in = onSheet.get(sheets.incoming());
+            change.run(new Tabs.Change(out, in, sheets.incomingOnTop()), () -> {
+                out.opacity(1f).translate(0f, 0f);
+                in.opacity(1f).translate(0f, 0f);
+                done.run();
+            });
+        });
     }
 
     // -- the General tab --------------------------------------------------------------------------------------
