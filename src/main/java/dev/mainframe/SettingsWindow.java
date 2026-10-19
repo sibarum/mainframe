@@ -21,7 +21,6 @@ import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Segment;
 import dev.vexelray.gui.widget.Select;
 import dev.vexelray.gui.widget.Tabs;
-import dev.vexelray.gui.widget.Toggle;
 import dev.vexelray.gui.widget.Tooltip;
 import dev.vexelray.text.TextLayout;
 
@@ -170,9 +169,6 @@ final class SettingsWindow {
         }
         shell.show(settings.shell()).onChange(settings::shell);
 
-        Toggle remap = new Toggle(gui, settings.remapKeys());
-        remap.onChange(settings::remapKeys);
-
         return gui.column().width(Length.FILL).height(Length.FILL)
                 .padding(Length.rem(1)).gap(Length.rem(0.5f))
                 .children(
@@ -181,12 +177,6 @@ final class SettingsWindow {
                         label("Shell for new tabs"), shell.node(),
                         label("New tab directory"), tabDir(settings),
                         label("Workspace to open at start"), startWorkspace.node().width(Length.rem(16)),
-                        label("Remap keybindings"), remap.node(),
-                        note("On: Ctrl+C copies, Ctrl+V pastes, and Esc sends Ctrl+C (interrupt). Ctrl+T opens a tab, "
-                                + "Ctrl+W closes one after asking, and Ctrl+O opens a workspace or a folder; the shell "
-                                + "gives up those keys (Ctrl+W's delete word is also Ctrl+Backspace). "
-                                + "Off: every key goes to the shell as is. Ctrl+Shift+C and Ctrl+Shift+V always copy and "
-                                + "paste, and Ctrl+Shift+T and Ctrl+Shift+W always open and close a tab."),
                         note("Font size and animation apply at once; a new shell and directory apply to tabs opened "
                                 + "from now on, and the workspace to the next MainFrame started without one named."));
     }

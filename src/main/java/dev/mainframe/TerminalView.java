@@ -15,15 +15,15 @@ import dev.vexelray.text.GlyphLayout;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
 
-import java.util.function.BooleanSupplier;
-
 /**
  * One tab's terminal: a shell on a {@link ConPty}, its output on a {@link TerminalScreen}, and the keyboard and
  * mouse wired back to the shell.
  *
  * <p>The screen is vex-suite-common's, shared with Vex's build console: the cell grid, scrolling, selecting and
- * copying. What is here is what makes it MainFrame's: a shell behind it, the window's chords, <i>Remap
- * keybindings</i>, the notice over it, and typing a path once the prompt is drawn.
+ * copying. What is here is what makes it MainFrame's: a shell behind it, what the key map's terminal commands do
+ * to it ({@link #copy}, {@link #paste}, {@link #interrupt}, {@link #page}), the notice over it, and typing a path
+ * once the prompt is drawn. Which chords reach those is the {@code Keymap}'s, claimed by {@link Terminals}: a chord
+ * no action holds reaches the shell as it is.
  *
  * <h2>Threads</h2>
  *
@@ -43,21 +43,6 @@ final class TerminalView implements AutoCloseable {
     /** What a tab's terminal asks of the window it lives in. */
     interface Hooks {
 
-        void newTab();
-
-        /** Close {@code view} now. */
-        void closeTab(TerminalView view);
-
-        /** Close {@code view} once the user says so. */
-        void askClose(TerminalView view);
-
-        /** Open a folder or a workspace: what Ctrl+O asks for. */
-        void open();
-
-        void cycle(int by);
-
-        void rename(TerminalView view);
-
         /** Wake the frame loop: this terminal has something new to draw, or has ended. */
         void wake();
     }
@@ -65,7 +50,6 @@ final class TerminalView implements AutoCloseable {
     final long id;
     private final Gui gui;
     private final Hooks hooks;
-    private final BooleanSupplier remapKeys;
     /** The cell grid: what draws, takes focus and keys. */
     private final TerminalScreen screen;
     private final Node node;
@@ -90,10 +74,9 @@ final class TerminalView implements AutoCloseable {
      * MainFrame's own directory).
      */
     TerminalView(long id, Gui gui, GlyphLayout glyphs, String commandLine, String cwd, int cols, int rows,
-                 float fontPx, BooleanSupplier remapKeys, Hooks hooks) {
+                 float fontPx, Hooks hooks) {
         this.id = id;
         this.gui = gui;
-        this.remapKeys = remapKeys;
         this.hooks = hooks;
 
         this.pty = ConPty.start(commandLine, cols, rows, cwd);
@@ -125,6 +108,11 @@ final class TerminalView implements AutoCloseable {
 
     Node node() {
         return frame;
+    }
+
+    /** The cell grid: the node that holds the keyboard, and where the terminal's commands are claimed. */
+    Node grid() {
+        return node;
     }
 
     /**
@@ -262,6 +250,7 @@ final class TerminalView implements AutoCloseable {
             send(new String(Character.toChars(cp)));
         });
         gui.onKeyUi(node, this::key);
+        // Tab is typing, not a command: claimed only to outrank the framework's focus traversal.
         gui.claimUi(node, Shortcut.of(Key.TAB), ClaimScope.FOCUSED, () -> send("\t"));
         gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.SHIFT), ClaimScope.FOCUSED, () -> send("\u001b[Z"));
         gui.onContextClick(node, c -> {
@@ -271,76 +260,31 @@ final class TerminalView implements AutoCloseable {
                 paste();
             }
         });
-        gui.claimUi(node, Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED, hooks::newTab);
-        gui.claimUi(node, Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED,
-                () -> hooks.closeTab(this));
-        gui.claimUi(node, Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED,
-                () -> hooks.rename(this));
-        gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.CONTROL), ClaimScope.FOCUSED, () -> hooks.cycle(1));
-        gui.claimUi(node, Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), ClaimScope.FOCUSED,
-                () -> hooks.cycle(-1));
-        // Claimed here as well as by the window (Terminals), which takes them wherever else the keyboard is: a
-        // focused claim outranks the window's, so these three still reach the shell when Remap keybindings is off.
-        remappable(Key.T, hooks::newTab);
-        remappable(Key.W, () -> hooks.askClose(this));
-        remappable(Key.O, hooks::open);
     }
 
-    /** Ctrl+{@code k}: {@code action} with <i>Remap keybindings</i> on, the shell's control character with it off. */
-    private void remappable(Key k, Runnable action) {
-        gui.claimUi(node, Shortcut.of(k, Modifier.CONTROL), ClaimScope.FOCUSED, () -> {
-            if (remapKeys.getAsBoolean()) {
-                action.run();
-            } else {
-                send(String.valueOf((char) (k.name().charAt(0) - 'A' + 1)));
-            }
-        });
-    }
-
+    /** Any key no claim took: to the shell, as the terminal spells it. */
     private void key(KeyEvent e) {
-        Key k = e.key();
-        boolean ctrl = e.has(Modifier.CONTROL), alt = e.has(Modifier.ALT), shift = e.has(Modifier.SHIFT);
-        if (ctrl && shift && k == Key.C) {
-            screen.copySelection();
-            return;
-        }
-        if (ctrl && shift && k == Key.V) {
-            paste();
-            return;
-        }
-        if (remapKeys.getAsBoolean() && !alt && !shift && remapped(k, ctrl)) {
-            return;
-        }
-        if (shift && k == Key.PAGE_UP) {
-            screen.page(1);
-            return;
-        }
-        if (shift && k == Key.PAGE_DOWN) {
-            screen.page(-1);
-            return;
-        }
-        String out = screen.keySequence(k, ctrl, alt, shift);
+        String out = screen.keySequence(e.key(), e.has(Modifier.CONTROL), e.has(Modifier.ALT),
+                e.has(Modifier.SHIFT));
         if (out != null) {
             send(out);
         }
     }
 
-    /**
-     * With <i>Remap keybindings</i> on: Ctrl+C and Ctrl+V are the clipboard's, which leaves the shell without its
-     * interrupt, so Esc sends it. True when the key was one of these. Ctrl+T, Ctrl+W and Ctrl+O, the window's when
-     * remapped, are claims ({@link #remappable}).
-     */
-    private boolean remapped(Key k, boolean ctrl) {
-        if (ctrl && k == Key.C) {
-            screen.copySelection();
-        } else if (ctrl && k == Key.V) {
-            paste();
-        } else if (!ctrl && k == Key.ESCAPE) {
-            send("\u0003");
-        } else {
-            return false;
-        }
-        return true;
+    // -- what the key map's terminal commands do -------------------------------------------------------------
+
+    void copy() {
+        screen.copySelection();
+    }
+
+    /** The interrupt a shell's Ctrl+C sends, for when Ctrl+C is copy: the legacy control character, 0x03. */
+    void interrupt() {
+        send("\u0003");
+    }
+
+    /** Scroll back ({@code by} &gt; 0) or on through the scrollback, a page at a time. */
+    void page(int by) {
+        screen.page(by);
     }
 
     /** What the user typed or pasted: it wins over anything waiting to be typed, and Enter puts a notice away. */
@@ -358,7 +302,7 @@ final class TerminalView implements AutoCloseable {
         pty.write(s);
     }
 
-    private void paste() {
+    void paste() {
         String text = gui.clipboard().get();
         if (text == null || text.isEmpty()) {
             return;

@@ -99,6 +99,8 @@ but it stops being the only way to see git at work.
 
 - **Key mapping.** `TerminalView` translates keys to bytes, including MainFrame's *Remap keybindings* (Ctrl+C as
   copy, Esc as interrupt). Is that a view option the application sets, or does the remap stay in MainFrame?
+  *Answered 2026-10-19:* neither. Copy, paste and interrupt are actions on MainFrame's `Keymap`; the view sends any
+  chord no action holds.
 - **The font.** The view draws with the atlas's mono face (face 1). Is the face something the application passes
   in, so Vexplore's console matches Vexplore?
 - **Writing to a feed.** A read-only console that lets Esc cancel the command it is showing needs the feed to carry

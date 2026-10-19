@@ -9,7 +9,10 @@ import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.edit.History;
 import dev.vexelray.gui.core.input.ClaimScope;
 import dev.vexelray.gui.core.input.Shortcut;
+import dev.vexelray.gui.core.input.Trigger;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.keymap.Action;
+import dev.vexelray.gui.keymap.Keymap;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.TextField;
 import dev.vexelray.text.AtlasData;
@@ -23,6 +26,7 @@ import sibarum.tactroller.api.Modifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -73,12 +77,14 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private Rename renaming;
     /** The zoom the tabs' type was last sized for (see {@link #fontPx}). Written by the frame loop. */
     private volatile float zoom;
+    /** The key map's terminal commands, which move to whichever tab is selected ({@link #followSelection}). */
+    private volatile List<Action> terminalKeys = List.of();
 
     /** The header being edited: the field standing in for it, and what to undo when editing ends. */
     private record Rename(TerminalView view, TextField field, Node header, Subscription blur) {
     }
 
-    Terminals(Gui gui, Motion motion, AppSettings settings, Dialogs dialogs, Window window) {
+    Terminals(Gui gui, Motion motion, AppSettings settings, Dialogs dialogs, Window window, Keymap keys) {
         this.gui = gui;
         this.motion = motion;
         this.settings = settings;
@@ -97,7 +103,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         this.zoom = gui.zoom().value();
         tabs.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(Landmarks.TABS, tabs.node());
-        claimWindowKeys();
+        declareKeys(keys);
         applyMotion();
         settings.onChange(this::settingsChanged);
     }
@@ -216,38 +222,84 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     // -- keys -------------------------------------------------------------------------------------------------
 
     /**
-     * The window's keys, wherever the keyboard is: on a tab's header, in the rename field, or nowhere. The terminal
-     * with the keyboard claims the same chords for itself ({@link TerminalView}), which outranks these, so with it
-     * focused nothing here runs. Ctrl+T, Ctrl+W and Ctrl+O are the window's only with Remap keybindings on.
-     *
-     * <p>Zoom is the window's whatever the keyboard is on and whatever Remap keybindings says: Ctrl+=, Ctrl+- and
-     * Ctrl+0 send a shell nothing, so there is nothing to give back to it. How far it goes is the framework's.
+     * The chords a shell has a use for that MainFrame's defaults take: Ctrl+T, Ctrl+W and Ctrl+O for tabs and
+     * opening, Ctrl+C and Ctrl+V for the clipboard, and Esc for the interrupt Ctrl+C no longer sends. Unbound, each
+     * reaches the shell again; {@link #handShellKeysBack} does that for all of them at once.
      */
-    private void claimWindowKeys() {
-        windowKey(Shortcut.of(Key.EQUAL, Modifier.CONTROL), gui::zoomIn);
-        windowKey(Shortcut.of(Key.MINUS, Modifier.CONTROL), gui::zoomOut);
-        windowKey(Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), gui::resetZoom);
-        windowKey(Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL), gui::zoomIn);
-        windowKey(Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL), gui::zoomOut);
-        windowKey(Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL), gui::resetZoom);
-        windowKey(Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), this::newTab);
-        windowKey(Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT), () -> withCurrent(this::closeTab));
-        windowKey(Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT), () -> withCurrent(this::rename));
-        windowKey(Shortcut.of(Key.TAB, Modifier.CONTROL), () -> cycle(1));
-        windowKey(Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), () -> cycle(-1));
-        windowKey(Shortcut.of(Key.T, Modifier.CONTROL), () -> remapped(this::newTab));
-        windowKey(Shortcut.of(Key.W, Modifier.CONTROL), () -> remapped(() -> withCurrent(this::askClose)));
-        windowKey(Shortcut.of(Key.O, Modifier.CONTROL), () -> remapped(this::open));
+    static final Set<Trigger> SHELL_KEYS = Set.of(ctrl(Key.T), ctrl(Key.W), ctrl(Key.O), ctrl(Key.C), ctrl(Key.V),
+            Shortcut.of(Key.ESCAPE));
+
+    /**
+     * Every command, by name, on the chords the user gives it ({@code vexelray-gui/docs/reference/keymap.md}).
+     *
+     * <p>The window's apply application-wide, wherever the keyboard is: in a terminal, on a tab's header, in the
+     * rename field. The terminal's apply only while the selected tab's terminal has the keyboard ({@link
+     * #followSelection}): Ctrl+V in the rename field is the field's paste, and Esc there leaves it. Those that
+     * write to the shell are {@code ordered}, so they land among the typed characters in the order they were pressed.
+     *
+     * <p>A chord no action holds is the shell's: the terminal sends whatever it spells
+     * ({@link TerminalView}). So the way to give one back is to unbind it in the key editor.
+     */
+    private void declareKeys(Keymap keys) {
+        keys.action("ui.zoom-in", "Larger text and controls", ctrl(Key.EQUAL), ctrl(Key.NUMPAD_ADD))
+                .on(gui::zoomIn);
+        keys.action("ui.zoom-out", "Smaller text and controls", ctrl(Key.MINUS), ctrl(Key.NUMPAD_SUBTRACT))
+                .on(gui::zoomOut);
+        keys.action("ui.zoom-reset", "Back to normal size", ctrl(Key.DIGIT_0), ctrl(Key.NUMPAD_0))
+                .on(gui::resetZoom);
+        keys.action("tab.new", "New tab", ctrlShift(Key.T), ctrl(Key.T)).on(this::newTab);
+        keys.action("tab.close", "Close the tab, after asking", ctrl(Key.W)).on(() -> withCurrent(this::askClose));
+        keys.action("tab.close-now", "Close the tab without asking", ctrlShift(Key.W))
+                .on(() -> withCurrent(this::closeTab));
+        keys.action("tab.rename", "Rename the tab", ctrlShift(Key.R)).on(() -> withCurrent(this::rename));
+        keys.action("tab.next", "Next tab", ctrl(Key.TAB)).on(() -> cycle(1));
+        keys.action("tab.previous", "Previous tab", ctrlShift(Key.TAB)).on(() -> cycle(-1));
+        keys.action("file.open", "Open a workspace or a folder", ctrl(Key.O)).on(this::open);
+
+        // Placed on the tab bar, which never has the keyboard, until there is a terminal to follow.
+        terminalKeys = List.of(
+                keys.action("term.copy", "Copy the selection", ctrlShift(Key.C), ctrl(Key.C))
+                        .on(() -> withCurrent(TerminalView::copy)),
+                keys.action("term.paste", "Paste", ctrlShift(Key.V), ctrl(Key.V))
+                        .on(() -> withCurrent(TerminalView::paste)).ordered(),
+                keys.action("term.interrupt", "Interrupt (what Ctrl+C sends a shell)", Shortcut.of(Key.ESCAPE))
+                        .on(() -> withCurrent(TerminalView::interrupt)).ordered(),
+                keys.action("term.page-up", "Scroll back a page", Shortcut.of(Key.PAGE_UP, Modifier.SHIFT))
+                        .on(() -> withCurrent(v -> v.page(1))).ordered(),
+                keys.action("term.page-down", "Scroll on a page", Shortcut.of(Key.PAGE_DOWN, Modifier.SHIFT))
+                        .on(() -> withCurrent(v -> v.page(-1))).ordered());
+        followSelection(tabs.node());
     }
 
-    private void windowKey(Shortcut chord, Runnable command) {
-        gui.claimUi(tabs.node(), chord, ClaimScope.VISIBLE, command);
-    }
-
-    private void remapped(Runnable command) {
-        if (settings.remapKeys()) {
-            command.run();
+    /**
+     * Move the terminal's commands onto {@code grid}, the selected tab's cell grid, at {@link ClaimScope#FOCUSED}: a
+     * place is one node, and only the selected tab's terminal can have the keyboard.
+     */
+    private void followSelection(Node grid) {
+        for (Action a : terminalKeys) {
+            a.within(gui, grid, ClaimScope.FOCUSED);
         }
+    }
+
+    /**
+     * Unbind every {@link #SHELL_KEYS} chord, so each reaches the shell: what turning Remap keybindings off did
+     * before the key map. Run once, for a user who had it off ({@link AppSettings#takeRemapOff}).
+     */
+    static void handShellKeysBack(Keymap keys) {
+        for (Action a : keys.actions()) {
+            List<Trigger> kept = a.chords().stream().filter(c -> !SHELL_KEYS.contains(c)).toList();
+            if (kept.size() != a.chords().size()) {
+                keys.bind(a, kept);
+            }
+        }
+    }
+
+    private static Shortcut ctrl(Key k) {
+        return Shortcut.of(k, Modifier.CONTROL);
+    }
+
+    private static Shortcut ctrlShift(Key k) {
+        return Shortcut.of(k, Modifier.CONTROL, Modifier.SHIFT);
     }
 
     private void withCurrent(java.util.function.Consumer<TerminalView> command) {
@@ -289,10 +341,9 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         tabs.transition(t);
     }
 
-    // -- Hooks ------------------------------------------------------------------------------------------------
+    // -- commands ---------------------------------------------------------------------------------------------
 
-    @Override
-    public void newTab() {
+    void newTab() {
         openTab(null, null);
     }
 
@@ -308,7 +359,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         try {
             v = new TerminalView(ids.incrementAndGet(), gui, glyphs, settings.shellCommand(),
                     (dir == null ? settings.tabDir() : dir).toString(), cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(),
-                    fontPx(), settings::remapKeys, this);
+                    fontPx(), this);
         } catch (RuntimeException e) {
             LOG.warn("could not start {}", settings.shellCommand(), e);
             dialogs.info("Could not start the shell", settings.shellCommand() + ": " + e.getMessage());
@@ -331,8 +382,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         v.focus();
     }
 
-    @Override
-    public void closeTab(TerminalView view) {
+    void closeTab(TerminalView view) {
         int i;
         synchronized (this) {
             i = views.indexOf(view);
@@ -343,19 +393,16 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     }
 
     /** Ctrl+W: asks first, as closing a tab ends its shell and whatever it was running. Cancel goes back to it. */
-    @Override
-    public void askClose(TerminalView view) {
+    void askClose(TerminalView view) {
         dialogs.confirm("Close " + view.displayTitle() + "?", "Its shell ends, and anything running in it.",
                 "Close", () -> closeTab(view), view::focus);
     }
 
-    @Override
-    public void open() {
+    void open() {
         open.run();
     }
 
-    @Override
-    public void cycle(int by) {
+    void cycle(int by) {
         int n;
         synchronized (this) {
             n = views.size();
@@ -393,6 +440,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
             snapshot.get(i).active(i == index);
         }
         if (index >= 0 && index < snapshot.size()) {
+            followSelection(snapshot.get(index).grid());
             snapshot.get(index).focus();
         }
     }
@@ -418,8 +466,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
      * removed, which would release its handlers) until editing ends. Enter or clicking away keeps the new name,
      * Escape keeps the old one, and a blank name gives the header back to the shell's own title.
      */
-    @Override
-    public void rename(TerminalView view) {
+    void rename(TerminalView view) {
         finishRename(true);
         int i;
         synchronized (this) {

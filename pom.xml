@@ -67,6 +67,13 @@
             <artifactId>vexelray-gui-widget</artifactId>
             <version>${vexelray-gui.version}</version>
         </dependency>
+        <!-- Every command by name, on chords the user can change: the action mapper, its editor, and the title
+             bar's key-bindings button (vexelray-gui/docs/reference/keymap.md). -->
+        <dependency>
+            <groupId>dev.vexelray.gui</groupId>
+            <artifactId>vexelray-gui-keymap</artifactId>
+            <version>${vexelray-gui.version}</version>
+        </dependency>
         <!-- The clock. Motion enters at the application edge and nowhere else: -widget declares seams shaped
              out of JDK types and this module satisfies them, so a widget animates without naming Kronometer. -->
         <dependency>

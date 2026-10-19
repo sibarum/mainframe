@@ -15,7 +15,11 @@ sun. It wears the suite's `settings` utility icon now ([utility-icons.md](utilit
 
 ### Three more remapped shortcuts
 
-**Done.** With **Remap keybindings** on, as well as Ctrl+C, Ctrl+V and Esc:
+**Done**, and since 2026-10-19 **superseded by the key map**: every command is a rebindable action, and the Remap
+keybindings switch is gone. A chord unbound in the key editor goes to the shell (README, Keys). What follows is the
+design as it was.
+
+With **Remap keybindings** on, as well as Ctrl+C, Ctrl+V and Esc:
 
 | Keys | Does |
 | --- | --- |

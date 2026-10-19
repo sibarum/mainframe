@@ -68,16 +68,18 @@ final class AppSettings {
     // -- keys -------------------------------------------------------------------------------------------------
 
     /**
-     * Whether Ctrl+C and Ctrl+V are copy and paste, with Esc standing in for the interrupt Ctrl+C used to send.
-     * On by default; off hands every key to the shell untouched.
+     * Whether the user had turned off the old <i>Remap keybindings</i> switch, which handed the shell Ctrl+T, Ctrl+W,
+     * Ctrl+O, Ctrl+C, Ctrl+V and Esc. The key map took its place, so this is asked once: the answer is forgotten
+     * here, and the caller unbinds those chords ({@link Terminals#handShellKeysBack}) where it is true.
      */
-    boolean remapKeys() {
-        return store.getBoolean("keys.remap", true);
-    }
-
-    void remapKeys(boolean on) {
-        store.putBoolean("keys.remap", on);
-        changed();
+    boolean takeRemapOff() {
+        if (!store.has("keys.remap")) {
+            return false;
+        }
+        boolean off = !store.getBoolean("keys.remap", true);
+        store.remove("keys.remap");
+        store.save();
+        return off;
     }
 
     // -- starting ---------------------------------------------------------------------------------------------

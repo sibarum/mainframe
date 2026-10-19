@@ -7,15 +7,19 @@ import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.Windows;
 import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.WindowInstrument;
 import dev.vexelray.gui.core.app.AppHome;
 import dev.vexelray.gui.core.app.Settings;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.keymap.Keymap;
+import dev.vexelray.gui.keymap.KeymapWindow;
 import dev.vexelray.gui.krono.KronoGui;
 import dev.vexelray.gui.widget.TitleBar;
 import sibarum.probe.Log;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -64,8 +68,23 @@ final class Recipes {
      * application stage, and it is {@code AutoCloseable}, so the framework ends every shell at shutdown.
      */
     @Provides
-    Terminals terminals(Gui gui, KronoGui krono, AppSettings settings, Dialogs dialogs, Windows windows) {
-        return new Terminals(gui, new Motion(krono), settings, dialogs, windows.main());
+    Terminals terminals(Gui gui, KronoGui krono, AppSettings settings, Dialogs dialogs, Windows windows,
+                        Keymap keys) {
+        Terminals terminals = new Terminals(gui, new Motion(krono), settings, dialogs, windows.main(), keys);
+        if (settings.takeRemapOff()) {
+            Terminals.handShellKeysBack(keys);
+        }
+        return terminals;
+    }
+
+    /**
+     * Every command, by name, on the chords the user gives it ({@link Terminals} declares them). What the user
+     * changes is kept in a store of its own ({@code keys}), beside the settings, so neither writes back over the
+     * other.
+     */
+    @Provides
+    Keymap keys(Gui gui) {
+        return new Keymap(gui).persist(AppHome.of(MainFrame.APP).settings("keys"));
     }
 
     /**
@@ -156,8 +175,9 @@ final class Recipes {
      */
     @Provides
     Started start(Shell shell, Terminals terminals, AppSettings settings, Dialogs dialogs,
-                  WorkspaceStore workspaces) {
+                  WorkspaceStore workspaces, Keymap keys) {
         shell.wake(terminals);
+        keyBindingsButton(shell, keys);
         Command command = Command.launched();
         String line = command.shellLine();
         if (line != null) {
@@ -173,6 +193,21 @@ final class Recipes {
         }
         command.notes().forEach(note -> LOG.warn("{}", note));
         return new Started();
+    }
+
+    /**
+     * The key-bindings button in the title bar, after whatever the bar already shows: it opens the editor where every
+     * command can be given other keys, or have one taken away so the shell gets it. Here, with the shell, because the
+     * framework puts the look's tools in the bar once the window exists, and this has to come after; added to the
+     * bar's strip rather than replacing it, so the automation button stays.
+     */
+    private static void keyBindingsButton(Shell shell, Keymap keys) {
+        if (!shell.appearance().drawsOwnFrame()) {
+            return;
+        }
+        List<WindowInstrument> tools = new ArrayList<>(shell.titleBar().instruments());
+        tools.add(KeymapWindow.instrument(shell.app(), shell.gui(), keys));
+        shell.titleBar().instruments(List.copyOf(tools));
     }
 
     /** That {@link #start} has run. A provider has to return something that is neither {@code void} nor a record. */

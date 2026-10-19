@@ -40,14 +40,32 @@ pseudoconsole are tested where they live, in vex-suite-common.
 
 ## Keys
 
-Ctrl+Shift+C and Ctrl+Shift+V always copy and paste, right-click copies a selection or pastes, and Shift+PageUp/Down
-and the wheel scroll the history.
+Every command is an action on vexelray-gui's key map (`vexelray-gui/docs/reference/keymap.md`): it has a name, and
+its chords are yours to change. The keyboard button in the title bar opens the editor. A chord no action holds goes to
+the shell as it is, so to give a key back to the shell, remove it from its action there. What you change is kept in
+`~/.mainframe/keys.properties`.
 
-With **Remap keybindings** on (the default; a switch in Settings) Ctrl+C is copy and Ctrl+V is paste, and since that
-takes the interrupt away, a plain Esc sends it instead (the legacy Ctrl+C character, 0x03). Esc therefore no longer
-reaches programs that want it, such as vim. Ctrl+T opens a tab, Ctrl+W closes one after asking, and Ctrl+O opens a
-workspace or a folder (see Workspaces), so the shell gives up those three too (Ctrl+W's delete-word is also
-Ctrl+Backspace). Turned off, every key goes to the shell as it is.
+| Action | Keys it starts with |
+| --- | --- |
+| New tab | Ctrl+Shift+T, Ctrl+T |
+| Close the tab, after asking | Ctrl+W |
+| Close the tab without asking | Ctrl+Shift+W |
+| Rename the tab | Ctrl+Shift+R |
+| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| Open a workspace or a folder | Ctrl+O |
+| Larger, smaller, back to normal size | Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's |
+| Copy the selection | Ctrl+Shift+C, Ctrl+C |
+| Paste | Ctrl+Shift+V, Ctrl+V |
+| Interrupt (what Ctrl+C sends a shell, 0x03) | Esc |
+| Scroll back / on a page | Shift+PageUp / Shift+PageDown |
+
+The last five apply while a terminal has the keyboard, so in the rename field Ctrl+V and Esc are the field's.
+Right-click copies a selection or pastes, and the wheel scrolls the history.
+
+Taking Ctrl+C for copy takes the interrupt away, which is why Esc sends it, and Esc no longer reaches programs that
+want it, such as vim. Ctrl+T, Ctrl+W and Ctrl+O are the shell's too (Ctrl+W's delete-word is also Ctrl+Backspace).
+Unbind any of these and the shell has it again. This replaced the **Remap keybindings** switch: if you had it off,
+the first run since then unbinds Ctrl+T, Ctrl+W, Ctrl+O, Ctrl+C, Ctrl+V and Esc for you, which is what off meant.
 
 ## Tabs
 
@@ -78,7 +96,7 @@ nobody knows stops MainFrame with an error rather than being run as a program (`
 ## Settings
 
 The settings button (the gear) in the title bar opens the settings window; clicking it again brings that window to
-the front. Its General tab has font size, tab animation (slide, fade or none), key remapping, the shell new tabs
+the front. Its General tab has font size, tab animation (slide, fade or none), the shell new tabs
 start (Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt), the folder they start in (your user
 profile unless another is chosen), and a workspace to open whenever MainFrame is launched without folders or a
 workspace named (None by default: one plain tab). Changes apply at once and are saved
@@ -129,7 +147,7 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 | --- | --- |
 | `MainFrame` | The entry point. Takes MainFrame's own options out of the command line (`Command`) and hands the framework the rest |
 | `Recipes` | The parts, and the start: the first tabs open in the one recipe that takes the `Shell`, so a test's headless tree starts no shell |
-| `TerminalView` | One tab: a shell on vex-suite-common's `ConPty`, drawn by its `TerminalScreen`, with the window's chords, *Remap keybindings*, the notice and `--insert-path`'s typing |
+| `TerminalView` | One tab: a shell on vex-suite-common's `ConPty`, drawn by its `TerminalScreen`, what the key map's terminal commands do to it (copy, paste, interrupt, scroll), the notice and `--insert-path`'s typing |
 | `Terminals` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. Its `tick` is the frame's `@BeforeFrame` work, and it is a `WakeSource`, so a shell writing into an idle window wakes the parked loop |
 | `Command` / `Startup` | MainFrame's command line, and the tabs and `--insert-path` it comes to on disk |
 | `SettingsWindow` / `AppSettings` | The settings window (a framework `NamedWindow`) and the saved settings behind it |
