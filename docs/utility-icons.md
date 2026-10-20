@@ -5,8 +5,8 @@ art of its own and decodes nothing.
 
 The master copy of the suite's art is `vexelray-icons` beside this repository: its README says where each set comes
 from (the design canvas) and how it is refreshed. vexelray-gui bakes every mask in it into one distance-field atlas
-(`vexelray-gui-icons`: `vexelray-icons/tools/Bake.java` writes the atlas and the `Icon` enum), so MainFrame names an
-icon rather than copying its file.
+(`vexelray-gui-icons`, whose build makes the atlas and the `Icon` enum with `vexelray-gui-icons-maven-plugin`), so
+MainFrame names an icon rather than copying its file.
 
 ## How an icon is drawn
 
