@@ -1,6 +1,6 @@
 package dev.mainframe;
 
-import dev.sibarum.suite.tty.ConPty;
+import dev.sibarum.suite.tty.Pty;
 import dev.sibarum.suite.tty.Pump;
 import dev.sibarum.suite.tty.Terminal;
 import dev.sibarum.suite.tty.TerminalScreen;
@@ -16,7 +16,7 @@ import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
 
 /**
- * One tab's terminal: a shell on a {@link ConPty}, its output on a {@link TerminalScreen}, and the keyboard and
+ * One tab's terminal: a shell on a {@link Pty}, its output on a {@link TerminalScreen}, and the keyboard and
  * mouse wired back to the shell.
  *
  * <p>The screen is vex-suite-common's, shared with Vex's build console: the cell grid, scrolling, selecting and
@@ -57,7 +57,7 @@ final class TerminalView implements AutoCloseable {
     private final Node frame;
     private volatile Node notice;
     private final Terminal term;
-    private final ConPty pty;
+    private final Pty pty;
     private volatile boolean exited;
     private volatile String pendingTitle;
     private volatile String shellTitle = "Shell";
@@ -81,7 +81,7 @@ final class TerminalView implements AutoCloseable {
         this.gui = gui;
         this.hooks = hooks;
 
-        this.pty = ConPty.start(commandLine, cols, rows, cwd);
+        this.pty = Pty.start(commandLine, cols, rows, cwd);
         this.term = new Terminal(cols, rows, new Terminal.Host() {
             @Override
             public void reply(String s) {

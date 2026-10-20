@@ -1,12 +1,11 @@
 package dev.mainframe;
 
+import dev.sibarum.suite.tty.PtyPlatform;
 import dev.vexelray.gui.core.app.Settings;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -170,21 +169,10 @@ final class AppSettings {
         listeners.forEach(Runnable::run);
     }
 
-    /** Windows PowerShell is always there; the others are offered only when they can be found. */
+    /** The shells this machine has, the platform's default first: the pty's OS module knows which those are. */
     private static List<ShellOption> detectShells() {
-        List<ShellOption> found = new ArrayList<>();
-        found.add(new ShellOption("powershell", "Windows PowerShell", "powershell.exe -NoLogo"));
-        if (onPath("pwsh.exe")) found.add(new ShellOption("pwsh", "PowerShell 7", "pwsh.exe -NoLogo"));
-        found.add(new ShellOption("cmd", "Command Prompt", "cmd.exe"));
-        return List.copyOf(found);
-    }
-
-    private static boolean onPath(String exe) {
-        String path = System.getenv("PATH");
-        if (path == null) return false;
-        for (String dir : path.split(File.pathSeparator)) {
-            if (!dir.isBlank() && new File(dir, exe).isFile()) return true;
-        }
-        return false;
+        return PtyPlatform.current().shells().stream()
+                .map(s -> new ShellOption(s.id(), s.label(), s.commandLine()))
+                .toList();
     }
 }
