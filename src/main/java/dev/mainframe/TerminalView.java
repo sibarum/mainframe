@@ -68,6 +68,8 @@ final class TerminalView implements AutoCloseable {
     private volatile String pendingType;
     /** Whether the user has typed or pasted anything into this tab's shell (see {@link #touched}). */
     private volatile boolean touched;
+    /** What this tab was opened as: its folder, and the workspace and row it is of, if any. */
+    private volatile Terminals.Opening opening = Terminals.Opening.PLAIN;
 
     /**
      * Starts {@code commandLine} on a pseudoconsole of {@code cols} by {@code rows}, in {@code cwd} (null for
@@ -160,6 +162,15 @@ final class TerminalView implements AutoCloseable {
         String typed = " " + text;
         write(term.bracketedPaste() ? "\u001b[200~" + typed + "\u001b[201~" : typed);
         write(screen.cursorKey('H', 1));
+    }
+
+    /** What this tab was opened as: which workspace's environment its shell sourced, and which row's. */
+    Terminals.Opening opening() {
+        return opening;
+    }
+
+    void opening(Terminals.Opening o) {
+        opening = o;
     }
 
     /** Show {@code text} above the terminal until the user clicks it or presses Enter. */

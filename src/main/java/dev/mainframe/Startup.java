@@ -30,7 +30,7 @@ final class Startup {
         Path here = Path.of("");
         for (Command.Source s : command.sources()) {
             if (s.kind() == Command.Kind.DIR) {
-                add(out, s.value(), here, null);
+                add(out, s.value(), here, null, null, null);
             } else if (s.kind() == Command.Kind.DIRS) {
                 readList(out, s.value());
             } else {
@@ -57,7 +57,7 @@ final class Startup {
     static List<Terminals.Opening> openings(Workspace w) {
         List<Terminals.Opening> out = new ArrayList<>();
         for (Workspace.Entry e : w.entries()) {
-            add(out, e.path(), Path.of(""), e.title());
+            add(out, e.path(), Path.of(""), e.title(), w.name(), e);
         }
         return out;
     }
@@ -112,13 +112,13 @@ final class Startup {
         for (String line : lines) {
             String t = line.strip();
             if (!t.isEmpty() && !t.startsWith("#")) {
-                add(out, t, base, null);
+                add(out, t, base, null, null, null);
             }
         }
     }
 
     private static void workspace(List<Terminals.Opening> out, WorkspaceStore store, String name) {
-        Workspace w = store.load(name).orElse(null);
+        Workspace w = store.keyed(name).orElse(null);
         if (w == null) {
             LOG.warn("no workspace called {} in {}", name, store.dir());
             return;
@@ -127,7 +127,8 @@ final class Startup {
     }
 
     /** A folder that is not there is said and skipped. A leading ~ is the home folder. */
-    private static void add(List<Terminals.Opening> out, String spec, Path base, String title) {
+    private static void add(List<Terminals.Opening> out, String spec, Path base, String title, String workspace,
+                            Workspace.Entry entry) {
         String s = spec;
         if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
             s = s.substring(1, s.length() - 1);
@@ -143,7 +144,7 @@ final class Startup {
             return;
         }
         if (Files.isDirectory(dir)) {
-            out.add(new Terminals.Opening(dir, title));
+            out.add(new Terminals.Opening(dir, title, workspace, entry));
         } else {
             LOG.warn("no such folder, skipped: {}", dir);
         }

@@ -57,10 +57,15 @@ final class Recipes {
         return new AppSettings(store);
     }
 
-    /** The saved workspaces: a CSV file each, in the {@code workspaces} folder beside the settings. */
+    /**
+     * The saved workspaces: a CSV file each, in the {@code workspaces} folder beside the settings, with their
+     * environment scripts. Deleted workspaces' scripts older than any undo can want are cleared here, once a run.
+     */
     @Provides
     WorkspaceStore workspaces() {
-        return new WorkspaceStore(AppHome.of(MainFrame.APP).file("workspaces"));
+        WorkspaceStore store = new WorkspaceStore(AppHome.of(MainFrame.APP).file("workspaces"));
+        store.pruneDeleted(WorkspaceStore.KEEP_DELETED);
+        return store;
     }
 
     /**
@@ -69,8 +74,8 @@ final class Recipes {
      */
     @Provides
     Terminals terminals(Gui gui, KronoGui krono, AppSettings settings, Dialogs dialogs, Windows windows,
-                        Keymap keys) {
-        Terminals terminals = new Terminals(gui, new Motion(krono), settings, dialogs, windows.main(), keys);
+                        WorkspaceStore workspaces, Keymap keys) {
+        Terminals terminals = new Terminals(gui, new Motion(krono), settings, dialogs, windows.main(), workspaces, keys);
         if (settings.takeRemapOff()) {
             Terminals.handShellKeysBack(keys);
         }
@@ -131,7 +136,7 @@ final class Recipes {
 
             @Override
             public void openHere(Workspace w) {
-                List<Terminals.Opening> tabs = Startup.openings(w);
+                List<Terminals.Opening> tabs = Startup.openings(workspaces.keyed(w.name()).orElse(w));
                 if (tabs.isEmpty()) {
                     terminals.focus();   // no folder of it is there: nothing to open, rather than a plain tab
                 } else {
@@ -149,6 +154,7 @@ final class Recipes {
                 settings.newWorkspace();
             }
         });
+        settings.onWorkspaceRename(terminals::workspaceRenamed);
         terminals.onOpen(() -> {
             if (workspaces.names().isEmpty()) {
                 pickFolder.run();

@@ -54,8 +54,23 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private static final Log LOG = Log.of("mainframe.tabs");
     private static final String PLUS = " + ";
 
-    /** A tab to open: the folder its shell starts in (null: the new tab directory), and its name (null: the folder's). */
-    record Opening(Path dir, String title) {
+    /**
+     * A tab to open: the folder its shell starts in (null: the new tab directory), its name (null: the folder's), and
+     * the workspace whose environment it sources (null: none) with its row there (null: only the workspace's script,
+     * as a tab opened with + in a workspace's window).
+     */
+    record Opening(Path dir, String title, String workspace, Workspace.Entry entry) {
+
+        /** A plain tab: the new tab directory, the shell's own title, no workspace. */
+        static final Opening PLAIN = new Opening(null, null);
+
+        Opening(Path dir, String title) {
+            this(dir, title, null, null);
+        }
+
+        Opening inWorkspace(String name) {
+            return new Opening(dir, title, name, entry);
+        }
     }
 
     private final Gui gui;
@@ -63,6 +78,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private final Motion motion;
     private final Dialogs dialogs;
     private final Window window;
+    private final WorkspaceStore workspaces;
     private final GlyphLayout glyphs;
     private final Tabs tabs;
     private final AtomicLong ids = new AtomicLong();
@@ -70,6 +86,11 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private final List<TerminalView> views = new ArrayList<>();
     /** The plain tab opened because the launch asked for none, while it may still be there (see {@link #spare}). */
     private volatile TerminalView defaultTab;
+    /**
+     * The workspace this window was opened as, whose script a tab opened with + sources; null for none. It is the
+     * first tab's when the launch opened tabs, or the workspace whose tabs took the place of the spare one.
+     */
+    private volatile String windowWorkspace;
     /** The loop's wake, once there is a loop; before that a frame is coming anyway. */
     private volatile Runnable wake = () -> { };
     private volatile Runnable open = () -> { };
@@ -84,12 +105,14 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private record Rename(TerminalView view, TextField field, Node header, Subscription blur) {
     }
 
-    Terminals(Gui gui, Motion motion, AppSettings settings, Dialogs dialogs, Window window, Keymap keys) {
+    Terminals(Gui gui, Motion motion, AppSettings settings, Dialogs dialogs, Window window, WorkspaceStore workspaces,
+              Keymap keys) {
         this.gui = gui;
         this.motion = motion;
         this.settings = settings;
         this.dialogs = dialogs;
         this.window = window;
+        this.workspaces = workspaces;
         // The mono face of the atlas the framework bakes; one layout, shared by every tab, as it is only read.
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
@@ -98,6 +121,13 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
                     TerminalView v = at(index);
                     if (v != null) {
                         menu.item("Rename", () -> rename(v));
+                        Opening o = v.opening();
+                        if (o.workspace() != null && o.entry() != null) {
+                            menu.item("Edit environment…", () -> editTabEnv(v));
+                        }
+                        if (o.workspace() != null) {
+                            menu.item("Edit workspace environment…", () -> editWorkspaceEnv(v));
+                        }
                     }
                 });
         this.zoom = gui.zoom().value();
@@ -141,11 +171,17 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
             return;
         }
         int first;
+        boolean fresh = spare() != null;
         synchronized (this) {
             first = views.size();
+            fresh |= first == 0;
+        }
+        // A window with nothing in it yet, or only the spare tab these replace, becomes the first tab's workspace's.
+        if (fresh && windowWorkspace == null) {
+            windowWorkspace = openings.getFirst().workspace();
         }
         for (Opening o : openings) {
-            openTab(o.dir(), o.title());
+            openTab(o);
         }
         tabs.select(first);
         focus();
@@ -171,7 +207,23 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
     /** A new tab whose shell starts in {@code dir}, named after the folder, selected and focused. */
     void openFolder(Path dir) {
-        openTab(dir, null);
+        openTab(new Opening(dir, null));
+    }
+
+    /**
+     * Workspace {@code from} is now called {@code to} (null: deleted): the tabs of it here follow, so their menus
+     * edit its scripts under the new name. A deleted one is left as it was, for an undo to bring back.
+     */
+    void workspaceRenamed(String from, String to) {
+        if (from == null || to == null) return;
+        if (from.equals(windowWorkspace)) windowWorkspace = to;
+        List<TerminalView> snapshot;
+        synchronized (this) {
+            snapshot = List.copyOf(views);
+        }
+        for (TerminalView v : snapshot) {
+            if (from.equals(v.opening().workspace())) v.opening(v.opening().inWorkspace(to));
+        }
     }
 
     @Override
@@ -344,26 +396,42 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     // -- commands ---------------------------------------------------------------------------------------------
 
     void newTab() {
-        openTab(null, null);
+        // In a workspace's window, + sources the workspace's script: it is every tab's. It is no row of it, so
+        // there is no tab script, and it starts in the new tab directory like any plain tab.
+        openTab(new Opening(null, null, windowWorkspace, null));
     }
 
     /**
-     * A tab whose shell starts in {@code dir}, called {@code title} or else after the folder; a null dir is a plain
-     * tab in the new tab directory ({@link AppSettings#tabDir}). A shell that cannot be started is said rather than
-     * thrown, and opens no tab.
+     * A tab whose shell starts in {@code o}'s folder, called its title or else after the folder; a null folder is a
+     * plain tab in the new tab directory ({@link AppSettings#tabDir}). A tab of a workspace sources its environment
+     * scripts ({@link EnvScripts}). A shell that cannot be started is said rather than thrown, and opens no tab.
      */
-    private void openTab(Path dir, String title) {
+    private void openTab(Opening o) {
         defaultTab = null;   // any tab after the first, and the first is no longer spare
+        Path dir = o.dir();
+        String title = o.title();
         TerminalView cur = current();
+        String line = settings.shellCommand();
+        List<Path> scripts = EnvScripts.forTab(workspaces, o.workspace(), o.entry());
+        String refused = scripts.isEmpty() ? null : EnvScripts.refusal(line);
+        if (refused != null) {
+            LOG.info("not sourcing the environment scripts of workspace {}: {}", o.workspace(), refused);
+        } else {
+            line = EnvScripts.command(line, scripts);
+        }
         TerminalView v;
         try {
-            v = new TerminalView(ids.incrementAndGet(), gui, glyphs, settings.shellCommand(),
+            v = new TerminalView(ids.incrementAndGet(), gui, glyphs, line,
                     (dir == null ? settings.tabDir() : dir).toString(), cur == null ? 100 : cur.cols(), cur == null ? 30 : cur.rows(),
                     fontPx(), this);
         } catch (RuntimeException e) {
-            LOG.warn("could not start {}", settings.shellCommand(), e);
-            dialogs.info("Could not start the shell", settings.shellCommand() + ": " + e.getMessage());
+            LOG.warn("could not start {}", line, e);
+            dialogs.info("Could not start the shell", line + ": " + e.getMessage());
             return;
+        }
+        v.opening(o);
+        if (refused != null) {
+            v.notice("This tab's environment scripts did not run: " + refused + ".");
         }
         if (title != null && !title.isBlank()) {
             v.customTitle(title.strip());
@@ -457,6 +525,40 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
     private synchronized TerminalView at(int index) {
         return index >= 0 && index < views.size() ? views.get(index) : null;
+    }
+
+    // -- environment ------------------------------------------------------------------------------------------
+
+    /**
+     * The tab's own script, in Vex. Its row is found again by its {@code env} key, so a tab relabelled or moved in
+     * the editor since it opened is still found, and the script's region says what the row says now.
+     */
+    private void editTabEnv(TerminalView v) {
+        Opening o = v.opening();
+        String name = o.workspace();
+        Workspace w = workspaces.load(name).orElse(null);
+        if (w == null) {
+            dialogs.info("No workspace called " + name, "It was renamed or deleted since this tab opened.");
+            return;
+        }
+        Workspace.Entry row = w.entries().stream().filter(e -> e.env().equalsIgnoreCase(o.entry().env()))
+                .findFirst().orElse(null);
+        if (row == null) {
+            dialogs.info(v.displayTitle() + " is no longer in " + name,
+                    "Its folder was removed from the workspace since this tab opened, so it has no script to edit.");
+            return;
+        }
+        Vex.editScript(dialogs, () -> EnvScripts.tabScript(workspaces, name, row));
+    }
+
+    /** The script every tab of the tab's workspace sources, in Vex. */
+    private void editWorkspaceEnv(TerminalView v) {
+        String name = v.opening().workspace();
+        if (!workspaces.exists(name)) {
+            dialogs.info("No workspace called " + name, "It was renamed or deleted since this tab opened.");
+            return;
+        }
+        Vex.editScript(dialogs, () -> EnvScripts.workspaceScript(workspaces, name));
     }
 
     // -- renaming ---------------------------------------------------------------------------------------------

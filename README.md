@@ -34,7 +34,7 @@ mvn compile exec:exec "-Dapp.args=cmd.exe"
 mvn test
 ```
 
-The tests cover the command line, the workspace files, what `--insert-path` may
+The tests cover the command line, the workspace files and their environment scripts, what `--insert-path` may
 type, and the real window contents built headless with no shell started (`TreeTest`). The VT screen and the
 pseudoconsole are tested where they live, in vex-suite-common.
 
@@ -127,7 +127,53 @@ web,C:\work\web-frontend
 ```
 
 An empty `name` is the folder's own. Columns other than `name` and `path` are kept when MainFrame writes the file
-back, so later versions can add fields (`Workspace`, `WorkspaceStore`).
+back, so later versions can add fields (`Workspace`, `WorkspaceStore`). MainFrame adds one itself, `env`, below.
+
+### A workspace's environment
+
+Every tab of a workspace can have its environment extended by PowerShell scripts that its shell dot-sources as it
+starts: the workspace's, which all its tabs share, and then the tab's own, so a tab's script overrides the
+workspace's. They sit beside the CSV file:
+
+```
+~/.mainframe/workspaces/day.csv
+~/.mainframe/workspaces/day.env.ps1               every tab of day
+~/.mainframe/workspaces/day.env/api-3f9c2a.ps1    the tab whose env column says api-3f9c2a.ps1
+```
+
+**Edit environment…** makes a script if it is not there and opens it in Vex, a window of its own: on the Workspaces
+tab for the workspace, on a card's right-click menu for that tab, and on a workspace tab's right-click menu in the
+terminal window (*Edit environment…* for the tab, *Edit workspace environment…* for the workspace). Vex is found by
+its install record, or else as `text-editor` on the `PATH`; without it, a dialog says where the script is.
+
+Each script starts with a region MainFrame rewrites whenever the script is about to be sourced or edited:
+
+```powershell
+# region MainFrame (generated; edits here are replaced)
+$env:MAINFRAME_WORKSPACE = 'day'
+$env:MAINFRAME_TAB = 'api'
+$env:MAINFRAME_TAB_FOLDER = 'C:\work\api'
+# endregion
+```
+
+(The workspace's has `MAINFRAME_WORKSPACE` and `MAINFRAME_WORKSPACE_ENV_DIR`, the folder of the tab scripts.)
+Everything outside the region is yours and is kept byte for byte. A missing script is skipped.
+
+- **Which tabs.** A workspace's tabs, opened in a window of their own or into this one with Ctrl+Enter. A tab opened
+  with + in a window opened as a workspace sources the workspace's script only, and starts in the new tab directory
+  as any + tab does. A folder opened with Ctrl+O, and every tab of a window opened without a workspace, sources
+  nothing.
+- **Which shells.** The scripts are added to the shell's command line as `-NoExit -Command ". 'a'; . 'b'"`, after
+  the profile, so only Windows PowerShell and PowerShell 7 run them, and only when the command line has no command
+  or file of its own. Otherwise the tab says above the terminal that its scripts did not run. They run under your
+  execution policy; where it is `Restricted`, Windows' own default, PowerShell refuses them in the tab, and
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` allows them.
+- **The key.** A tab's script is named by the `env` column, which every row gets the first time its workspace is
+  opened or shown on the Workspaces tab, so the script stays the tab's when it is renamed, moved or pointed at
+  another folder.
+- **Renaming, deleting, undo.** Renaming a workspace moves its scripts. Deleting one puts them aside in
+  `workspaces/.deleted`, and Ctrl+Z puts them back; what is there is cleared after 30 days. A folder removed from a
+  workspace keeps its script, which Ctrl+Z finds again (`EnvScripts`).
 
 `--insert-path=<file>` puts a file's name on the first tab's input line, quoted for its shell, once the prompt is
 drawn: Vexplore's Open MainFrame Here uses it, with the file's folder as the first `--dir`. The name is typed after a
@@ -153,6 +199,7 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 | `SettingsWindow` / `AppSettings` | The settings window (a framework `NamedWindow`) and the saved settings behind it |
 | `WorkspacesPage` / `Workspace` / `WorkspaceStore` | The Workspaces tab, and the saved workspaces |
 | `OpenDialog` / `SelfLaunch` | What Ctrl+O opens, and starting another MainFrame to open a workspace in |
+| `EnvScripts` / `Vex` | A workspace's environment scripts: their generated region and the shell command line that sources them; and opening one in Vex |
 
 What is not here is the point: input, the clipboard, window memory, the clock, the frame loop and its pacing, the
 dialogs, the title bar and closing everything in order are the framework's.

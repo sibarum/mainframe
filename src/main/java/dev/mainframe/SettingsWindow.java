@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
 
 /**
  * The settings window: a window of its own, opened by the settings button in the main window's title bar, with a
@@ -59,6 +61,7 @@ final class SettingsWindow {
     private final Map<Node, Node> onSheet = new HashMap<>();
     /** The start workspace's drop-down: "" is none. Its options are the saved workspaces, re-read as they change. */
     private final Select<String> startWorkspace;
+    private final List<BiConsumer<String, String>> renameListeners = new CopyOnWriteArrayList<>();
 
     SettingsWindow(Window window, AppSettings settings, WorkspaceStore store, Dialogs dialogs,
                    Motion motion) {
@@ -236,12 +239,21 @@ final class SettingsWindow {
                 .cancelButton("Not now", workspaces::editName));
     }
 
+    /**
+     * Be told of each workspace made, renamed or deleted here, as (old name, new name), null on the side there is
+     * none: the main window's tabs follow their workspace's name.
+     */
+    void onWorkspaceRename(BiConsumer<String, String> listener) {
+        renameListeners.add(listener);
+    }
+
     /** The start workspace follows its own renaming, and goes back to none when it is deleted. */
     private void workspaceRenamed(String from, String to) {
         if (from != null && from.equals(settings.startWorkspace())) {
             settings.startWorkspace(to);
         }
         refreshStartWorkspaces();
+        renameListeners.forEach(l -> l.accept(from, to));
     }
 
     private static float nearest(float px) {

@@ -57,6 +57,11 @@ import java.util.function.Consumer;
  * repointing folders, and creating, renaming and deleting workspaces. Inside a field they undo its typing instead, and leaving a
  * label it has changed records the relabel as one step. A workspace is opened by starting MainFrame with
  * {@code --workspace=<name>}.
+ *
+ * <p>Edit environment… opens the workspace's environment script in Vex, and a card's menu has the same for its tab's
+ * own script ({@link EnvScripts}). A script is the store's to keep consistent: renaming moves it, deleting puts it
+ * aside where undoing finds it, and removing a card leaves its script, which undoing the removal finds again by the
+ * row's key. Rows are given keys as a workspace is shown, before any step that could hold them is recorded.
  */
 final class WorkspacesPage {
 
@@ -150,11 +155,12 @@ final class WorkspacesPage {
         deck.node().width(Length.FILL).height(Length.grow(1)).padding(Length.ZERO, Length.dp(8));
         noFolders = note("No folders yet. Add folder picks one; each becomes a tab.").visible(false);
         Button addFolder = new Button(gui, "Add folder…").onPress(this::pickFolder);
+        Button editEnv = new Button(gui, "Edit environment…").onPress(this::editWorkspaceEnv);
         launchLine = note("");
         editor = gui.column().width(Length.grow(1)).height(Length.FILL).gap(Length.rem(0.5f)).children(
                 label("Name"), nameField.node(), nameProblem,
                 label("Folders, one tab each. Drag to reorder; right-click to change or remove."), noFolders, deck.node(),
-                gui.row().children(addFolder.node()), launchLine);
+                gui.row().gap(Length.rem(0.5f)).children(addFolder.node(), editEnv.node()), launchLine);
         empty = note("No workspaces yet. New makes one: a list of folders that MainFrame opens as tabs, each in its "
                 + "own folder.").width(Length.grow(1));
 
@@ -164,7 +170,8 @@ final class WorkspacesPage {
         // Names for ottermate and agents: "click workspaces.new".
         gui.landmark("workspaces.list", list.node()).landmark("workspaces.new", add.node())
                 .landmark("workspaces.delete", delete.node()).landmark("workspaces.name", nameField.node())
-                .landmark("workspaces.add-folder", addFolder.node()).landmark("workspaces.folders", deck.node());
+                .landmark("workspaces.add-folder", addFolder.node()).landmark("workspaces.folders", deck.node())
+                .landmark("workspaces.edit-env", editEnv.node());
         refresh(null);
     }
 
@@ -220,7 +227,8 @@ final class WorkspacesPage {
 
     private synchronized void show(String name) {
         if (name.equals(shown)) return;
-        Workspace w = store.load(name).orElse(new Workspace(name, List.of()));
+        // Keyed before anything is recorded: every step of the history then holds rows with their scripts' keys.
+        Workspace w = store.keyed(name).orElse(new Workspace(name, List.of()));
         List<Folder> loaded = new ArrayList<>();
         for (Entry e : w.entries()) loaded.add(new Folder(e));
         display(name, loaded, null);
@@ -262,7 +270,7 @@ final class WorkspacesPage {
     /** A new workspace, as the New button makes one: a step in the history, its name selected to type over. */
     void create() {
         String name = store.freshName();
-        history.perform(created(new Workspace(name, List.of())));
+        history.perform(created(new Workspace(name, List.of()), null));
         editName();
         creations.accept(name);
     }
@@ -277,8 +285,8 @@ final class WorkspacesPage {
         String name = shown;
         if (name == null) return;
         dialogs.confirm("Delete " + name + "?",
-                "The workspace and its list of folders are deleted. The folders themselves are not touched. "
-                        + "Ctrl+Z brings it back.",
+                "The workspace and its list of folders are deleted, and its environment scripts put aside. The "
+                        + "folders themselves are not touched. Ctrl+Z brings it all back.",
                 "Delete", () -> history.perform(deleted(name)), () -> { });
     }
 
@@ -340,6 +348,7 @@ final class WorkspacesPage {
             List<Folder> now = folders;
             int at = now.indexOf(folder);
             menu.item("Change folder…", () -> pickNewPath(folder))
+                    .item("Edit environment…", () -> editTabEnv(folder))
                     .item("Move up", at > 0, () -> move(folder, -1))
                     .item("Move down", at >= 0 && at < now.size() - 1, () -> move(folder, 1))
                     .item("Remove", () -> remove(folder));
@@ -504,7 +513,9 @@ final class WorkspacesPage {
         if (name == null) return;
         Path p = dir.toAbsolutePath().normalize();
         String title = new Entry("", p.toString()).title();
-        Folder added = new Folder(new Entry(title, p.toString()));
+        java.util.Set<String> taken = new java.util.HashSet<>();
+        for (Folder f : folders) taken.add(f.entry.env().toLowerCase(java.util.Locale.ROOT));
+        Folder added = new Folder(new Entry(title, p.toString()).withEnv(store.freshKey(name, title, taken)));
         List<Folder> next = new ArrayList<>(folders);
         next.add(added);
         history.perform(order(name, next, added));
@@ -543,6 +554,36 @@ final class WorkspacesPage {
         Path start = now.isEmpty() ? Path.of(System.getProperty("user.home"))
                 : parentOf(now.get(now.size() - 1).entry.path());
         dialogs.openFolder(start, this::addFolder, () -> { });
+    }
+
+    // -- the environment -------------------------------------------------------------------------------------
+
+    /** The script every tab of the workspace on show sources, made if need be, in Vex. */
+    private void editWorkspaceEnv() {
+        String name = shown;
+        if (name == null) return;
+        Vex.editScript(dialogs, () -> EnvScripts.workspaceScript(store, name));
+    }
+
+    /**
+     * {@code folder}'s own script, made if need be, in Vex. Its row has a key from when the workspace was shown;
+     * one that lost it to a hand edit since gets one now, saved without a step, as showing it would have.
+     */
+    private void editTabEnv(Folder folder) {
+        String name;
+        Entry e;
+        synchronized (this) {
+            name = shown;
+            if (name == null || !folders.contains(folder)) return;
+            if (!WorkspaceStore.validKey(folder.entry.env())) {
+                java.util.Set<String> taken = new java.util.HashSet<>();
+                for (Folder f : folders) taken.add(f.entry.env().toLowerCase(java.util.Locale.ROOT));
+                folder.entry = folder.entry.withEnv(store.freshKey(name, folder.entry.title(), taken));
+                if (!save(new Workspace(name, entriesOf(folders)))) return;
+            }
+            e = folder.entry;
+        }
+        Vex.editScript(dialogs, () -> EnvScripts.tabScript(store, name, e));
     }
 
     // -- the changes, each undone by the change it returns ----------------------------------------------------
@@ -602,9 +643,18 @@ final class WorkspacesPage {
         };
     }
 
-    private Change created(Workspace w) {
+    /**
+     * Makes {@code w}, and puts back the scripts its deletion put aside in {@code scripts} (null for none): undoing a
+     * delete brings back the environment with the folders.
+     */
+    private Change created(Workspace w, Path scripts) {
         return () -> {
             save(w);
+            try {
+                store.restore(scripts, w.name());
+            } catch (IOException e) {
+                dialogs.info("Could not bring back the scripts of " + w.name(), e.getMessage());
+            }
             synchronized (this) {
                 shown = null;
                 refresh(w.name());
@@ -614,11 +664,13 @@ final class WorkspacesPage {
         };
     }
 
+    /** Deletes the workspace; its scripts are put aside rather than deleted, for the undo ({@link WorkspaceStore#delete}). */
     private Change deleted(String name) {
         return () -> {
             Workspace w = store.load(name).orElse(new Workspace(name, List.of()));
+            Path scripts = null;
             try {
-                store.delete(name);
+                scripts = store.delete(name);
             } catch (IOException e) {
                 dialogs.info("Could not delete " + name, e.getMessage());
             }
@@ -627,7 +679,7 @@ final class WorkspacesPage {
                 refresh(null);
             }
             renames.accept(name, null);
-            return created(w);
+            return created(w, scripts);
         };
     }
 

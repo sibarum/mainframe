@@ -62,7 +62,10 @@ class CommandTest {
                 "--workspace=w", "--workspace=nope", "--dir=\"" + tmp.resolve("gone") + "\""});
         List<Terminals.Opening> tabs = Startup.openings(c, store);
 
+        // The workspace's tab knows its workspace and row, whose env key opening it gave and saved.
+        Workspace.Entry row = store.load("w").orElseThrow().entries().getFirst();
+        assertTrue(WorkspaceStore.validKey(row.env()), row.env());
         assertEquals(List.of(new Terminals.Opening(api, null), new Terminals.Opening(web, null),
-                new Terminals.Opening(docs, "Docs!")), tabs);
+                new Terminals.Opening(docs, "Docs!", "w", row)), tabs);
     }
 }

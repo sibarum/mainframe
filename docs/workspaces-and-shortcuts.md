@@ -1,6 +1,6 @@
 # Workspaces, shortcuts and the Open dialog
 
-Status: 2026-10-11. All built, but for Save tabs as workspace (§3).
+Status: 2026-10-19. All built, but for Save tabs as workspace (§3); §4, environments, added.
 
 Three pieces of work, in the order they will land: the small things (the settings icon, three shortcuts), then the
 Workspaces editor, then an Open dialog that makes a workspace something you open from inside MainFrame rather than
@@ -88,3 +88,68 @@ window by name.
   workspace. There is one editor, and it stays in Settings: a modal inside a terminal window is a cramped place to
   drag cards about, and two editors would drift apart.
 - Not built: **Save tabs as workspace**, which would make a workspace of the tabs open now.
+
+## 4. A workspace's environment
+
+**Done** ([EnvScripts](../src/main/java/dev/mainframe/EnvScripts.java)). Every tab of a workspace can have its
+environment extended in two ways: by the workspace's script, which all its tabs source, and by the tab's own, which
+is sourced after it and so overrides it. Both are plain PowerShell scripts that the tab's shell dot-sources as it
+starts. Editing either opens it in a plain Vex window ([Vex](../src/main/java/dev/mainframe/Vex.java)).
+
+### Where they are
+
+Beside the workspace's CSV file, named after it, so a glance at the folder shows what belongs to what:
+
+| File | What |
+| --- | --- |
+| `<name>.env.ps1` | the workspace's script |
+| `<name>.env/<key>.ps1` | a tab's script; `<key>.ps1` is the row's `env` column |
+
+A tab's script needs a name that is the tab's whatever happens to its row: relabelling, reordering and changing its
+folder all keep it. Nothing in the row lasts through all three, so the row carries a key of its own, the new `env`
+column: the tab's title in safe letters and six random hex digits (`api-3f9c2a.ps1`). The CSV format already keeps
+columns it does not know, so an older MainFrame editing the file loses nothing.
+
+**Keys are given when a workspace is opened or shown, not on the first edit.** The editor's undo keeps rows as they
+were when each step was made. A key written into the file later, by the first edit, would be undone by undoing any
+earlier step, and the script would be stranded under a key no row names. Given before any step can be recorded,
+every step holds rows that already have their keys. The script itself is made on the first edit.
+
+### What sources them
+
+- A workspace's tabs, whether it opens in a window of its own or into this one with Ctrl+Enter.
+- A tab opened with + in a window opened as a workspace: the workspace's script only, since it is no row of it, in
+  the new tab directory. The window's workspace is the first launch tab's, or the one whose tabs took the place of the
+  spare plain tab. A window opened without one, and a folder opened with Ctrl+O, source nothing.
+
+The scripts are added to the shell's command line, `-NoExit -Command ". 'ws.env.ps1'; . 'tab.ps1'"`, each path in
+single quotes with any quote in it doubled (PowerShell's curly single quotes too). That needs PowerShell, and a
+command line with no command or file of its own: anything else is refused, said on the tab, and logged. A missing
+script is skipped. The scripts run after the profile, under the user's execution policy.
+
+### The generated region
+
+Each script opens with a region MainFrame owns:
+
+```powershell
+# region MainFrame (generated; edits here are replaced)
+$env:MAINFRAME_WORKSPACE = 'day'
+$env:MAINFRAME_TAB = 'api'
+$env:MAINFRAME_TAB_FOLDER = 'C:\work\api'
+# endregion
+```
+
+It is rewritten whenever the script is about to be sourced or edited, so renames reach it without a pass over every
+file. Everything else is the user's, kept byte for byte: the file is spliced as bytes (a UTF-16 file, as Windows
+PowerShell's `Out-File` writes, as UTF-16 text). A script without the region gets one on top. A new script is UTF-8
+with a byte-order mark, which Windows PowerShell needs to read a non-ASCII name.
+
+### Renaming, deleting and undo
+
+- **Renaming** a workspace moves `<name>.env.ps1` and `<name>.env/` with the CSV file; the tabs of it open in this
+  process follow the new name.
+- **Deleting** one moves its scripts to `workspaces/.deleted/<name> <time>/` rather than deleting them, and Ctrl+Z
+  puts them back. Each window is a process with its own undo history, so what is put aside is cleared at a later
+  start, after 30 days, rather than when one window closes.
+- **Removing a folder** from a workspace leaves its script: undoing the removal brings the row back with its key,
+  which finds it again. Nothing deletes a tab's script.

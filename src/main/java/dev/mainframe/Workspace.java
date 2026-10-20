@@ -24,11 +24,17 @@ import java.util.Set;
  * folder's own name. A column this build does not know is kept, value for value, when the file is written back, so
  * an older MainFrame editing a newer file loses nothing. Fields are quoted the usual CSV way when they hold a comma,
  * a quote or a line break.
+ *
+ * <p>One column is MainFrame's own: {@code env}, the file name of the tab's environment script in the workspace's
+ * script folder ({@link EnvScripts}). It is a key rather than anything worked out from the row, so the script stays
+ * the tab's through relabelling, reordering and changing its folder. A row gets one the first time its workspace is
+ * opened or shown in the editor ({@link WorkspaceStore#keyed}), and the script itself the first time it is edited.
  */
 record Workspace(String name, List<Entry> entries) {
 
     static final String NAME = "name";
     static final String PATH = "path";
+    static final String ENV = "env";
 
     /** One folder: the tab's name (blank for the folder's own), where it starts, and any columns not known here. */
     record Entry(String name, String path, Map<String, String> extra) {
@@ -59,6 +65,18 @@ record Workspace(String name, List<Entry> entries) {
 
         Entry withPath(String newPath) {
             return new Entry(name, newPath, extra);
+        }
+
+        /** The file name of this tab's environment script, or blank while it has none. */
+        String env() {
+            return extra.getOrDefault(ENV, "").strip();
+        }
+
+        /** The same tab with {@code key} as its script's file name, kept among the other columns. */
+        Entry withEnv(String key) {
+            Map<String, String> more = new LinkedHashMap<>(extra);
+            more.put(ENV, key);
+            return new Entry(name, path, more);
         }
     }
 
