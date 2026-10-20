@@ -6,7 +6,7 @@
 
     <groupId>dev.mainframe</groupId>
     <artifactId>mainframe</artifactId>
-    <version>0.1.1-SNAPSHOT</version>
+    <version>0.1.1</version>
 
     <name>mainframe</name>
     <description>
@@ -17,11 +17,11 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <vexelray-framework.version>0.1.1-SNAPSHOT</vexelray-framework.version>
-        <vexelray-gui.version>0.1.1-SNAPSHOT</vexelray-gui.version>
-        <vexelray.version>0.1.1-SNAPSHOT</vexelray.version>
-        <tactroller.version>1.1-SNAPSHOT</tactroller.version>
-        <vex-suite-common.version>0.1.1-SNAPSHOT</vex-suite-common.version>
+        <vexelray-framework.version>0.1.1</vexelray-framework.version>
+        <vexelray-gui.version>0.1.1</vexelray-gui.version>
+        <vexelray.version>0.1.1</vexelray.version>
+        <tactroller.version>1.1</tactroller.version>
+        <vex-suite-common.version>0.1.1</vex-suite-common.version>
         <junit.version>5.11.4</junit.version>
 
         <app.mainClass>dev.mainframe.MainFrame</app.mainClass>
