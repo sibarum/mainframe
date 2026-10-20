@@ -4,3 +4,4 @@ capture*.png
 .idea/
 *.iml
 .vscode/
+.claude/
