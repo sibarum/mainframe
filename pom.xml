@@ -369,6 +369,28 @@
                 </plugins>
             </build>
         </profile>
+        <!-- Linux: mvn -Pnative-linux package -DskipTests  ->  target-linux/mainframe. No linker options and no
+             rc.exe; a Linux executable has no subsystem and no icon of its own. -->
+        <profile>
+            <id>native-linux</id>
+            <properties>
+                <native.imageName>mainframe</native.imageName>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <buildArgs combine.self="override">
+                                <buildArg>--no-fallback</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <!-- Build-time platform selection: exactly one activates from the host OS, adding VexelRay's
              matching provider module and tactroller's input backend (both found by ServiceLoader). -->
         <profile>
