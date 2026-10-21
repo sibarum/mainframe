@@ -279,7 +279,7 @@
                 <configuration>
                     <executable>${java.home}/bin/java</executable>
                     <classpathScope>runtime</classpathScope>
-                    <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=${automation} ${app.jvmArgs} -classpath %classpath ${app.mainClass} ${app.args}</commandlineArgs>
+                    <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=${automation} "-Dbuild.dir=${project.build.directory}" ${app.jvmArgs} -classpath %classpath ${app.mainClass} ${app.args}</commandlineArgs>
                 </configuration>
             </plugin>
             <!-- Platform-specific code only in -windows, -linux and -macos modules: vexelray-build's isolate goal fails
@@ -301,6 +301,20 @@
     </build>
 
     <profiles>
+        <!-- On Linux the build goes to target-linux/, not target/: the Windows host and a Linux VM build the same checkout
+             (a shared folder), and each keeps its own output beside the other's instead of overwriting it. -->
+        <profile>
+            <id>linux-build-output</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>linux</name>
+                </os>
+            </activation>
+            <build>
+                <directory>${project.basedir}/target-linux</directory>
+            </build>
+        </profile>
         <!--
           GraalVM native images; both need a GraalVM JDK (JAVA_HOME) and are profile-gated because native-image
           takes minutes. This program's own reachability metadata is under src/main/resources/META-INF/native-image/;
