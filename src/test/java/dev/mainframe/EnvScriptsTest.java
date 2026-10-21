@@ -2,6 +2,8 @@ package dev.mainframe;
 
 import dev.mainframe.Workspace.Entry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
@@ -127,6 +129,7 @@ class EnvScriptsTest {
     // -- the command line -------------------------------------------------------------------------------------
 
     @Test
+    @EnabledOnOs(value = OS.WINDOWS, disabledReason = "Windows paths (C:\\...) are only absolute on Windows")
     void powerShellSourcesTheScriptsInOrderAndStaysOpen() {
         List<Path> scripts = List.of(Path.of("C:\\Users\\me\\.mainframe\\workspaces\\day.env.ps1"),
                 Path.of("C:\\Users\\me\\.mainframe\\workspaces\\day.env\\api-000001.ps1"));
@@ -141,6 +144,7 @@ class EnvScriptsTest {
     }
 
     @Test
+    @EnabledOnOs(value = OS.WINDOWS, disabledReason = "Windows paths (C:\\...) are only absolute on Windows")
     void quotesInAPathAreDoubledTheCurlyOnesToo() {
         assertEquals("'C:\\it''s'", EnvScripts.quote("C:\\it's"));
         assertEquals("'C:\\it\u2019\u2019s \u2018\u2018x\u2018\u2018 $HOME `n'", EnvScripts.quote("C:\\it\u2019s \u2018x\u2018 $HOME `n"));
@@ -149,6 +153,7 @@ class EnvScriptsTest {
     }
 
     @Test
+    @EnabledOnOs(value = OS.WINDOWS, disabledReason = "Windows paths (C:\\...) are only absolute on Windows")
     void onlyAPowerShellWithNoCommandOfItsOwnIsAddedTo() {
         assertNull(EnvScripts.refusal("powershell.exe -NoLogo"));
         assertNull(EnvScripts.refusal("pwsh.exe -NoLogo"));

@@ -1,6 +1,6 @@
 package dev.mainframe;
 
-import dev.mainframe.pty.ShortName;
+import dev.sibarum.suite.tty.PtyPlatform;
 import sibarum.probe.Log;
 
 import java.io.IOException;
@@ -85,7 +85,7 @@ final class Startup {
             tab.notice("--insert-path names a file outside this tab's folder, so nothing was typed.");
             return;
         }
-        InsertPath.Outcome o = InsertPath.decide(dialect, file.getFileName().toString(), () -> ShortName.of(file));
+        InsertPath.Outcome o = InsertPath.decide(dialect, file.getFileName().toString(), () -> PtyPlatform.current().shortName(file));
         if (o.typesSomething()) {
             tab.typeWhenReady(o.text());
         }
