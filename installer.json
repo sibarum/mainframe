@@ -3,7 +3,7 @@
   "name": "MainFrame",
   "publisher": "sibarum",
   "description": "A terminal window that wraps the native Windows shell over ConPTY, built on the VexelRay stack.",
-  "version": "0.1.1",
+  "version": "0.1.2-SNAPSHOT",
 
   "repo": "sibarum/vexelray-dist",
   "branch": "main",
