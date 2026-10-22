@@ -12,7 +12,8 @@ was measured rather than what was assumed.
 
 **Before writing a workaround, ask whether it is a component.** If the answer is "every project on this
 framework will write these same four calls" — that is a finding, and the fix belongs upstream. Say so here
-with that framing, so the retrospective has a candidate rather than a complaint.
+with that framing, so the [retrospective](retrospective.md) at the end of the milestone has a candidate rather than a
+complaint.
 
 ## How to write one
 

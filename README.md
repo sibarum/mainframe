@@ -291,7 +291,9 @@ The mark is `src/main/rc/mainframe.ico` (the window, its taskbar button and the 
 - Old experiments (the typed shell, assistant, templates) are at the git tag `archive/pre-v1`; the hand-wired MainFrame
   this replaced is `b465748`.
 
-## The two documents
+## The three documents
 
 [docs/framework-notes.md](docs/framework-notes.md) is what building MainFrame on the framework found missing in it,
 written when each workaround was; [docs/TODO.md](docs/TODO.md) is what is known about MainFrame itself and not done.
+[docs/retrospective.md](docs/retrospective.md) is filled in at the end of each milestone: the pass over the notes that
+looks for what they have in common, and the one the framework reads first.
