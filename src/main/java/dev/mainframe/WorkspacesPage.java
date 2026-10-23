@@ -82,6 +82,8 @@ final class WorkspacesPage {
 
     private final Gui gui;
     private final WorkspaceStore store;
+    /** Whose shell decides which language a script that is edited is in. */
+    private final AppSettings settings;
     private final Dialogs dialogs;
     /** The settings window's undo history, which the framework binds; this page records its steps there. */
     private final History history;
@@ -114,10 +116,11 @@ final class WorkspacesPage {
     /** The folders as they were when a label took the keyboard: what leaving it compares against. */
     private List<Entry> labelBefore;
 
-    WorkspacesPage(Gui gui, WorkspaceStore store, Dialogs dialogs, Motion motion) {
+    WorkspacesPage(Gui gui, WorkspaceStore store, AppSettings settings, Dialogs dialogs, Motion motion) {
         this.gui = gui;
         this.dialogs = dialogs;
         this.store = store;
+        this.settings = settings;
         // The window's, bound by the framework to Ctrl+Z and Ctrl+Y and to every drop: this page's moves, adds and
         // renames undo with everything else changed in the settings window, by the same keys. A tree the framework
         // did not build has none, and then this page brings one.
@@ -558,11 +561,11 @@ final class WorkspacesPage {
 
     // -- the environment -------------------------------------------------------------------------------------
 
-    /** The script every tab of the workspace on show sources, made if need be, in Vex. */
+    /** The script every tab of the workspace on show sources, in the language of the shell tabs start, made if need be, in Vex. */
     private void editWorkspaceEnv() {
         String name = shown;
         if (name == null) return;
-        Vex.editScript(dialogs, () -> EnvScripts.workspaceScript(store, name));
+        Vex.editScript(dialogs, () -> EnvScripts.workspaceScript(store, name, EnvScripts.dialect(settings.shellCommand())));
     }
 
     /**
@@ -583,7 +586,7 @@ final class WorkspacesPage {
             }
             e = folder.entry;
         }
-        Vex.editScript(dialogs, () -> EnvScripts.tabScript(store, name, e));
+        Vex.editScript(dialogs, () -> EnvScripts.tabScript(store, name, e, EnvScripts.dialect(settings.shellCommand())));
     }
 
     // -- the changes, each undone by the change it returns ----------------------------------------------------

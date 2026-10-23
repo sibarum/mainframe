@@ -23,6 +23,7 @@ import sibarum.probe.Log;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -412,12 +413,17 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         String title = o.title();
         TerminalView cur = current();
         String line = settings.shellCommand();
-        List<Path> scripts = EnvScripts.forTab(workspaces, o.workspace(), o.entry());
+        List<Path> scripts = EnvScripts.forTab(workspaces, o.workspace(), o.entry(), EnvScripts.dialect(line));
         String refused = scripts.isEmpty() ? null : EnvScripts.refusal(line);
+        if (refused == null) {
+            try {
+                line = EnvScripts.command(line, scripts, workspaces.launchers());
+            } catch (IOException e) {
+                refused = "MainFrame cannot write the files the shell starts on (" + e.getMessage() + ")";
+            }
+        }
         if (refused != null) {
             LOG.info("not sourcing the environment scripts of workspace {}: {}", o.workspace(), refused);
-        } else {
-            line = EnvScripts.command(line, scripts);
         }
         TerminalView v;
         try {
@@ -548,7 +554,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
                     "Its folder was removed from the workspace since this tab opened, so it has no script to edit.");
             return;
         }
-        Vex.editScript(dialogs, () -> EnvScripts.tabScript(workspaces, name, row));
+        Vex.editScript(dialogs, () -> EnvScripts.tabScript(workspaces, name, row, EnvScripts.dialect(settings.shellCommand())));
     }
 
     /** The script every tab of the tab's workspace sources, in Vex. */
@@ -558,7 +564,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
             dialogs.info("No workspace called " + name, "It was renamed or deleted since this tab opened.");
             return;
         }
-        Vex.editScript(dialogs, () -> EnvScripts.workspaceScript(workspaces, name));
+        Vex.editScript(dialogs, () -> EnvScripts.workspaceScript(workspaces, name, EnvScripts.dialect(settings.shellCommand())));
     }
 
     // -- renaming ---------------------------------------------------------------------------------------------

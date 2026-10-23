@@ -127,35 +127,35 @@ class WorkspaceTest {
     @Test
     void aKeyCannotLeaveTheScriptFolder(@TempDir Path dir) {
         WorkspaceStore store = new WorkspaceStore(dir);
-        assertTrue(store.tabEnvFile("w", "api-0a1b2c.ps1").isPresent());
-        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "..\\..\\evil.ps1"));
-        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "sub/evil.ps1"));
-        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "evil.cmd"));
-        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", ""));
+        assertTrue(store.tabEnvFile("w", "api-0a1b2c.ps1", EnvScripts.Dialect.POWERSHELL).isPresent());
+        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "..\\..\\evil.ps1", EnvScripts.Dialect.POWERSHELL));
+        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "sub/evil.ps1", EnvScripts.Dialect.POWERSHELL));
+        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "evil.cmd", EnvScripts.Dialect.POWERSHELL));
+        assertEquals(java.util.Optional.empty(), store.tabEnvFile("w", "", EnvScripts.Dialect.POWERSHELL));
     }
 
     @Test
     void renamingMovesTheScriptsAndDeletingPutsThemAsideForUndo(@TempDir Path dir) throws Exception {
         WorkspaceStore store = new WorkspaceStore(dir);
         store.save(new Workspace("day", List.of(new Entry("", "C:\\a").withEnv("a-000001.ps1"))));
-        Files.writeString(store.envFile("day"), "$env:FOO = 'ws'");
+        Files.writeString(store.envFile("day", EnvScripts.Dialect.POWERSHELL), "$env:FOO = 'ws'");
         Files.createDirectories(store.envDir("day"));
         Files.writeString(store.envDir("day").resolve("a-000001.ps1"), "$env:FOO = 'tab'");
 
         store.rename("day", "work");
-        assertEquals("$env:FOO = 'ws'", Files.readString(store.envFile("work")));
-        assertEquals("$env:FOO = 'tab'", Files.readString(store.tabEnvFile("work", "a-000001.ps1").orElseThrow()));
-        assertTrue(!Files.exists(store.envFile("day")) && !Files.exists(store.envDir("day")));
+        assertEquals("$env:FOO = 'ws'", Files.readString(store.envFile("work", EnvScripts.Dialect.POWERSHELL)));
+        assertEquals("$env:FOO = 'tab'", Files.readString(store.tabEnvFile("work", "a-000001.ps1", EnvScripts.Dialect.POWERSHELL).orElseThrow()));
+        assertTrue(!Files.exists(store.envFile("day", EnvScripts.Dialect.POWERSHELL)) && !Files.exists(store.envDir("day")));
         store.rename("work", "Work");
         assertEquals(List.of("Work.env", "Work.env.ps1", "Work.csv").stream().sorted().toList(),
                 Files.list(dir).map(p -> p.getFileName().toString()).sorted().toList());
 
         Path aside = store.delete("Work");
-        assertTrue(!Files.exists(store.envFile("Work")) && !Files.exists(store.envDir("Work")));
+        assertTrue(!Files.exists(store.envFile("Work", EnvScripts.Dialect.POWERSHELL)) && !Files.exists(store.envDir("Work")));
         assertTrue(aside.startsWith(dir.resolve(WorkspaceStore.DELETED)));
         store.save(new Workspace("Work", List.of()));   // what undoing the delete does first
         store.restore(aside, "Work");
-        assertEquals("$env:FOO = 'ws'", Files.readString(store.envFile("Work")));
+        assertEquals("$env:FOO = 'ws'", Files.readString(store.envFile("Work", EnvScripts.Dialect.POWERSHELL)));
         assertTrue(Files.isRegularFile(store.envDir("Work").resolve("a-000001.ps1")));
         assertTrue(!Files.exists(aside));
 

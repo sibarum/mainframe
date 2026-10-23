@@ -25,9 +25,11 @@ import java.util.stream.Stream;
  *
  * <h2>The environment scripts beside them</h2>
  *
- * <p>A workspace's scripts ({@link EnvScripts}) are named after it, beside its file: {@code <name>.env.ps1}, which
- * every tab sources, and the folder {@code <name>.env}, which holds one script per tab, named by the tab's {@code env}
- * column. Renaming a workspace moves all three. Deleting one moves its scripts into {@code .deleted}, where undoing
+ * <p>A workspace's scripts ({@link EnvScripts}) are named after it, beside its file: {@code <name>.env.ps1} and {@code
+ * <name>.env.sh}, which every tab sources, PowerShell's and sh's, and the folder {@code <name>.env}, which holds the
+ * tabs' own, named by the tab's {@code env} column: {@code api-3f9c2a.ps1}, and for sh the same name ending {@code
+ * .sh}. The column keeps its {@code .ps1} wherever MainFrame runs, so a workspace file means the same on Windows and
+ * Linux. Renaming a workspace moves them all. Deleting one moves its scripts into {@code .deleted}, where undoing
  * the delete finds them; what is there is cleared a month later ({@link #pruneDeleted}), since an undo lasts only as
  * long as the window that can make it. A folder removed from a workspace keeps its script where it is, for the same
  * undo, and nothing deletes it.
@@ -55,9 +57,9 @@ final class WorkspaceStore {
         return dir.resolve(name + ".csv");
     }
 
-    /** The script every tab of {@code name} sources: there or not. */
-    Path envFile(String name) {
-        return dir.resolve(name + ".env.ps1");
+    /** The script in {@code dialect} every tab of {@code name} sources: there or not. */
+    Path envFile(String name, EnvScripts.Dialect dialect) {
+        return dir.resolve(name + ".env" + dialect.extension);
     }
 
     /** The folder of {@code name}'s per-tab scripts: there or not. */
@@ -67,10 +69,22 @@ final class WorkspaceStore {
 
     /**
      * The script of the tab of workspace {@code name} whose {@code env} column is {@code key}, or empty when the key
-     * is blank or is not a plain script name in that folder: a hand-edited file cannot point a tab outside it.
+     * is blank or is not a plain script name in that folder: a hand-edited file cannot point a tab outside it. The
+     * key names the PowerShell script; another dialect's is the key with that dialect's ending for {@code .ps1}.
      */
-    Optional<Path> tabEnvFile(String name, String key) {
-        return validKey(key) ? Optional.of(envDir(name).resolve(key)) : Optional.empty();
+    Optional<Path> tabEnvFile(String name, String key, EnvScripts.Dialect dialect) {
+        if (!validKey(key)) return Optional.empty();
+        return Optional.of(envDir(name).resolve(key.substring(0, key.length() - 4) + dialect.extension));
+    }
+
+    /** {@link #envFile} in every dialect. */
+    private List<Path> envFiles(String name) {
+        return Stream.of(EnvScripts.Dialect.values()).map(d -> envFile(name, d)).toList();
+    }
+
+    /** Whether any of {@code name}'s scripts is there: a workspace script, or the folder of the tabs'. */
+    private boolean hasScripts(String name) {
+        return Files.exists(envDir(name)) || envFiles(name).stream().anyMatch(Files::exists);
     }
 
     /** The workspaces there are, by name, in alphabetical order ignoring case. */
@@ -162,7 +176,9 @@ final class WorkspaceStore {
         if (stem.isEmpty()) stem.append("tab");
         while (true) {
             String key = stem + "-" + String.format("%06x", ThreadLocalRandom.current().nextInt(1 << 24)) + ".ps1";
-            if (taken.add(key) && !Files.exists(envDir(name).resolve(key))) return key;
+            String k = key;
+            if (taken.add(key) && Stream.of(EnvScripts.Dialect.values())
+                    .noneMatch(d -> Files.exists(tabEnvFile(name, k, d).orElseThrow()))) return key;
         }
     }
 
@@ -193,24 +209,27 @@ final class WorkspaceStore {
     /** Puts back as workspace {@code name}'s the scripts {@link #delete} moved to {@code stash}. Null is none. */
     void restore(Path stash, String name) throws IOException {
         if (stash == null || !Files.isDirectory(stash)) return;
-        Path f = stash.resolve(envFile(name).getFileName());
-        Path d = stash.resolve(envDir(name).getFileName());
-        if (Files.exists(envFile(name)) || Files.exists(envDir(name))) {
+        if (hasScripts(name)) {
             throw new IOException("workspace " + name + " has scripts again; the old ones are still in " + stash);
         }
-        if (Files.exists(f)) Files.move(f, envFile(name));
+        for (Path f : envFiles(name)) {
+            Path stashed = stash.resolve(f.getFileName());
+            if (Files.exists(stashed)) Files.move(stashed, f);
+        }
+        Path d = stash.resolve(envDir(name).getFileName());
         if (Files.exists(d)) Files.move(d, envDir(name));
         Files.deleteIfExists(stash);
     }
 
     /** Moves the workspace's scripts into a folder of their own under {@link #DELETED}; null when it has none. */
     private Path stash(String name) throws IOException {
-        Path f = envFile(name);
-        Path d = envDir(name);
-        if (!Files.exists(f) && !Files.exists(d)) return null;
+        if (!hasScripts(name)) return null;
         Path stash = dir.resolve(DELETED).resolve(name + " " + System.currentTimeMillis());
         Files.createDirectories(stash);
-        if (Files.exists(f)) Files.move(f, stash.resolve(f.getFileName()));
+        for (Path f : envFiles(name)) {
+            if (Files.exists(f)) Files.move(f, stash.resolve(f.getFileName()));
+        }
+        Path d = envDir(name);
         if (Files.exists(d)) Files.move(d, stash.resolve(d.getFileName()));
         return stash;
     }
@@ -250,12 +269,13 @@ final class WorkspaceStore {
         boolean caseOnly = from.equalsIgnoreCase(to);
         if (!caseOnly && exists(to)) throw new IOException("there is already a workspace called " + to);
         if (!caseOnly && stash(to) != null) LOG.info("put aside scripts named after {}, which had no workspace", to);
-        move(envFile(from), envFile(to), caseOnly);
+        for (EnvScripts.Dialect d : EnvScripts.Dialect.values()) move(envFile(from, d), envFile(to, d), caseOnly);
         move(envDir(from), envDir(to), caseOnly);
         try {
             move(file(from), file(to), caseOnly);
         } catch (IOException e) {
-            move(envFile(to), envFile(from), caseOnly);   // the scripts back where the workspace still is
+            // the scripts back where the workspace still is
+            for (EnvScripts.Dialect d : EnvScripts.Dialect.values()) move(envFile(to, d), envFile(from, d), caseOnly);
             move(envDir(to), envDir(from), caseOnly);
             throw e;
         }
@@ -270,6 +290,14 @@ final class WorkspaceStore {
         } else {
             Files.move(from, to);
         }
+    }
+
+    /**
+     * Where MainFrame keeps the startup files it gives bash and zsh ({@link EnvScripts#launchers}): beside this
+     * folder, in MainFrame's settings directory, since they are no workspace's.
+     */
+    Path launchers() {
+        return dir.resolveSibling("shell");
     }
 
     /** The first of "Workspace", "Workspace 2", "Workspace 3", ... that is not taken. */

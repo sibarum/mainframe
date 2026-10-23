@@ -93,8 +93,10 @@ window by name.
 
 **Done** ([EnvScripts](../src/main/java/dev/mainframe/EnvScripts.java)). Every tab of a workspace can have its
 environment extended in two ways: by the workspace's script, which all its tabs source, and by the tab's own, which
-is sourced after it and so overrides it. Both are plain PowerShell scripts that the tab's shell dot-sources as it
-starts. Editing either opens it in a plain Vex window ([Vex](../src/main/java/dev/mainframe/Vex.java)).
+is sourced after it and so overrides it. Both are plain scripts that the tab's shell dot-sources as it starts, in
+its language: PowerShell for Windows PowerShell and PowerShell 7, sh for bash and zsh on Linux. Which language a
+script is edited in is the shell new tabs start. Editing either opens it in a plain Vex window
+([Vex](../src/main/java/dev/mainframe/Vex.java)).
 
 ### Where they are
 
@@ -102,8 +104,11 @@ Beside the workspace's CSV file, named after it, so a glance at the folder shows
 
 | File | What |
 | --- | --- |
-| `<name>.env.ps1` | the workspace's script |
-| `<name>.env/<key>.ps1` | a tab's script; `<key>.ps1` is the row's `env` column |
+| `<name>.env.ps1`, `<name>.env.sh` | the workspace's script, in PowerShell and in sh |
+| `<name>.env/<key>.ps1`, `<name>.env/<key>.sh` | a tab's script; `<key>.ps1` is the row's `env` column |
+
+The key keeps its `.ps1` on Linux too, so a workspace file means the same on either: a tab's sh script is the key's
+name with `.sh` for `.ps1`.
 
 A tab's script needs a name that is the tab's whatever happens to its row: relabelling, reordering and changing its
 folder all keep it. Nothing in the row lasts through all three, so the row carries a key of its own, the new `env`
@@ -122,10 +127,22 @@ every step holds rows that already have their keys. The script itself is made on
   the new tab directory. The window's workspace is the first launch tab's, or the one whose tabs took the place of the
   spare plain tab. A window opened without one, and a folder opened with Ctrl+O, source nothing.
 
-The scripts are added to the shell's command line, `-NoExit -Command ". 'ws.env.ps1'; . 'tab.ps1'"`, each path in
-single quotes with any quote in it doubled (PowerShell's curly single quotes too). That needs PowerShell, and a
-command line with no command or file of its own: anything else is refused, said on the tab, and logged. A missing
-script is skipped. The scripts run after the profile, under the user's execution policy.
+PowerShell's are added to its command line, `-NoExit -Command ". 'ws.env.ps1'; . 'tab.ps1'"`, each path in single
+quotes with any quote in it doubled (PowerShell's curly single quotes too). The scripts run after the profile, under
+the user's execution policy.
+
+bash and zsh take no command line that sources a file after their own startup files, so MainFrame gives them startup
+files of its own, rewritten into `~/.mainframe/shell/` as such a tab opens, and the scripts in `MAINFRAME_SOURCE`,
+one path per line: `env MAINFRAME_SOURCE='…' bash --rcfile ~/.mainframe/shell/bashrc`. bash reads no rc file as a
+login shell, so its `-l` becomes `MAINFRAME_LOGIN=1`, on which the rc file reads `/etc/profile` and the first of
+`~/.bash_profile`, `~/.bash_login` and `~/.profile`, as a login bash would; without it, `~/.bashrc`. zsh is given
+`ZDOTDIR=~/.mainframe/shell/zsh`, whose `.zshenv`, `.zprofile`, `.zshrc` and `.zlogin` each read the user's of that
+name with `ZDOTDIR` the user's while they do; the last one zsh reads sources the scripts. The list is read on a
+descriptor of its own, so a script that reads its input reads the terminal. Both forget the variables before the
+prompt. (bash started this way is not a login shell to `shopt login_shell` and does not read `~/.bash_logout`.)
+
+Either way the command line must have no command or file of its own, only switches (`-l`, `-i`, `--login` for bash
+and zsh): anything else, and any other shell, is refused, said on the tab, and logged. A missing script is skipped.
 
 ### The generated region
 
@@ -141,13 +158,15 @@ $env:MAINFRAME_TAB_FOLDER = 'C:\work\api'
 
 It is rewritten whenever the script is about to be sourced or edited, so renames reach it without a pass over every
 file. Everything else is the user's, kept byte for byte: the file is spliced as bytes (a UTF-16 file, as Windows
-PowerShell's `Out-File` writes, as UTF-16 text). A script without the region gets one on top. A new script is UTF-8
-with a byte-order mark, which Windows PowerShell needs to read a non-ASCII name.
+PowerShell's `Out-File` writes, as UTF-16 text). A script without the region gets one on top. A new PowerShell script
+is UTF-8 with a byte-order mark, which Windows PowerShell needs to read a non-ASCII name; a new sh script is UTF-8
+with neither the mark nor carriage returns, which sh would take as a command and as text. An sh script's region is
+`export MAINFRAME_WORKSPACE='day'` and so on, each value in sh's single quotes.
 
 ### Renaming, deleting and undo
 
-- **Renaming** a workspace moves `<name>.env.ps1` and `<name>.env/` with the CSV file; the tabs of it open in this
-  process follow the new name.
+- **Renaming** a workspace moves `<name>.env.ps1`, `<name>.env.sh` and `<name>.env/` with the CSV file; the tabs of
+  it open in this process follow the new name.
 - **Deleting** one moves its scripts to `workspaces/.deleted/<name> <time>/` rather than deleting them, and Ctrl+Z
   puts them back. Each window is a process with its own undo history, so what is put aside is cleared at a later
   start, after 30 days, rather than when one window closes.

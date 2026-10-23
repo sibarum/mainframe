@@ -131,14 +131,17 @@ back, so later versions can add fields (`Workspace`, `WorkspaceStore`). MainFram
 
 ### A workspace's environment
 
-Every tab of a workspace can have its environment extended by PowerShell scripts that its shell dot-sources as it
-starts: the workspace's, which all its tabs share, and then the tab's own, so a tab's script overrides the
-workspace's. They sit beside the CSV file:
+Every tab of a workspace can have its environment extended by scripts that its shell dot-sources as it starts: the
+workspace's, which all its tabs share, and then the tab's own, so a tab's script overrides the workspace's. They are
+in the language of the shell new tabs start: PowerShell scripts (`.ps1`) for Windows PowerShell and PowerShell 7, sh
+scripts (`.sh`) for bash and zsh on Linux. They sit beside the CSV file:
 
 ```
 ~/.mainframe/workspaces/day.csv
-~/.mainframe/workspaces/day.env.ps1               every tab of day
+~/.mainframe/workspaces/day.env.ps1               every tab of day, in PowerShell
+~/.mainframe/workspaces/day.env.sh                every tab of day, in bash or zsh
 ~/.mainframe/workspaces/day.env/api-3f9c2a.ps1    the tab whose env column says api-3f9c2a.ps1
+~/.mainframe/workspaces/day.env/api-3f9c2a.sh     the same tab, in bash or zsh
 ```
 
 **Edit environment…** makes a script if it is not there and opens it in Vex, a window of its own: on the Workspaces
@@ -156,18 +159,21 @@ $env:MAINFRAME_TAB_FOLDER = 'C:\work\api'
 # endregion
 ```
 
-(The workspace's has `MAINFRAME_WORKSPACE` and `MAINFRAME_WORKSPACE_ENV_DIR`, the folder of the tab scripts.)
+An sh script's region sets the same variables with `export MAINFRAME_WORKSPACE='day'`. (The workspace's has
+`MAINFRAME_WORKSPACE` and `MAINFRAME_WORKSPACE_ENV_DIR`, the folder of the tab scripts.)
 Everything outside the region is yours and is kept byte for byte. A missing script is skipped.
 
 - **Which tabs.** A workspace's tabs, opened in a window of their own or into this one with Ctrl+Enter. A tab opened
   with + in a window opened as a workspace sources the workspace's script only, and starts in the new tab directory
   as any + tab does. A folder opened with Ctrl+O, and every tab of a window opened without a workspace, sources
   nothing.
-- **Which shells.** The scripts are added to the shell's command line as `-NoExit -Command ". 'a'; . 'b'"`, after
-  the profile, so only Windows PowerShell and PowerShell 7 run them, and only when the command line has no command
-  or file of its own. Otherwise the tab says above the terminal that its scripts did not run. They run under your
-  execution policy; where it is `Restricted`, Windows' own default, PowerShell refuses them in the tab, and
-  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` allows them.
+- **Which shells.** PowerShell's scripts are added to its command line as `-NoExit -Command ". 'a'; . 'b'"`, after
+  the profile. They run under your execution policy; where it is `Restricted`, Windows' own default, PowerShell
+  refuses them in the tab, and `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` allows them. On Linux, bash and
+  zsh start on startup files MainFrame keeps in `~/.mainframe/shell/` (bash's `--rcfile`, zsh's `ZDOTDIR`), which
+  read yours as the shell would have (the profile for a login shell, else `~/.bashrc`; each of zsh's) and then
+  source the scripts. Either way only a command line with no command or file of its own is added to; for any other
+  line, or any other shell, the tab says above the terminal that its scripts did not run.
 - **The key.** A tab's script is named by the `env` column, which every row gets the first time its workspace is
   opened or shown on the Workspaces tab, so the script stays the tab's when it is renamed, moved or pointed at
   another folder.

@@ -72,7 +72,7 @@ final class SettingsWindow {
         this.dialogs = dialogs;
         this.motion = motion;
         tabs =new Tabs(gui).closable(false);
-        workspaces = new WorkspacesPage(gui, store, dialogs, motion);
+        workspaces = new WorkspacesPage(gui, store, settings, dialogs, motion);
         startWorkspace = new Select<String>(gui, name -> name.isEmpty() ? "None" : name);
         startWorkspace.onCommit(chosen -> settings.startWorkspace(chosen.isEmpty() ? null : chosen.iterator().next()));
         gui.landmark(Landmarks.SETTINGS_START_WORKSPACE, startWorkspace.node());
