@@ -649,22 +649,20 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
     /**
      * The new-tab button and the passthrough switch live in the bar after the headers. Headers are appended, so each
-     * new tab lands behind them; removing a node releases its handlers, so they are rebuilt rather than moved.
+     * new tab lands behind them, and the two are moved back to the end. Moved, not rebuilt: append of a child moves
+     * it with its handlers, and a rebuilt one would leave the old fading where it stood while the new one arrived
+     * after the new header, two of each for a moment under the window's motion.
      */
     private void movePlus() {
-        if (plus != null) {
-            plus.remove();
+        if (plus == null) {
+            plus = gui.text(PLUS).height(Length.FILL);
+            gui.landmark(Landmarks.NEW_TAB, plus);
+            gui.onClick(plus, this::newTab);
+            passthrough = gui.text(PASSTHROUGH).height(Length.FILL).role("switch");
+            gui.landmark(Landmarks.PASSTHROUGH, passthrough);
+            gui.onClick(passthrough, this::togglePassthrough);
+            showPassthrough();
         }
-        if (passthrough != null) {
-            passthrough.remove();
-        }
-        plus = gui.text(PLUS).height(Length.FILL);
-        gui.landmark(Landmarks.NEW_TAB, plus);
-        gui.onClick(plus, this::newTab);
-        passthrough = gui.text(PASSTHROUGH).height(Length.FILL).role("switch");
-        gui.landmark(Landmarks.PASSTHROUGH, passthrough);
-        gui.onClick(passthrough, this::togglePassthrough);
-        showPassthrough();
         tabs.bar().append(plus);
         tabs.bar().append(passthrough);
     }
