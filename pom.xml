@@ -21,6 +21,7 @@
         <vexelray-gui.version>0.1.2-SNAPSHOT</vexelray-gui.version>
         <vexelray.version>0.1.2-SNAPSHOT</vexelray.version>
         <tactroller.version>1.2-SNAPSHOT</tactroller.version>
+        <vexelray-codec.version>0.1.2-SNAPSHOT</vexelray-codec.version>
         <vex-suite-common.version>0.1.2-SNAPSHOT</vex-suite-common.version>
         <junit.version>5.11.4</junit.version>
 
@@ -108,6 +109,14 @@
             <groupId>sibarum.tactroller</groupId>
             <artifactId>tactroller-clipboard</artifactId>
             <version>${tactroller.version}</version>
+        </dependency>
+        <!-- The title bar's camera records video as well as taking screenshots: found through ServiceLoader, so this
+             dependency is all it takes. AV1 into Matroska, through an FFmpeg that holds the AV1 encoders and no
+             decoder (ffmpeg-wrapper-record). -->
+        <dependency>
+            <groupId>dev.vexelray.codec</groupId>
+            <artifactId>vexelray-codec-record</artifactId>
+            <version>${vexelray-codec.version}</version>
         </dependency>
 
         <!-- The terminal: the pseudoconsole, the VT screen and the screen drawn as a node (its tty package), shared
@@ -288,7 +297,7 @@
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
                 <version>0.1.2-SNAPSHOT</version>
-                <executions>
+                <executions>
                     <execution>
                         <id>identify</id>
                         <goals>
