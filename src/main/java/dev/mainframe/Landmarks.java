@@ -16,6 +16,9 @@ final class Landmarks {
     /** The + after the tab headers. */
     static final String NEW_TAB = "new-tab";
 
+    /** The switch after the +: every chord to the shell while it is on. */
+    static final String PASSTHROUGH = "passthrough";
+
     /** The notice over a terminal: why {@code --insert-path} typed nothing, say. */
     static final String NOTICE = "notice";
 

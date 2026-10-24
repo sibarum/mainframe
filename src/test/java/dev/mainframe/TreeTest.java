@@ -68,7 +68,9 @@ class TreeTest {
         assertEquals(List.of(ctrlShift(Key.T), ctrl(Key.T)), keys.action("tab.new").orElseThrow().defaults());
         assertEquals(List.of(ctrl(Key.O)), keys.action("file.open").orElseThrow().defaults());
         assertEquals(List.of(ctrlShift(Key.V), ctrl(Key.V)), keys.action("term.paste").orElseThrow().defaults());
-        assertEquals(List.of(Shortcut.of(Key.ESCAPE)), keys.action("term.interrupt").orElseThrow().defaults());
+        assertEquals(List.of(ctrlShift(Key.C), ctrl(Key.C)), keys.action("term.copy").orElseThrow().defaults());
+        assertEquals(List.of(), keys.action("term.interrupt").orElseThrow().defaults(),
+                "Ctrl+C with nothing selected interrupts, so Esc is the shell's");
         for (Action a : keys.actions()) {
             assertTrue(a.label() != null && !a.label().equals(a.id()), a.id() + " has a label of its own");
         }
@@ -103,7 +105,7 @@ class TreeTest {
         assertFalse(Files.readString(home.resolve("settings.properties")).contains("keys.remap"),
                 "asked once: the old switch is gone from the settings");
         List<String> stored = Settings.at(home.resolve("keys.properties")).getList(Keymap.SETTINGS_KEY);
-        assertTrue(stored.stream().anyMatch(line -> line.startsWith("term.interrupt")),
+        assertTrue(stored.stream().anyMatch(line -> line.startsWith("term.copy")),
                 "and what it meant is in the key map's own store: " + stored);
     }
 

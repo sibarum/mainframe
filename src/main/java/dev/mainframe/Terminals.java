@@ -11,6 +11,7 @@ import dev.vexelray.gui.core.input.ClaimScope;
 import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.core.input.Trigger;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.keymap.Action;
 import dev.vexelray.gui.keymap.Keymap;
 import dev.vexelray.gui.widget.Tabs;
@@ -54,6 +55,8 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
     private static final Log LOG = Log.of("mainframe.tabs");
     private static final String PLUS = " + ";
+    private static final String PASSTHROUGH = " Keys: MainFrame ";
+    private static final String PASSTHROUGH_ON = " Keys: all to shell ";
 
     /**
      * A tab to open: the folder its shell starts in (null: the new tab directory), its name (null: the folder's), and
@@ -96,6 +99,9 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     private volatile Runnable wake = () -> { };
     private volatile Runnable open = () -> { };
     private Node plus;
+    /** The switch after the +: while it is on, the key map is paused and every chord is the shell's. */
+    private Node passthrough;
+    private final Keymap keys;
     private Rename renaming;
     /** The zoom the tabs' type was last sized for (see {@link #fontPx}). Written by the frame loop. */
     private volatile float zoom;
@@ -114,6 +120,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         this.dialogs = dialogs;
         this.window = window;
         this.workspaces = workspaces;
+        this.keys = keys;
         // The mono face of the atlas the framework bakes; one layout, shared by every tab, as it is only read.
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
@@ -276,8 +283,8 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
     /**
      * The chords a shell has a use for that MainFrame's defaults take: Ctrl+T, Ctrl+W and Ctrl+O for tabs and
-     * opening, Ctrl+C and Ctrl+V for the clipboard, and Esc for the interrupt Ctrl+C no longer sends. Unbound, each
-     * reaches the shell again; {@link #handShellKeysBack} does that for all of them at once.
+     * opening, Ctrl+C over a selection and Ctrl+V for the clipboard, and Esc for the interrupt, which older key maps
+     * bound it to. Unbound, each reaches the shell again; {@link #handShellKeysBack} does that for all of them at once.
      */
     static final Set<Trigger> SHELL_KEYS = Set.of(ctrl(Key.T), ctrl(Key.W), ctrl(Key.O), ctrl(Key.C), ctrl(Key.V),
             Shortcut.of(Key.ESCAPE));
@@ -311,11 +318,13 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
 
         // Placed on the tab bar, which never has the keyboard, until there is a terminal to follow.
         terminalKeys = List.of(
-                keys.action("term.copy", "Copy the selection", ctrlShift(Key.C), ctrl(Key.C))
-                        .on(() -> withCurrent(TerminalView::copy)),
+                keys.action("term.copy", "Copy the selection, else interrupt the shell", ctrlShift(Key.C),
+                                ctrl(Key.C))
+                        .on(() -> withCurrent(TerminalView::copyOrInterrupt)).ordered(),
                 keys.action("term.paste", "Paste", ctrlShift(Key.V), ctrl(Key.V))
                         .on(() -> withCurrent(TerminalView::paste)).ordered(),
-                keys.action("term.interrupt", "Interrupt (what Ctrl+C sends a shell)", Shortcut.of(Key.ESCAPE))
+                // Unbound: Ctrl+C with nothing selected is the interrupt, so Esc stays the shell's.
+                keys.action("term.interrupt", "Interrupt (what Ctrl+C sends a shell)")
                         .on(() -> withCurrent(TerminalView::interrupt)).ordered(),
                 keys.action("term.page-up", "Scroll back a page", Shortcut.of(Key.PAGE_UP, Modifier.SHIFT))
                         .on(() -> withCurrent(v -> v.page(1))).ordered(),
@@ -639,16 +648,42 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     }
 
     /**
-     * The new-tab button lives in the bar after the headers. Headers are appended, so each new tab lands behind
-     * the button; removing the button releases its handlers, so it is rebuilt rather than moved.
+     * The new-tab button and the passthrough switch live in the bar after the headers. Headers are appended, so each
+     * new tab lands behind them; removing a node releases its handlers, so they are rebuilt rather than moved.
      */
     private void movePlus() {
         if (plus != null) {
             plus.remove();
         }
+        if (passthrough != null) {
+            passthrough.remove();
+        }
         plus = gui.text(PLUS).height(Length.FILL);
         gui.landmark(Landmarks.NEW_TAB, plus);
         gui.onClick(plus, this::newTab);
+        passthrough = gui.text(PASSTHROUGH).height(Length.FILL).role("switch");
+        gui.landmark(Landmarks.PASSTHROUGH, passthrough);
+        gui.onClick(passthrough, this::togglePassthrough);
+        showPassthrough();
         tabs.bar().append(plus);
+        tabs.bar().append(passthrough);
+    }
+
+    /**
+     * Every chord to the shell, or back to MainFrame's commands. The way back is this switch, by mouse: with the key
+     * map paused, no chord could reach a command that resumes it.
+     */
+    private void togglePassthrough() {
+        keys.paused(!keys.paused());
+        showPassthrough();
+        withCurrent(TerminalView::focus);
+    }
+
+    /** Lit in the accent while on, so a window whose shortcuts have stopped working says why. */
+    private void showPassthrough() {
+        boolean on = keys.paused();
+        passthrough.text(on ? PASSTHROUGH_ON : PASSTHROUGH)
+                .background(gui.theme().color(on ? Role.ACCENT : Role.NONE))
+                .textColor(gui.theme().color(on ? Role.PAGE : Role.INK));
     }
 }

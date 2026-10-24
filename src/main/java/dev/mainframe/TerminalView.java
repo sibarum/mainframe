@@ -21,7 +21,7 @@ import sibarum.tactroller.api.Modifier;
  *
  * <p>The screen is vex-suite-common's, shared with Vex's build console: the cell grid, scrolling, selecting and
  * copying. What is here is what makes it MainFrame's: a shell behind it, what the key map's terminal commands do
- * to it ({@link #copy}, {@link #paste}, {@link #interrupt}, {@link #page}), the notice over it, and typing a path
+ * to it ({@link #copyOrInterrupt}, {@link #paste}, {@link #interrupt}, {@link #page}), the notice over it, and typing a path
  * once the prompt is drawn. Which chords reach those is the {@code Keymap}'s, claimed by {@link Terminals}: a chord
  * no action holds reaches the shell as it is.
  *
@@ -273,8 +273,12 @@ final class TerminalView implements AutoCloseable {
         });
     }
 
-    /** Any key no claim took: to the shell, as the terminal spells it. */
+    /** Any key no claim took: to the shell, as the terminal spells it. Enter over a selection copies it instead. */
     private void key(KeyEvent e) {
+        if (e.key() == Key.ENTER && screen.hasSelection()) {
+            screen.copySelection();
+            return;
+        }
         String out = screen.keySequence(e.key(), e.has(Modifier.CONTROL), e.has(Modifier.ALT),
                 e.has(Modifier.SHIFT));
         if (out != null) {
@@ -284,11 +288,16 @@ final class TerminalView implements AutoCloseable {
 
     // -- what the key map's terminal commands do -------------------------------------------------------------
 
-    void copy() {
-        screen.copySelection();
+    /** Copy the selection and let it go; with nothing selected, the shell's Ctrl+C ({@link #interrupt}). */
+    void copyOrInterrupt() {
+        if (screen.hasSelection()) {
+            screen.copySelection();
+        } else {
+            interrupt();
+        }
     }
 
-    /** The interrupt a shell's Ctrl+C sends, for when Ctrl+C is copy: the legacy control character, 0x03. */
+    /** The interrupt a shell's Ctrl+C sends: the legacy control character, 0x03. */
     void interrupt() {
         send("\u0003");
     }
