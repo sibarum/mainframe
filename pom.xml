@@ -288,7 +288,13 @@
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
                 <version>0.1.2-SNAPSHOT</version>
-                <executions>
+                <executions>
+                    <execution>
+                        <id>identify</id>
+                        <goals>
+                            <goal>identify</goal>
+                        </goals>
+                    </execution>
                     <execution>
                         <id>isolate</id>
                         <goals>
