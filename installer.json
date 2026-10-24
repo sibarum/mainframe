@@ -28,6 +28,7 @@
     "binaries": [
       {
         "name": "mainframe",
+        "appId": "dev.mainframe.mainframe",
         "source": "target-linux/mainframe",
         "icon": "src/main/rc/mainframe.ico",
         "addToPath": true,
