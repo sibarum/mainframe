@@ -26,7 +26,10 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 - [ ] **Confirm closing MainFrame while a tab is running something**, and test it thoroughly. Only Ctrl+W asks now
       (`Terminals.askClose`), and always; closing the window asks nothing. Needs a test for "a process is running"
       (a child of the shell, not the shell itself), and to cover every way out: the title bar's ×, Alt+F4, the
-      taskbar, the last tab closing, one tab busy among idle ones.
+      taskbar, the last tab closing, one tab busy among idle ones. Rule: ask if any open tab has ever been submitted
+      to: a CR or LF through `TerminalView.send` (Enter, keypad Enter, Ctrl+M, Ctrl+J, a paste with a line end), or
+      opened with env scripts, which run commands without anyone pressing anything. No detection of what is running:
+      a false alarm is fine, a false negative is not.
 
 ## Later
 
