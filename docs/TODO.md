@@ -18,6 +18,15 @@ Keep an entry short enough that it does not need editing, and delete it when it 
       typed once the prompt is drawn, never run, not typed if the user types first, refused with a shell given on the
       command line. The safety rule is a character set rather than one quoted name: letters, digits, space and
       `-_.=:/\~` only (no `#`, `,`, `@` or quotes), and otherwise nothing is typed and the notice says why.
+- [ ] **Rethink the passthrough switch's presentation.** Keep what it does; the " Keys: MainFrame " / " Keys: all to
+      shell " text in the tab bar (`Terminals.PASSTHROUGH`) is the part that has to go. No design yet.
+- [ ] **A shell per tab.** Each tab in a workspace names its own shell: Command Prompt or PowerShell on Windows, the
+      installed shells (sh, bash, zsh…) elsewhere, from `PtyPlatform.current().shells()`. The tab header shows which.
+      `EnvScripts` already picks a dialect per shell line, so env scripts should follow the tab's shell.
+- [ ] **Confirm closing MainFrame while a tab is running something**, and test it thoroughly. Only Ctrl+W asks now
+      (`Terminals.askClose`), and always; closing the window asks nothing. Needs a test for "a process is running"
+      (a child of the shell, not the shell itself), and to cover every way out: the title bar's ×, Alt+F4, the
+      taskbar, the last tab closing, one tab busy among idle ones.
 
 ## Later
 
