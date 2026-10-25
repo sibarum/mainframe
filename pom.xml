@@ -6,7 +6,7 @@
 
     <groupId>dev.mainframe</groupId>
     <artifactId>mainframe</artifactId>
-    <version>0.1.2-SNAPSHOT</version>
+    <version>0.1.2</version>
 
     <name>mainframe</name>
     <description>
@@ -17,12 +17,12 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <vexelray-framework.version>0.1.2-SNAPSHOT</vexelray-framework.version>
-        <vexelray-gui.version>0.1.2-SNAPSHOT</vexelray-gui.version>
-        <vexelray.version>0.1.2-SNAPSHOT</vexelray.version>
-        <tactroller.version>1.2-SNAPSHOT</tactroller.version>
-        <vexelray-codec.version>0.1.2-SNAPSHOT</vexelray-codec.version>
-        <vex-suite-common.version>0.1.2-SNAPSHOT</vex-suite-common.version>
+        <vexelray-framework.version>0.1.2</vexelray-framework.version>
+        <vexelray-gui.version>0.1.2</vexelray-gui.version>
+        <vexelray.version>0.1.2</vexelray.version>
+        <tactroller.version>1.2</tactroller.version>
+        <vexelray-codec.version>0.1.2</vexelray-codec.version>
+        <vex-suite-common.version>0.1.2</vex-suite-common.version>
         <junit.version>5.11.4</junit.version>
 
         <app.mainClass>dev.mainframe.MainFrame</app.mainClass>
@@ -342,7 +342,7 @@
             <plugin>
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
-                <version>0.1.2-SNAPSHOT</version>
+                <version>0.1.2</version>
                 <executions>
                     <execution>
                         <id>identify</id>
