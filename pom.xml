@@ -120,7 +120,7 @@
         </dependency>
 
         <!-- The terminal: the pseudoconsole, the VT screen and the screen drawn as a node (its tty package), shared
-             with Vex's build console. The suite's picture decoder comes with it and is excluded, since nothing
+             with VexelRay IDE's build console. The suite's picture decoder comes with it and is excluded, since nothing
              here shows a picture. Installed to the local .m2 by `mvn install` in the sibling vex-suite-common repo. -->
         <dependency>
             <groupId>dev.sibarum</groupId>

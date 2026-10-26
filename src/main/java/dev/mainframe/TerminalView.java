@@ -19,7 +19,7 @@ import sibarum.tactroller.api.Modifier;
  * One tab's terminal: a shell on a {@link Pty}, its output on a {@link TerminalScreen}, and the keyboard and
  * mouse wired back to the shell.
  *
- * <p>The screen is vex-suite-common's, shared with Vex's build console: the cell grid, scrolling, selecting and
+ * <p>The screen is vex-suite-common's, shared with VexelRay IDE's build console: the cell grid, scrolling, selecting and
  * copying. What is here is what makes it MainFrame's: a shell behind it, what the key map's terminal commands do
  * to it ({@link #copyOrInterrupt}, {@link #paste}, {@link #interrupt}, {@link #page}), the notice over it, and typing a path
  * once the prompt is drawn. Which chords reach those is the {@code Keymap}'s, claimed by {@link Terminals}: a chord

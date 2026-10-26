@@ -144,9 +144,9 @@ scripts (`.sh`) for bash and zsh on Linux. They sit beside the CSV file:
 ~/.mainframe/workspaces/day.env/api-3f9c2a.sh     the same tab, in bash or zsh
 ```
 
-**Edit environment…** makes a script if it is not there and opens it in Vex, a window of its own: on the Workspaces
+**Edit environment…** makes a script if it is not there and opens it in VexelRay IDE, a window of its own: on the Workspaces
 tab for the workspace, on a card's right-click menu for that tab, and on a workspace tab's right-click menu in the
-terminal window (*Edit environment…* for the tab, *Edit workspace environment…* for the workspace). Vex is found by
+terminal window (*Edit environment…* for the tab, *Edit workspace environment…* for the workspace). VexelRay IDE is found by
 its install record, or else as `text-editor` on the `PATH`; without it, a dialog says where the script is.
 
 Each script starts with a region MainFrame rewrites whenever the script is about to be sourced or edited:
@@ -205,12 +205,12 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 | `SettingsWindow` / `AppSettings` | The settings window (a framework `NamedWindow`) and the saved settings behind it |
 | `WorkspacesPage` / `Workspace` / `WorkspaceStore` | The Workspaces tab, and the saved workspaces |
 | `OpenDialog` / `SelfLaunch` | What Ctrl+O opens, and starting another MainFrame to open a workspace in |
-| `EnvScripts` / `Vex` | A workspace's environment scripts: their generated region and the shell command line that sources them; and opening one in Vex |
+| `EnvScripts` / `Vex` | A workspace's environment scripts: their generated region and the shell command line that sources them; and opening one in VexelRay IDE |
 
 What is not here is the point: input, the clipboard, window memory, the clock, the frame loop and its pacing, the
 dialogs, the title bar and closing everything in order are the framework's.
 
-The terminal itself is [vex-suite-common](../vex-suite-common)'s `tty` package, shared with Vex's build console: the
+The terminal itself is [vex-suite-common](../vex-suite-common)'s `tty` package, shared with VexelRay IDE's build console: the
 pseudoconsole (`ConPty`, kernel32 through the foreign function API, the only Windows-specific part), the VT screen
 (`Terminal`), reading one into the other (`Pump`), the screen drawn as a node with scrolling, selection and copying
 (`TerminalScreen`), and box drawing, block elements and braille drawn rather than taken from the font (`CellArt`).

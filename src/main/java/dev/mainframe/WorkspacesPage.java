@@ -58,7 +58,7 @@ import java.util.function.Consumer;
  * label it has changed records the relabel as one step. A workspace is opened by starting MainFrame with
  * {@code --workspace=<name>}.
  *
- * <p>Edit environment… opens the workspace's environment script in Vex, and a card's menu has the same for its tab's
+ * <p>Edit environment… opens the workspace's environment script in VexelRay IDE, and a card's menu has the same for its tab's
  * own script ({@link EnvScripts}). A script is the store's to keep consistent: renaming moves it, deleting puts it
  * aside where undoing finds it, and removing a card leaves its script, which undoing the removal finds again by the
  * row's key. Rows are given keys as a workspace is shown, before any step that could hold them is recorded.
@@ -561,7 +561,7 @@ final class WorkspacesPage {
 
     // -- the environment -------------------------------------------------------------------------------------
 
-    /** The script every tab of the workspace on show sources, in the language of the shell tabs start, made if need be, in Vex. */
+    /** The script every tab of the workspace on show sources, in the language of the shell tabs start, made if need be, in VexelRay IDE. */
     private void editWorkspaceEnv() {
         String name = shown;
         if (name == null) return;
@@ -569,7 +569,7 @@ final class WorkspacesPage {
     }
 
     /**
-     * {@code folder}'s own script, made if need be, in Vex. Its row has a key from when the workspace was shown;
+     * {@code folder}'s own script, made if need be, in VexelRay IDE. Its row has a key from when the workspace was shown;
      * one that lost it to a hand edit since gets one now, saved without a step, as showing it would have.
      */
     private void editTabEnv(Folder folder) {

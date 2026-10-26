@@ -1,7 +1,7 @@
 # The terminal as a library
 
 Status: **moved, more simply than planned below**, 2026-10-15. The emulator is the `tty` package of
-[vex-suite-common](../../vex-suite-common), not a repository of its own, because Vex's build console wanted it first
+[vex-suite-common](../../vex-suite-common), not a repository of its own, because VexelRay IDE's build console wanted it first
 and both applications already sit beside that library. What moved, and how the tie below was cut:
 
 - `Terminal`, `ConPty` and `CellArt` moved unchanged, with `TerminalTest` and `ConPtyTest`, and `ConPty`'s downcalls
@@ -11,13 +11,13 @@ and both applications already sit beside that library. What moved, and how the t
   `ConPty.resize`), scrolls, selects and copies, and says what a key or a paste would send (`keySequence`,
   `pasteText`) without sending it. `Pump` reads a pty or a stream into a `Terminal`. So a read-only console is simply a
   screen whose owner sends nothing, and the remap question below is answered: it stays in MainFrame's `TerminalView`.
-- The face is passed in, as is the colour behind the default background, so Vex's console can be grey.
+- The face is passed in, as is the colour behind the default background, so VexelRay IDE's console can be grey.
 
 The rest of this note is the plan as it was written, kept for its reasoning.
 
 MainFrame is two things in one artifact: a terminal emulator, and an application around it (tabs, settings,
 workspaces, `--insert-path`). The emulator is wanted elsewhere. Vexplore wants a read-only console that shows the
-git commands it runs (`vexplore/docs/ideas/git.md`). Vex could have a build panel. Tests and `ottermate` could read
+git commands it runs (`vexplore/docs/ideas/git.md`). VexelRay IDE could have a build panel. Tests and `ottermate` could read
 a screen without a window. So the emulator moves to a project of its own, and MainFrame becomes its first user.
 
 ## What is already separate

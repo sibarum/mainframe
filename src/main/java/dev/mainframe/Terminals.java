@@ -545,7 +545,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
     // -- environment ------------------------------------------------------------------------------------------
 
     /**
-     * The tab's own script, in Vex. Its row is found again by its {@code env} key, so a tab relabelled or moved in
+     * The tab's own script, in VexelRay IDE. Its row is found again by its {@code env} key, so a tab relabelled or moved in
      * the editor since it opened is still found, and the script's region says what the row says now.
      */
     private void editTabEnv(TerminalView v) {
@@ -566,7 +566,7 @@ final class Terminals implements TerminalView.Hooks, WakeSource, AutoCloseable {
         Vex.editScript(dialogs, () -> EnvScripts.tabScript(workspaces, name, row, EnvScripts.dialect(settings.shellCommand())));
     }
 
-    /** The script every tab of the tab's workspace sources, in Vex. */
+    /** The script every tab of the tab's workspace sources, in VexelRay IDE. */
     private void editWorkspaceEnv(TerminalView v) {
         String name = v.opening().workspace();
         if (!workspaces.exists(name)) {

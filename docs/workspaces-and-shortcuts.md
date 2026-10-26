@@ -95,8 +95,8 @@ window by name.
 environment extended in two ways: by the workspace's script, which all its tabs source, and by the tab's own, which
 is sourced after it and so overrides it. Both are plain scripts that the tab's shell dot-sources as it starts, in
 its language: PowerShell for Windows PowerShell and PowerShell 7, sh for bash and zsh on Linux. Which language a
-script is edited in is the shell new tabs start. Editing either opens it in a plain Vex window
-([Vex](../src/main/java/dev/mainframe/Vex.java)).
+script is edited in is the shell new tabs start. Editing either opens it in a plain VexelRay IDE window
+([Vex.java](../src/main/java/dev/mainframe/Vex.java)).
 
 ### Where they are
 
