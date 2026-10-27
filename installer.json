@@ -15,14 +15,14 @@
     "binaries": [
       {
         "name": "mainframe",
-        "source": "target/mainframe.exe",
-        "icon": "src/main/rc/mainframe.ico",
+        "source": "mainframe-gui/target/mainframe.exe",
+        "icon": "mainframe-gui/src/main/rc/mainframe.ico",
         "addToPath": true,
         "shortcuts": { "desktop": true, "startMenu": true, "label": "MainFrame" }
       },
       {
         "name": "mainframe-ffmpeg-record",
-        "source": "target/mainframe-ffmpeg-record-windows-x86_64.zip",
+        "source": "mainframe-gui/target/mainframe-ffmpeg-record-windows-x86_64.zip",
         "dir": "ffmpeg-record"
       },
       { "name": "notices", "source": "THIRD-PARTY-NOTICES.txt" }
@@ -34,14 +34,14 @@
       {
         "name": "mainframe",
         "appId": "dev.mainframe.mainframe",
-        "source": "target-linux/mainframe",
-        "icon": "src/main/rc/mainframe.ico",
+        "source": "mainframe-gui/target-linux/mainframe",
+        "icon": "mainframe-gui/src/main/rc/mainframe.ico",
         "addToPath": true,
         "shortcuts": { "desktop": true, "startMenu": true, "label": "MainFrame" }
       },
       {
         "name": "mainframe-ffmpeg-record",
-        "source": "target-linux/mainframe-ffmpeg-record-linux-x86_64.tar.gz",
+        "source": "mainframe-gui/target-linux/mainframe-ffmpeg-record-linux-x86_64.tar.gz",
         "dir": "ffmpeg-record"
       },
       { "name": "notices", "source": "THIRD-PARTY-NOTICES.txt" }

@@ -1,0 +1,94 @@
+package dev.mainframe.core;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** MainFrame's command line: what is MainFrame's, what is the framework's, and the tabs it comes to on disk. */
+class CommandTest {
+
+    @TempDir
+    Path tmp;
+
+    @Test
+    void optionsComeOutAndTheRestIsTheFrameworks() {
+        Command c = Command.parse(new String[] {"--dir=a", "--automation=0", "--workspace=w", "--dirs=list.txt",
+                "--log=debug", "--insert-path=C:/x/y.txt"});
+        assertEquals(List.of(new Command.Source(Command.Kind.DIR, "a"), new Command.Source(Command.Kind.WORKSPACE, "w"),
+                new Command.Source(Command.Kind.DIRS, "list.txt")), c.sources());
+        assertEquals(List.of("--automation=0", "--log=debug"), c.framework());
+        assertEquals("C:/x/y.txt", c.insertPath());
+        assertNull(c.shellLine());
+    }
+
+    @Test
+    void theFirstArgumentThatIsNotAnOptionStartsACommandLineThatKeepsItsOwnOptions() {
+        Command c = Command.parse(new String[] {"--dir=a", "pwsh", "-NoProfile", "--dir=b", "240"});
+        assertEquals(List.of(new Command.Source(Command.Kind.DIR, "a")), c.sources());
+        assertEquals("pwsh -NoProfile --dir=b 240", c.shellLine());
+        assertTrue(c.framework().isEmpty(), "nothing after the command line is the framework's");
+    }
+
+    @Test
+    void anUnknownOptionIsLeftForTheFrameworkToRefuse() {
+        assertEquals(List.of("--dri=a"), Command.parse(new String[] {"--dri=a"}).framework());
+    }
+
+    @Test
+    void aSecondInsertPathIsIgnoredAndSaid() {
+        Command c = Command.parse(new String[] {"--insert-path=a", "--insert-path=b", ""});
+        assertEquals("a", c.insertPath());
+        assertEquals(1, c.notes().size());
+    }
+
+    @Test
+    void foldersListsAndWorkspacesOpenInOrderAndWhatIsMissingIsSkipped() throws IOException {
+        Path api = Files.createDirectories(tmp.resolve("api"));
+        Path web = Files.createDirectories(tmp.resolve("web"));
+        Path docs = Files.createDirectories(tmp.resolve("docs"));
+        Files.writeString(tmp.resolve("list.txt"), "# projects\n\nweb\n  missing  \n");
+        WorkspaceStore store = new WorkspaceStore(tmp.resolve("workspaces"));
+        store.save(new Workspace("w", List.of(new Workspace.Entry("Docs!", docs.toString()))));
+
+        Command c = Command.parse(new String[] {"--dir=" + api, "--dirs=" + tmp.resolve("list.txt"),
+                "--workspace=w", "--workspace=nope", "--dir=\"" + tmp.resolve("gone") + "\""});
+        List<Workspace> tabs = c.sources().stream().map(s -> Startup.tabs(s, store)).toList();
+
+        // The workspace's tab knows its workspace and row, whose env key opening it gave and saved.
+        Workspace.Entry row = store.load("w").orElseThrow().entries().getFirst();
+        assertTrue(WorkspaceStore.validKey(row.env()), row.env());
+        assertEquals(List.of(
+                new Workspace("", List.of(new Workspace.Entry("", api.toString()))),
+                new Workspace("", List.of(new Workspace.Entry("", web.toString()))),
+                new Workspace("w", List.of(new Workspace.Entry("Docs!", docs.toString()).withEnv(row.env()))),
+                new Workspace("", List.of()),
+                new Workspace("", List.of())), tabs);
+    }
+
+    /** What a source names crosses to the frame as a workspace file's text, and comes back as it was. */
+    @Test
+    void theTabsCrossAsTheTextOfAWorkspaceFile() throws IOException {
+        Path a = Files.createDirectories(tmp.resolve("a, b"));
+        Workspace tabs = Startup.tabs(new Command.Source(Command.Kind.DIR, a.toString()), new WorkspaceStore(tmp));
+        assertEquals(tabs, Workspace.parse("", Workspace.format(tabs)));
+    }
+
+    @Test
+    void insertingRefusesAFileOutsideTheTabsFolder() throws IOException {
+        Path f = Files.writeString(Files.createDirectories(tmp.resolve("p")).resolve("notes.md"), "x");
+        assertEquals("--insert-path names a file outside this tab's folder, so nothing was typed.",
+                Startup.insertion(f.toString(), tmp, InsertPath.Dialect.POWERSHELL).notice());
+        assertEquals("--insert-path names a file outside this tab's folder, so nothing was typed.",
+                Startup.insertion(f.toString(), null, InsertPath.Dialect.POWERSHELL).notice(),
+                "a launch that opened no tab of its own");
+        assertTrue(Startup.insertion(f.toString(), f.getParent(), InsertPath.Dialect.POWERSHELL).typesSomething());
+    }
+}

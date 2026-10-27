@@ -36,7 +36,7 @@ still deletes a word. The setting's note says what is given up.
 
 ## 2. The Workspaces editor
 
-**Done** ([WorkspacesPage](../src/main/java/dev/mainframe/WorkspacesPage.java)). The page keeps its shape (the
+**Done** ([WorkspacesPage](../mainframe-gui/src/main/java/dev/mainframe/WorkspacesPage.java)). The page keeps its shape (the
 workspaces down the left, the selected one on the right), and its folder rows become cards.
 
 **A card** is the tab's label, a text field, over the folder's path, a static line: dim, or red with "(not found)"
@@ -67,7 +67,7 @@ letting go of the button keeps the card in hand, and the next click puts it down
 
 ## 3. The Open dialog
 
-**Done** ([OpenDialog](../src/main/java/dev/mainframe/OpenDialog.java)). Ctrl+O opens a dialog over the MainFrame
+**Done** ([OpenDialog](../mainframe-gui/src/main/java/dev/mainframe/OpenDialog.java)). Ctrl+O opens a dialog over the MainFrame
 window: a grid of tiles, one per saved workspace, showing its name, how many folders it has and the first few tab
 names. The first workspace has the keyboard; the arrows move between tiles, Enter opens the one with it, and Esc
 closes.
@@ -81,7 +81,7 @@ window by name.
   window.
 - With no workspaces saved, Ctrl+O goes straight to the folder picker.
 - Choosing a workspace starts a new MainFrame process with `--workspace=<name>`, in a window of its own
-  ([SelfLaunch](../src/main/java/dev/mainframe/SelfLaunch.java): the executable itself, or the same Java and class
+  ([SelfLaunch](../mainframe-core/src/main/java/dev/mainframe/core/SelfLaunch.java): the executable itself, or the same Java and class
   path). Each program is its own process, so windows share nothing. Ctrl+Enter (or the tile's menu) opens its tabs in this window
   instead.
 - The last tile is **+ New**, and each workspace tile's menu has **Edit…**. Both open Settings, Workspaces, on that
@@ -91,12 +91,12 @@ window by name.
 
 ## 4. A workspace's environment
 
-**Done** ([EnvScripts](../src/main/java/dev/mainframe/EnvScripts.java)). Every tab of a workspace can have its
+**Done** ([EnvScripts](../mainframe-core/src/main/java/dev/mainframe/core/EnvScripts.java)). Every tab of a workspace can have its
 environment extended in two ways: by the workspace's script, which all its tabs source, and by the tab's own, which
 is sourced after it and so overrides it. Both are plain scripts that the tab's shell dot-sources as it starts, in
 its language: PowerShell for Windows PowerShell and PowerShell 7, sh for bash and zsh on Linux. Which language a
 script is edited in is the shell new tabs start. Editing either opens it in a plain VexelRay IDE window
-([Vex.java](../src/main/java/dev/mainframe/Vex.java)).
+([Vex.java](../mainframe-gui/src/main/java/dev/mainframe/Vex.java)).
 
 ### Where they are
 

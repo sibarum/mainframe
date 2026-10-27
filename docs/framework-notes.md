@@ -102,3 +102,37 @@ tiles it throws away.
 
 **For the framework:** `NamedWindow.modal()` (a standing that blocks the main window while open), which is what a
 dialog richer than `Modal` needs; and perhaps a window whose tree is built per opening. **For v1:** additive.
+
+## FN-5 · A workspace cannot cross as itself, so it crosses as its file's text 🔬
+
+MainFrame moved to the template's `-core` controller and `-gui` view on 2026-10-27, as VexelRay IDE had the day
+before. A `Workspace` is a record of a name and a `List<Entry>`, each entry holding a `Map` of the columns this build
+does not know, and the processor refuses both (T2.4; VexelRay IDE's FN-24). The template's answer, a message per
+member saying how many make the set, fits tabs (`AddTab`) and the Open dialog's tiles (`Listing`, a request per
+workspace), but not saving one: a write is one file, and splitting it into rows would put the file back together in
+a job from messages that arrive in no order. So a workspace crosses as the text of its CSV file
+(`Workspace.format`/`parse`, which round-trip exactly, unknown columns included), and so does the set of tabs a
+`--dir`, `--dirs` or `--workspace` names, since a list of folders, each a tab, is what a workspace is.
+
+It works because this value happens to have a text form that is already tested. A value without one would need a
+format of its own, written for the bus.
+
+**For the framework:** the copier (T2.4, build order step 3), so a payload may hold a `List` of shareable records;
+or `Shareable` accepting `List.copyOf` of a shareable element type. **For v1:** additive.
+
+## FN-6 · An undo step for work done by a job is recorded when the reply lands 🔬
+
+The Workspaces page records each change in the settings window's `History`, and `Change.apply` returns its reverse at
+once. Renaming, deleting and making a workspace are jobs now, so the page cannot know at once whether the store took
+it: the rename may be refused (the name is taken), and a delete's undo needs to know where it was put aside. So the
+page asks, and records the step with `History.record` when the reply says it landed; a step run by undo or redo asks
+again and returns its reverse at once, trusting the store. A delete's stash is named by the page before it asks
+(`WorkspaceStore.stashName`), so the undo that restores it can be made without waiting. Folder edits show at once and
+are saved behind, one write per workspace in flight and only the latest after it, because jobs keep no order and two
+writes of one file could land the older last.
+
+Every application that edits through jobs and has an undo will write this.
+
+**For the framework:** a `Change` that applies asynchronously, recorded when it lands and refused without a step when
+it fails (VexelRay IDE's FN-22 asks the same); and a job topic that keeps order per key, for writes of one file.
+**For v1:** additive.

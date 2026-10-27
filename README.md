@@ -19,7 +19,8 @@ Maven.
 mvn compile exec:exec
 ```
 
-`exec:exec` rather than `exec:java`, so native access can be enabled for the pseudoconsole's foreign calls. Options
+From this folder, the parent of `mainframe-core` and `mainframe-gui`. `exec:exec` rather than `exec:java`, so native
+access can be enabled for the pseudoconsole's foreign calls. Options
 and a command line go in `app.args`:
 
 ```bash
@@ -34,7 +35,8 @@ mvn compile exec:exec "-Dapp.args=cmd.exe"
 mvn test
 ```
 
-The tests cover the command line, the workspace files and their environment scripts, what `--insert-path` may
+The tests cover the controller alone, with no window and no shell (`FrameTest`: which tabs a launch opens, the spare
+tab, closing, what follows a rename), the command line, the workspace files and their environment scripts, what `--insert-path` may
 type, and the real window contents built headless with no shell started (`TreeTest`). The VT screen and the
 pseudoconsole are tested where they live, in vex-suite-common.
 
@@ -192,20 +194,38 @@ shell given on the command line is refused, since MainFrame cannot tell how it q
 
 ## How it is put together
 
-`Recipes` is the list of parts, one `@Provides` method each; the framework's processor writes
-`MainFrameAppWiring` from it, which builds them in order (open it under `target/generated-sources` after a build).
+The shape of `vexelray-framework`'s `vexel-desktop` template: two modules, split where the dependency edge falls, and
+three kinds of part that never hold each other. **Components** have a lane of their own and are reached only by
+messages; **jobs** do slow work (the disk, another process) on the offload lane, a request in and a reply out;
+**recipes** build a part once and hand it to whoever takes it. Every message is a record in `-core`'s `Messages.java`.
+Run every `mvn` command from this folder, the parent of both modules.
+
+**`mainframe-core`, the controller.** It builds against no widget, so its tests need no window.
 
 | Piece | What it is |
 | --- | --- |
-| `MainFrame` | The entry point. Takes MainFrame's own options out of the command line (`Command`) and hands the framework the rest |
-| `Recipes` | The parts, and the start: the first tabs open in the one recipe that takes the `Shell`, so a test's headless tree starts no shell |
-| `TerminalView` | One tab: a shell on vex-suite-common's `ConPty`, drawn by its `TerminalScreen`, what the key map's terminal commands do to it (copy, paste, interrupt, scroll), the notice and `--insert-path`'s typing |
+| `Messages` | Every message the parts send each other, grouped by who sends it to whom. A record holds no list, so a set is a message per member, and a workspace crosses as the text of its file |
+| `Frame` | The controller, a component on the `frame` lane: which tabs a launch opens, which shell a tab starts and where, which tab is spare, whether closing asks, that the window goes with its last tab, and what follows from a workspace renamed, deleted or made |
+| `ResolveTabs`, `PrepareShell`, `CheckInsert`, `LaunchWindow`, `MakeScript` | The jobs that open tabs: what a `--dir`/`--dirs`/`--workspace` names, a tab's command line with its environment scripts, what `--insert-path` may type, another MainFrame, a script made |
+| `ListWorkspaces`, `LoadWorkspace`, `SaveWorkspace`, `RenameWorkspace`, `DeleteWorkspace`, `RestoreWorkspace`, `CreateWorkspace`, `FindWorkspace`, `PruneDeleted` | The jobs that keep the workspace files |
+| `Command` / `Startup` / `InsertPath` | MainFrame's command line, and the tabs and `--insert-path` it comes to on disk |
+| `AppSettings` | The saved settings, over the framework's store; read by both modules |
+| `Workspace` / `WorkspaceStore` / `EnvScripts` / `SelfLaunch` | A workspace and its CSV file, the folder of them (a record, so a job can hold it), the environment scripts, and the command line that starts another MainFrame |
+| `Core` | The list of this module's component and jobs, which `MainFrameApp` names as a starter: the processor compiling `-gui` sees only `-gui`'s sources, so a component or job missing here is never built |
+
+**`mainframe-gui`, the views and the framework integration.**
+
+| Piece | What it is |
+| --- | --- |
+| `MainFrame` / `MainFrameApp` | The entry point, which takes MainFrame's own options out of the command line (`Command`) and hands the framework the rest; and the declaration the processor writes `MainFrameAppWiring` from (open it under `mainframe-gui/target/generated-sources` after a build) |
+| `Recipes` | The parts, and the start: it tells the frame to begin in the one recipe that takes the `Shell`, so a test's headless tree starts no shell |
+| `View` / `Intent` | The main window's view, a component on the `view` lane: the frame's messages shown (`AddTab` is a tab, `Ask` a dialog, `Tile` a tile of the Open dialog) and the person's gestures told. `Intent` carries a chord or a menu item onto its lane |
+| `SettingsView` | The settings window's view, a component on the `settings` lane: what the workspace jobs did, handed to the window and its Workspaces page |
+| `TerminalView` | One tab: a shell on vex-suite-common's `ConPty`, drawn by its `TerminalScreen`, what the key map's terminal commands do to it (copy, paste, interrupt, scroll), the notice and `--insert-path`'s typing. A pseudoconsole cannot cross a lane, so the view starts it |
 | `Terminals` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. Its `tick` is the frame's `@BeforeFrame` work, and it is a `WakeSource`, so a shell writing into an idle window wakes the parked loop |
-| `Command` / `Startup` | MainFrame's command line, and the tabs and `--insert-path` it comes to on disk |
-| `SettingsWindow` / `AppSettings` | The settings window (a framework `NamedWindow`) and the saved settings behind it |
-| `WorkspacesPage` / `Workspace` / `WorkspaceStore` | The Workspaces tab, and the saved workspaces |
-| `OpenDialog` / `SelfLaunch` | What Ctrl+O opens, and starting another MainFrame to open a workspace in |
-| `EnvScripts` / `Vex` | A workspace's environment scripts: their generated region and the shell command line that sources them; and opening one in VexelRay IDE |
+| `SettingsWindow` / `WorkspacesPage` | The settings window (a framework `NamedWindow`) and its Workspaces tab, which asks the workspace jobs itself and records a step once the job's answer has landed |
+| `OpenDialog` | What Ctrl+O opens, from the tiles the frame lists |
+| `OpenInIde` / `Vex` | A job that opens a script in VexelRay IDE, found by the suite's install record |
 
 What is not here is the point: input, the clipboard, window memory, the clock, the frame loop and its pacing, the
 dialogs, the title bar and closing everything in order are the framework's.
@@ -268,8 +288,8 @@ Windows, GraalVM 25 as `JAVA_HOME`, from a Visual Studio developer prompt (or af
 MSVC's and `rc.exe` is on the path. Two profiles build the same code:
 
 ```
-mvn -Pnative-release package -DskipTests   # target/mainframe.exe        what ships and is signed
-mvn -Pnative package -DskipTests           # target/mainframe-debug.exe  for ottermate
+mvn -Pnative-release package -DskipTests   # mainframe-gui/target/mainframe.exe        what ships and is signed
+mvn -Pnative package -DskipTests           # mainframe-gui/target/mainframe-debug.exe  for ottermate
 ```
 
 - **release** (`installer.json` points at this one): linked as a Windows GUI subsystem program, so no console window
@@ -278,10 +298,10 @@ mvn -Pnative package -DskipTests           # target/mainframe-debug.exe  for ott
   `ottermate`.
 
 Both carry the automation sockets, off until asked for ([Automation](#automation)). This program's own native-image metadata is
-`src/main/resources/META-INF/native-image/.../reachability-metadata.json`: the entry point, the pseudoconsole's
+`mainframe-gui/src/main/resources/META-INF/native-image/.../reachability-metadata.json`: the entry point, the pseudoconsole's
 kernel32 downcalls; the libraries and the processor register the rest, the icon atlas included.
 
-The mark is `src/main/rc/mainframe.ico` (the window, its taskbar button and the `.exe` all wear it), and
+The mark is `mainframe-gui/src/main/rc/mainframe.ico` (the window, its taskbar button and the `.exe` all wear it), and
 `mainframe-window.ico` is what the settings and Open windows wear. Both are rendered from the SVGs beside them by
 `vex-suite-common`'s `tools/Ico.java`; `vexelray-icons` is where the art is drawn.
 

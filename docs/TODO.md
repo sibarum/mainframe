@@ -24,7 +24,9 @@ Keep an entry short enough that it does not need editing, and delete it when it 
       installed shells (sh, bash, zsh…) elsewhere, from `PtyPlatform.current().shells()`. The tab header shows which.
       `EnvScripts` already picks a dialect per shell line, so env scripts should follow the tab's shell.
 - [ ] **Confirm closing MainFrame while a tab is running something**, and test it thoroughly. Only Ctrl+W asks now
-      (`Terminals.askClose`), and always; closing the window asks nothing. Needs a test for "a process is running"
+      (`Frame.closeAsked`), and always; closing the window asks nothing. The template's way in is a close gate turned
+      into messages (its `QuitGate`, VexelRay IDE's `Gates`): the gate's ticket to the view, the view's word on each
+      tab (submitted to or not) to the frame, the frame's answer back. Needs a test for "a process is running"
       (a child of the shell, not the shell itself), and to cover every way out: the title bar's ×, Alt+F4, the
       taskbar, the last tab closing, one tab busy among idle ones. Rule: ask if any open tab has ever been submitted
       to: a CR or LF through `TerminalView.send` (Enter, keypad Enter, Ctrl+M, Ctrl+J, a paste with a line end).
@@ -32,6 +34,12 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 
 ## Later
 
+- [ ] **Two looks at the disk are still the settings window's own**, not a job's: each folder card's "(not found)"
+      (`WorkspacesPage.showPath`, a stat per card) and the New tab directory line (`AppSettings.tabDir`, a stat). A
+      list cannot cross (framework-notes FN-5), so a row's "is it there" would be a message per row; fold it into
+      `Loaded` once the copier lets a list of rows cross.
+- [ ] Starting a tab's pseudoconsole runs on the view's lane (`Terminals.add`): a pty and its screen cannot cross a
+      lane, so no job can start one. Quick on Windows; watch it if a shell is ever slow to spawn.
 - [ ] The font size is pixels in a picture, so it ignores the display's scale and the window's zoom. Measure it in
       em (`units.md`, *what to use instead*) once the framework hands a picture its em.
 - [ ] Mouse reporting to applications (xterm's 1000/1002/1006 modes), so vim and less take the wheel and clicks.
