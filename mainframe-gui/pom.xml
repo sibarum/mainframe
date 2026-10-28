@@ -254,6 +254,31 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
             </plugin>
+            <!--
+              The mark as an art pair, for the About window to condense it out of its distance field as it opens:
+              /mainframe.pair beside /mainframe.ico, which is where the framework looks for it. From the same drawing the icon is made from.
+            -->
+            <plugin>
+                <groupId>dev.vexelray.gui</groupId>
+                <artifactId>vexelray-gui-icons-maven-plugin</artifactId>
+                <version>${vexelray-gui.version}</version>
+                <executions>
+                    <execution>
+                        <id>about-art</id>
+                        <goals>
+                            <goal>pair</goal>
+                        </goals>
+                        <configuration>
+                            <pairs>
+                                <pair>
+                                    <art>src/main/rc/mainframe.svg</art>
+                                    <name>mainframe</name>
+                                </pair>
+                            </pairs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
