@@ -1,196 +1,409 @@
 package dev.mainframe;
 
-import dev.mainframe.core.AppSettings;
+import dev.mainframe.Intent.Command;
 import dev.mainframe.core.Messages;
 import dev.mainframe.core.Messages.AddTab;
-import dev.mainframe.core.Messages.Answer;
-import dev.mainframe.core.Messages.Ask;
-import dev.mainframe.core.Messages.CloseAsked;
-import dev.mainframe.core.Messages.CloseTab;
-import dev.mainframe.core.Messages.CloseWindow;
-import dev.mainframe.core.Messages.EditEnv;
-import dev.mainframe.core.Messages.Focus;
-import dev.mainframe.core.Messages.Gone;
-import dev.mainframe.core.Messages.OpenFolder;
-import dev.mainframe.core.Messages.OpenWorkspace;
-import dev.mainframe.core.Messages.PickFolder;
-import dev.mainframe.core.Messages.Tell;
-import dev.mainframe.core.Messages.Tile;
-import dev.vexelray.framework.api.Component;
-import dev.vexelray.framework.api.Publishes;
+import dev.mainframe.core.Messages.Caption;
+import dev.mainframe.core.Messages.Close;
+import dev.mainframe.core.Messages.CloseTabs;
+import dev.mainframe.core.Messages.Edited;
+import dev.mainframe.core.Messages.Flush;
+import dev.mainframe.core.Messages.FrontTab;
+import dev.mainframe.core.Messages.Fronted;
+import dev.mainframe.core.Messages.Go;
+import dev.mainframe.core.Messages.Listed;
+import dev.mainframe.core.Messages.Listing;
+import dev.mainframe.core.Messages.Mark;
+import dev.mainframe.core.Messages.Marked;
+import dev.mainframe.core.Messages.Open;
+import dev.mainframe.core.Messages.Retitle;
+import dev.mainframe.core.Messages.Save;
+import dev.mainframe.core.Messages.SaveFailed;
+import dev.mainframe.core.Messages.ShowFolder;
+import dev.mainframe.core.Messages.Status;
 import dev.vexelray.framework.api.Subscribe;
-import dev.vexelray.framework.shell.Dialogs;
-import dev.vexelray.framework.shell.Windows;
-import dev.vexelray.gui.widget.Modal;
-import sibarum.atchung.Atchung;
+import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.input.Shortcut;
+import dev.vexelray.gui.widget.Tabs;
+import dev.vexelray.gui.widget.TextField;
+import dev.vexelray.gui.widget.TreeView;
+import sibarum.atchung.Sender;
+import sibarum.tactroller.api.Key;
+import sibarum.tactroller.api.Modifier;
 
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The main window's view: what the frame decided, shown, and what the person did, told. On a lane of its own.
+ * The view: what the editor decided, shown, and what the person did, told. A {@code @View}, so it runs on the GUI
+ * thread, in each frame's widget tick (threading.md, T7.4).
  *
  * <h2>It decides nothing</h2>
  *
- * <p>Every decision is the {@code Frame}'s, in {@code -core}: which tabs a launch opens, which shell a tab starts and
- * where, whether closing one asks, whether what is opened takes the spare tab's place. This turns the frame's messages
- * into widgets ({@code AddTab} is a tab, {@code Ask} is a dialog, {@code Tile} is a tile of the Open dialog) and the
- * person's gestures into messages ({@code CloseAsked}, {@code OpenFolder}, {@code EditEnv}), adding its word on what
- * only it can see: the title a tab's shell gave it, and whether anybody has typed into the only tab.
+ * <p>Every decision is the {@code Editor}'s, in {@code -core}: whether a file is already open, what a typed path names,
+ * whether closing needs a question. This turns the editor's messages into widgets ({@code AddTab} is a tab) and the
+ * person's gestures into messages ({@code Open}, {@code Close}, {@code Save}). A question is not the view's: the editor
+ * sends the framework an {@code Ask}, and the framework shows it.
  *
- * <h2>Threads</h2>
+ * <h2>Everything it hears is a message, in the frame</h2>
  *
- * <p>Every {@code @Subscribe} here runs on the {@code view} lane, one at a time. Input arrives elsewhere: a chord on
- * the handler lane, a menu item or a tile on whichever worker delivers it, a picked folder on the dialog's. Those only
- * send an {@link Intent} to this lane, or a message straight to the frame when nothing of the view's is needed to
- * say it. The tabs themselves ({@link Terminals}) are also read by the frame loop, which draws them, so they keep a
- * lock of their own. Writing a widget from here is the framework's idiom: a prop written off the GUI thread is queued
- * and applied by the next drain.
+ * <p>Every {@code @Subscribe} here is drained on the GUI thread, after input is dispatched and before layout: what the
+ * editor and the jobs send, and what the widgets say they did (a tab selected, a tree's row clicked or its menu chosen,
+ * a field's text changed). So a click is heard, and what the view writes about it drawn, in the frame the click
+ * arrived, and the widgets, the {@link Workspace} and the {@link Navigator} are only ever touched here, with no lock.
+ * A widget's messages carry its address, and every widget of a kind shares a topic, so each handler first asks which
+ * of the view's widgets a message is about.
+ *
+ * <h2>Gestures are declared, not handled</h2>
+ *
+ * <p>A chord, a menu item and a dialog's button each name the message they send ({@link Intent}, a
+ * {@code Messages} record) through a {@link Sender}; the dispatcher sends it, and nothing of the application's runs at
+ * the moment of the click (T7.5). What needs the view comes back to it as one of these handlers.
+ *
+ * <h2>What it sends is in its constructor</h2>
+ *
+ * <p>One {@link Sender} for each message it sends, and nothing else to send with: the wiring finds each one's topic by
+ * its payload, beside the record in {@code Messages}, so the processor sees every message the view can send without
+ * reading a line of its body (ROADMAP fork 5).
+ *
+ * <h2>Slow work is a job</h2>
+ *
+ * <p>Reading a folder for the tree and colouring a Markdown file are the jobs' ({@code ListFolder},
+ * {@code MarkText}): the view asks and acts on the answer, because its time is the frame's.
  */
-@Component(lane = "view")
-@Publishes({Messages.OPEN_FOLDER, Messages.OPEN_WORKSPACE, Messages.CLOSE_ASKED, Messages.GONE, Messages.ANSWER,
-        Messages.EDIT_ENV, Intent.TOPIC})
+@dev.vexelray.framework.api.View
 final class View {
 
-    private final Terminals terminals;
-    private final OpenDialog open;
-    private final Atchung bus;
-    private final Dialogs dialogs;
-    private final Windows windows;
-    /** The Open dialog's tiles as they arrive, for the listing in flight. */
-    private long batch = -1;
-    private Tile[] tiles = new Tile[0];
-    private int arrived;
+    private final Gui gui;
+    private final Ui ui;
+    private final Workspace ws;
+    private final Navigator nav;
 
-    View(Terminals terminals, OpenDialog open, Atchung bus, Dialogs dialogs, Windows windows) {
-        this.terminals = terminals;
+    private final Sender<Open> open;
+    private final Sender<Go> go;
+    private final Sender<Fronted> fronted;
+    private final Sender<Edited> edited;
+    private final Sender<Close> close;
+    private final Sender<Save> save;
+    private final Sender<Listing> listing;
+    private final Sender<Mark> mark;
+    private final Sender<TreeView.Children> children;
+    private final Sender<Intent> intents;
+
+    /** The tab in front, as the editor was last told. */
+    private long front = Messages.NO_TAB;
+
+    View(Gui gui, Ui ui, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
+         Sender<Edited> edited, Sender<Close> close, Sender<Save> save,
+         Sender<Listing> listing, Sender<Mark> mark, Sender<TreeView.Children> children, Sender<Intent> intents) {
+        this.gui = gui;
+        this.ui = ui;
+        this.ws = ui.workspace();
+        this.nav = ui.navigator();
         this.open = open;
-        this.bus = bus;
-        this.dialogs = dialogs;
-        this.windows = windows;
+        this.go = go;
+        this.fronted = fronted;
+        this.edited = edited;
+        this.close = close;
+        this.save = save;
+        this.listing = listing;
+        this.mark = mark;
+        this.children = children;
+        this.intents = intents;
+        shortcuts();
     }
-
-    @Subscribe(topic = Intent.TOPIC)
-    public void intent(Intent intent) {
-        intent.command().on(this, intent.id(), intent.text());
-    }
-
-    // ------------------------------------------------------------------ what the frame says
 
     /**
-     * A tab, started and shown. A shell that cannot be started is said rather than thrown, opens no tab, and the frame
-     * hears it has gone, so a launch whose every shell failed still ends. The tab it replaces closes once it is open.
+     * Every chord, as a declaration: the chord and the {@link Intent} it sends. Chords a text field leaves alone, so a
+     * focused field never needs to outrank them. Zoom is here too: which chord zooms, or whether zooming exists at all,
+     * is the application's to say; how far it goes is {@code Appearance.ZoomRange}, the framework's.
      */
-    @Subscribe(topic = Messages.ADD_TAB, capacity = Messages.SET)
+    private void shortcuts() {
+        chord(Shortcut.of(Key.S, Modifier.CONTROL), Command.SAVE_FRONT);
+        chord(Shortcut.of(Key.W, Modifier.CONTROL), Command.CLOSE_FRONT);
+        chord(Shortcut.of(Key.L, Modifier.CONTROL), Command.FOCUS_PATH);
+        chord(Shortcut.of(Key.E, Modifier.CONTROL, Modifier.SHIFT), Command.FOCUS_TREE);
+        chord(Shortcut.of(Key.TAB, Modifier.CONTROL), Command.NEXT_TAB);
+        chord(Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), Command.PREVIOUS_TAB);
+        chord(Shortcut.of(Key.PAGE_DOWN, Modifier.CONTROL), Command.NEXT_TAB);
+        chord(Shortcut.of(Key.PAGE_UP, Modifier.CONTROL), Command.PREVIOUS_TAB);
+        chord(Shortcut.of(Key.EQUAL, Modifier.CONTROL), Command.ZOOM_IN);
+        chord(Shortcut.of(Key.MINUS, Modifier.CONTROL), Command.ZOOM_OUT);
+        chord(Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), Command.ZOOM_RESET);
+        chord(Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL), Command.ZOOM_IN);
+        chord(Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL), Command.ZOOM_OUT);
+        chord(Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL), Command.ZOOM_RESET);
+    }
+
+    private void chord(Shortcut shortcut, Command command) {
+        gui.shortcut(shortcut, intents, new Intent(command));
+    }
+
+    @Subscribe
+    public void intent(Intent intent) {
+        intent.command().on(this);
+    }
+
+    // ------------------------------------------------------------------ what the editor says
+
+    @Subscribe
+    public void showFolder(ShowFolder m) {
+        nav.show(m.path());
+    }
+
+    @Subscribe
     public void addTab(AddTab m) {
-        if (!terminals.add(m)) {
-            dialogs.info("Could not start the shell", m.command());
-            bus.publish(Messages.GONE_TOPIC, new Gone(m.id()));
+        ws.add(m.id(), m.path(), m.text(), m.focus());
+    }
+
+    @Subscribe
+    public void frontTab(FrontTab m) {
+        Buffer b = ws.byId(m.id());
+        if (b != null) {
+            ws.show(b, m.focus());
+        }
+    }
+
+    @Subscribe
+    public void closeTabs(CloseTabs m) {
+        for (long id : m.tabs()) {
+            ws.close(id);
+        }
+    }
+
+    /** The last title per tab in the frame: a state topic, so a burst of them is never a backlog. */
+    @Subscribe
+    public void retitle(Retitle m) {
+        ws.retitle(m.id(), m.title());
+    }
+
+    @Subscribe
+    public void caption(Caption m) {
+        ui.caption(m.file());
+    }
+
+    @Subscribe
+    public void status(Status m) {
+        ui.status(m.message(), m.alert());
+    }
+
+    @Subscribe
+    public void flush(Flush m) {
+        for (long id : m.tabs()) {
+            Buffer b = ws.byId(id);
+            if (b == null) {
+                save.send(new Save(id, "", false));
+            } else {
+                save(b);
+            }
+        }
+    }
+
+    @Subscribe
+    public void saveFailed(SaveFailed m) {
+        Buffer b = ws.byId(m.id());
+        if (b != null) {
+            b.saveFailed();
+            reportDirty(b);
+        }
+    }
+
+    // ------------------------------------------------------------------ what the jobs answer
+
+    @Subscribe
+    public void listed(Listed m) {
+        if (m.tree().equals(nav.treeAddress())) {
+            children.send(nav.children(m));
+        }
+    }
+
+    @Subscribe
+    public void marked(Marked m) {
+        Buffer b = ws.byField(m.field());
+        if (b != null) {
+            b.marked(m);
+        }
+    }
+
+    // ------------------------------------------------------------------ what the widgets say
+
+    /** The bar's selection moved: the editor hears which file is in front, and the status line where its caret is. */
+    @Subscribe
+    public void tabSelected(Tabs.Selected m) {
+        Buffer b = m.tabs().equals(ws.address()) ? ws.at(m.index()) : null;
+        if (b != null && b.id != front) {
+            front = b.id;
+            ui.position(b.position());
+            fronted.send(new Fronted(b.id));
+        }
+    }
+
+    /** One of the tab menu's actions. */
+    @Subscribe
+    public void tabChosen(Tabs.Chosen m) {
+        Buffer b = m.at().equals(ws.address()) && m.item() instanceof Integer i ? ws.at(i) : null;
+        if (b == null) {
             return;
         }
-        if (m.replaces() != Messages.NO_TAB) {
-            terminals.close(m.replaces());
+        if (m.action().equals(Workspace.SAVE)) {
+            save(b);
+        } else if (m.action().equals(Workspace.CLOSE)) {
+            close(List.of(b));
+        } else if (m.action().equals(Workspace.CLOSE_OTHERS)) {
+            List<Buffer> rest = new ArrayList<>(ws.all());
+            rest.remove(b);
+            close(rest);
+        } else if (m.action().equals(Workspace.CLOSE_ALL)) {
+            close(ws.all());
+        } else if (m.action().equals(Workspace.REVEAL) && !nav.reveal(b.path)) {
+            ui.status(b.name() + " is not inside the folder shown", false);
         }
     }
 
-    @Subscribe(topic = Messages.CLOSE_TAB)
-    public void closeTab(CloseTab m) {
-        terminals.close(m.id());
+    /** A document's text changed: whether it is now unsaved, and its colours. */
+    @Subscribe
+    public void fieldChanged(TextField.Changed m) {
+        Buffer b = ws.byField(m.field());
+        if (b == null) {
+            return;
+        }
+        reportDirty(b);
+        Mark wanted = b.changed(m.text(), m.version());
+        if (wanted != null) {
+            mark.send(wanted);
+        }
     }
 
-    @Subscribe(topic = Messages.FOCUS)
-    public void focus(Focus m) {
-        TerminalView v = m.id() == Messages.NO_TAB ? null : terminals.byId(m.id());
-        if (v != null) {
-            v.focus();
+    @Subscribe
+    public void fieldCaret(TextField.Caret m) {
+        Buffer b = ws.byField(m.field());
+        if (b != null) {
+            b.caret(m.line(), m.column());
+            if (b.id == front) {
+                ui.position(b.position());
+            }
+        }
+    }
+
+    /** The path bar was submitted: what the text names is the editor's call. */
+    @Subscribe
+    public void fieldSubmitted(TextField.Submitted m) {
+        if (m.field().equals(nav.pathAddress())) {
+            go.send(new Go(m.text().strip()));
+        }
+    }
+
+    /** The tree wants a level: ask {@code ListFolder}, or answer an empty top when no folder is shown yet. */
+    @Subscribe
+    public void treeWanted(TreeView.ChildrenWanted m) {
+        if (!m.tree().equals(nav.treeAddress())) {
+            return;
+        }
+        Listing wanted = nav.wanted(m.parent());
+        if (wanted != null) {
+            listing.send(wanted);
         } else {
-            terminals.focus();
+            children.send(nav.nothing());
         }
     }
 
-    /** The last tab has gone, and with it the window, which ends MainFrame. */
-    @Subscribe(topic = Messages.CLOSE_WINDOW)
-    public void closeWindow(CloseWindow m) {
-        windows.main().close();
-    }
-
-    /** A question, as the framework's dialog: its answer goes back to the frame, from whichever thread presses it. */
-    @Subscribe(topic = Messages.ASK)
-    public void ask(Ask m) {
-        dialogs.ask(Modal.of(m.title(), m.message())
-                .defaultButton(m.confirm(), () -> bus.publish(Messages.ANSWER_TOPIC, new Answer(m.question(), true)))
-                .cancelButton(m.cancel(), () -> bus.publish(Messages.ANSWER_TOPIC, new Answer(m.question(), false))));
-    }
-
-    @Subscribe(topic = Messages.TELL)
-    public void tell(Tell m) {
-        dialogs.info(m.title(), m.message());
-    }
-
-    /** A tile of the Open dialog. The dialog opens when the last of its listing is in, with the workspaces in order. */
-    @Subscribe(topic = Messages.TILE, capacity = Messages.SET)
-    public void tile(Tile m) {
-        if (m.batch() != batch) {
-            if (m.batch() < batch) {
-                return;
-            }
-            batch = m.batch();
-            tiles = new Tile[m.of()];
-            arrived = 0;
+    /** A file selected in the tree opens, and the keyboard stays in the tree, so walking it keeps walking. */
+    @Subscribe
+    public void treeSelected(TreeView.Selected m) {
+        if (m.tree().equals(nav.treeAddress()) && m.item() instanceof Path p && !nav.isFolder(p)) {
+            open.send(new Open(p, false));
         }
-        if (m.index() < 0 || m.index() >= tiles.length || tiles[m.index()] != null) {
+    }
+
+    /** Enter on a folder opens it in place. */
+    @Subscribe
+    public void treeActivated(TreeView.Activated m) {
+        if (m.tree().equals(nav.treeAddress()) && m.item() instanceof Path p && nav.isFolder(p)) {
+            nav.expand(p);
+        }
+    }
+
+    /** One of a row's menu actions. */
+    @Subscribe
+    public void treeChosen(TreeView.Chosen m) {
+        if (!m.at().equals(nav.treeAddress()) || !(m.item() instanceof Path p)) {
             return;
         }
-        tiles[m.index()] = m;
-        if (++arrived < tiles.length) {
-            return;
-        }
-        List<OpenDialog.Choice> spaces = new ArrayList<>();
-        for (Tile t : tiles) {
-            if (!t.name().isBlank()) {
-                spaces.add(new OpenDialog.Choice(t.name(), t.detail()));
-            }
-        }
-        open.show(spaces);
-    }
-
-    @Subscribe(topic = Messages.PICK_FOLDER)
-    public void pickFolder(PickFolder m) {
-        pickFolder();
-    }
-
-    // ------------------------------------------------------------------ what the person did, on this lane
-
-    /** Close tab {@code id}, with what its header says now for the question. */
-    void close(long id, boolean ask) {
-        TerminalView v = terminals.byId(id);
-        if (v != null) {
-            bus.publish(Messages.CLOSE_ASKED_TOPIC, new CloseAsked(id, v.displayTitle(), ask));
+        if (m.action().equals(Navigator.OPEN)) {
+            open.send(new Open(p, true));
+        } else if (m.action().equals(Navigator.SHOW)) {
+            go.send(new Go(p.toString()));
+        } else if (m.action().equals(Navigator.COPY_PATH)) {
+            gui.clipboard().set(p.toString());
         }
     }
 
-    void editEnv(long id, boolean tab) {
-        bus.publish(Messages.EDIT_ENV_TOPIC, new EditEnv(id, tab));
-    }
-
-    /** Ask the OS for a folder, starting in the profile; Cancel gives the terminal back the keyboard. */
-    void pickFolder() {
-        dialogs.openFolder(AppSettings.home(),
-                dir -> bus.publish(Intent.INTENTS, new Intent(Intent.Command.OPEN_FOLDER, Messages.NO_TAB, dir.toString())),
-                terminals::focus);
-    }
-
-    void openFolder(String dir) {
-        try {
-            bus.publish(Messages.OPEN_FOLDER_TOPIC, new OpenFolder(Path.of(dir), terminals.spare()));
-        } catch (InvalidPathException e) {
-            terminals.focus();
+    @Subscribe
+    public void treeRevealed(TreeView.Revealed m) {
+        if (m.tree().equals(nav.treeAddress())) {
+            nav.revealed(m.item(), m.reached());
         }
     }
 
-    void openWorkspace(String name, boolean here) {
-        bus.publish(Messages.OPEN_WORKSPACE_TOPIC, new OpenWorkspace(name, here, terminals.spare()));
+    // ------------------------------------------------------------------ what the person did, by chord
+
+    void saveFront() {
+        Buffer b = ws.front();
+        if (b != null) {
+            save(b);
+        }
+    }
+
+    /** The text, taken now and marked saved now: what is written is what the document said when Save was asked for. */
+    private void save(Buffer b) {
+        save.send(new Save(b.id, b.takeForSave(), true));
+        reportDirty(b);
+    }
+
+    void closeFront() {
+        Buffer b = ws.front();
+        if (b != null) {
+            close(List.of(b));
+        }
+    }
+
+    /** Ask the editor to close these tabs, in one message: whether any is unsaved is the editor's to know. */
+    private void close(List<Buffer> buffers) {
+        List<Long> ids = new ArrayList<>(buffers.size());
+        for (Buffer b : buffers) {
+            ids.add(b.id);
+        }
+        close.send(new Close(ids));
+    }
+
+    void cycle(int delta) {
+        ws.cycle(delta);
+    }
+
+    void focusPath() {
+        nav.focusPath();
+    }
+
+    void focusTree() {
+        nav.focusTree();
+    }
+
+    /** In ({@code 1}), out ({@code -1}), or back to where it started ({@code 0}). */
+    void zoom(int direction) {
+        if (direction > 0) {
+            gui.zoomIn();
+        } else if (direction < 0) {
+            gui.zoomOut();
+        } else {
+            gui.resetZoom();
+        }
+    }
+
+    /** Tell the editor when a document went unsaved, or came back to what is on disk. */
+    private void reportDirty(Buffer b) {
+        if (b.dirtyChanged()) {
+            edited.send(new Edited(b.id, b.dirty()));
+        }
     }
 }

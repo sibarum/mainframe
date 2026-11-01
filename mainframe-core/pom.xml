@@ -7,23 +7,22 @@
     <parent>
         <groupId>dev.mainframe</groupId>
         <artifactId>mainframe</artifactId>
-        <version>0.1.3-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>mainframe-core</artifactId>
 
     <name>mainframe-core</name>
     <description>
-        The controller: the Frame, which decides, and the jobs that touch the disk and start processes. Reached only by
-        messages.
+        The controller: the editor, which decides, and the jobs that touch the disk. Reached only by messages.
     </description>
 
     <!--
-      What the controller may build against, and what it may not. It may use the framework's vocabulary, the bus,
-      vexelray-gui-core's values (the settings store), all of which are safe from any thread, and the pty library's
-      platform facts (which shells there are, a file's short name), which are JDK-only. It may not use a widget, the
-      window, the shell or a terminal's screen: those are -gui's, and a widget here would put the view back inside the
-      controller. Nothing enforces that but this list, so a dependency added here is a decision about where the line is.
+      What the controller may build against, and what it may not. It may use the framework's vocabulary, the bus, and
+      vexelray-gui-core's values (a span, a colour, the settings store), all of which are safe from any thread. It may
+      not use a widget, the window or the shell: those are -gui's, and a widget here would put the view back inside
+      the controller. Nothing enforces that but this list, so a dependency added here is a decision about where the
+      line is.
     -->
     <dependencies>
         <!-- @Component, @Job, @Subscribe, @Publishes, @Configuration: checked by the processor while this compiles. -->
@@ -32,18 +31,17 @@
             <artifactId>vexelray-framework-api</artifactId>
             <version>${vexelray-framework.version}</version>
         </dependency>
-        <!-- Settings, and through it the bus (atchung-core) and the logger (atchung-probe). -->
+        <!-- The command line's paths (Launch), which the editor opens once the window exists. JDK-only. -->
+        <dependency>
+            <groupId>dev.vexelray.framework</groupId>
+            <artifactId>vexelray-framework-core</artifactId>
+            <version>${vexelray-framework.version}</version>
+        </dependency>
+        <!-- Span, Color and Settings, and through it the bus (atchung-core) and the logger (atchung-probe). -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-core</artifactId>
             <version>${vexelray-gui.version}</version>
-        </dependency>
-        <!-- The shells this machine has, and a file's short name: the pty library's platform facts. JDK-only; the
-             pseudoconsole itself is started by -gui, beside the screen it feeds. -->
-        <dependency>
-            <groupId>dev.sibarum</groupId>
-            <artifactId>vex-suite-common-pty</artifactId>
-            <version>${vex-suite-common.version}</version>
         </dependency>
 
         <dependency>
@@ -51,32 +49,4 @@
             <artifactId>junit-jupiter</artifactId>
         </dependency>
     </dependencies>
-
-    <profiles>
-        <!-- The pty's OS module, for this module's tests: which shells there are is the platform's to say. -->
-        <profile>
-            <id>platform-windows</id>
-            <activation><os><family>windows</family></os></activation>
-            <dependencies>
-                <dependency>
-                    <groupId>dev.sibarum</groupId>
-                    <artifactId>vex-suite-common-pty-windows</artifactId>
-                    <version>${vex-suite-common.version}</version>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
-        </profile>
-        <profile>
-            <id>platform-linux</id>
-            <activation><os><family>unix</family><name>linux</name></os></activation>
-            <dependencies>
-                <dependency>
-                    <groupId>dev.sibarum</groupId>
-                    <artifactId>vex-suite-common-pty-linux</artifactId>
-                    <version>${vex-suite-common.version}</version>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
-        </profile>
-    </profiles>
 </project>

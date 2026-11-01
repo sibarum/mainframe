@@ -7,24 +7,19 @@
     <parent>
         <groupId>dev.mainframe</groupId>
         <artifactId>mainframe</artifactId>
-        <version>0.1.3-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>mainframe-gui</artifactId>
 
     <name>mainframe-gui</name>
     <description>
-        The view, and the framework integration: the windows, the widgets, the terminals, the entry point and its
-        generated wiring.
+        The view, and the framework integration: the window, the widgets, the entry point and its generated wiring.
     </description>
 
     <properties>
         <!-- The one module with an application to run: exec:exec from the parent runs it here. -->
         <app.run.skip>false</app.run.skip>
-        <!-- The name MainFrame's windows go by on a Linux desktop, and its desktop entry with them: the one it was
-             installed under while it was one module, kept so a dock does not forget a pin (vexelray-build's README,
-             "The application id"). installer.json's appId says the same. -->
-        <vexelray.app.id>dev.mainframe.mainframe</vexelray.app.id>
     </properties>
 
     <dependencies>
@@ -56,26 +51,11 @@
             <artifactId>vexelray-gui-widget</artifactId>
             <version>${vexelray-gui.version}</version>
         </dependency>
-        <!-- Every command by name, on chords the user can change: the action mapper, its editor, and the title
-             bar's key-bindings button (vexelray-gui/docs/reference/keymap.md). -->
-        <dependency>
-            <groupId>dev.vexelray.gui</groupId>
-            <artifactId>vexelray-gui-keymap</artifactId>
-            <version>${vexelray-gui.version}</version>
-        </dependency>
         <!-- The clock. Motion enters at the application edge and nowhere else: -widget declares seams shaped
              out of JDK types and this module satisfies them, so a widget animates without naming Kronometer. -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-krono</artifactId>
-            <version>${vexelray-gui.version}</version>
-        </dependency>
-        <!-- The suite's icons, baked into a distance-field atlas when vexelray-gui is built: an icon is named
-             (Icon.GRIP) and tinted, and nothing at run time reads an SVG. Reached through -widget as well; named
-             here because this project's own pages build against it directly. -->
-        <dependency>
-            <groupId>dev.vexelray.gui</groupId>
-            <artifactId>vexelray-gui-icons</artifactId>
             <version>${vexelray-gui.version}</version>
         </dependency>
         <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop
@@ -107,21 +87,6 @@
             <version>${vexelray-codec.version}</version>
         </dependency>
 
-        <!-- The terminal: the pseudoconsole, the VT screen and the screen drawn as a node (its tty package), shared
-             with VexelRay IDE's build console. The suite's picture decoder comes with it and is excluded, since nothing
-             here shows a picture. Installed to the local .m2 by `mvn install` in the sibling vex-suite-common repo. -->
-        <dependency>
-            <groupId>dev.sibarum</groupId>
-            <artifactId>vex-suite-common</artifactId>
-            <version>${vex-suite-common.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>dev.vexelray.codec</groupId>
-                    <artifactId>vexelray-codec-image</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -134,14 +99,11 @@
                 <directory>src/main/resources</directory>
             </resource>
             <!-- The mark, on the class path for the window: the same file src/main/rc/mainframe.rc links into the
-                 executable, so the two are one file and cannot drift. @VexelApp(icon) names it. The window mark
-                 beside it is what the settings and Open windows wear, found by name. -->
+                 executable, so the two are one file and cannot drift. @VexelApp(icon) names it. -->
             <resource>
                 <directory>src/main/rc</directory>
                 <includes>
                     <include>mainframe.ico</include>
-                    <include>mainframe-background.ico</include>
-                    <include>mainframe-window.ico</include>
                 </includes>
             </resource>
         </resources>
@@ -177,7 +139,9 @@
                 </plugin>
                 <!-- The executable's icon: a resource linked into the program, so it has to exist as a compiled .res
                      before link time. rc.exe is the Windows SDK's resource compiler and must be on PATH, as it is in a
-                     Visual Studio developer prompt (which the native build already needs for link.exe). -->
+                     Visual Studio developer prompt (which the native build already needs for link.exe).
+                     native-build.cmd makes one and runs mvn in it, so it is looked for first: without it the failure
+                     would be exec's 'not recognized', which names neither the cause nor the fix. -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
@@ -189,6 +153,8 @@
                             <goals><goal>run</goal></goals>
                             <configuration>
                                 <target>
+                                    <available file="rc.exe" filepath="${env.PATH}" property="rc.exe.found"/>
+                                    <fail unless="rc.exe.found" message="rc.exe, the Windows SDK's resource compiler (for the icon), is not on PATH, and neither is the MSVC link.exe that native-image needs: they are only there in a Visual Studio developer prompt. Run the native build through native-build.cmd, which loads that environment and then runs mvn with its arguments, e.g. native-build.cmd -Pnative package -DskipTests (./native-build.cmd from Git Bash)."/>
                                     <exec executable="rc.exe" searchpath="true" failonerror="true">
                                         <arg value="/nologo"/>
                                         <arg value="/fo"/>
@@ -249,15 +215,9 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- Configured by the parent: mvn compile exec:exec, from the parent's folder, runs MainFrame from here. -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-            </plugin>
-            <!--
-              The mark as an art pair, for the About window to condense it out of its distance field as it opens:
-              /mainframe.pair beside /mainframe.ico, which is where the framework looks for it. From the same drawing the icon is made from.
-            -->
+            <!-- The mark as an art pair, for the About window to condense it out of its distance field as it opens:
+                 /mainframe.pair beside /mainframe.ico, which is where the framework looks for it, from the drawing the .ico
+                 was made from. Without it the window shows the .ico, still. -->
             <plugin>
                 <groupId>dev.vexelray.gui</groupId>
                 <artifactId>vexelray-gui-icons-maven-plugin</artifactId>
@@ -288,14 +248,15 @@
           takes minutes. This program's own reachability metadata is under src/main/resources/META-INF/native-image/;
           the libraries and the processor bring the rest.
 
-            mvn -Pnative-release package -DskipTests  ->  target/mainframe.exe        what ships
-            mvn -Pnative package -DskipTests          ->  target/mainframe-debug.exe  for ottermate
+            native-build.cmd -Pnative-release package -DskipTests  ->  mainframe-gui/target/mainframe.exe        what ships
+            native-build.cmd -Pnative package -DskipTests          ->  mainframe-gui/target/mainframe-debug.exe  for ottermate
 
           release: Windows GUI subsystem (no console window ever).
           debug:   console subsystem (stdout is the `automation: localhost:<port>` protocol line).
           Both carry the automation sockets, off until asked for, with the title bar's plug showing their state.
           The plugins are declared once, in pluginManagement; the profiles only choose their inputs. Both run rc.exe
-          for the icon (src/main/rc), so run them from a Visual Studio developer prompt.
+          for the icon (src/main/rc) and link with MSVC, so run them through native-build.cmd (or plain mvn from a
+          Visual Studio developer prompt).
         -->
         <profile>
             <id>native</id>
@@ -345,8 +306,9 @@
                 </plugins>
             </build>
         </profile>
-        <!-- Linux: mvn -Pnative-linux package -DskipTests  ->  target-linux/mainframe. No linker options and no
-             rc.exe; a Linux executable has no subsystem and no icon of its own. -->
+        <!-- Linux: mvn -Pnative-linux package -DskipTests  ->  mainframe-gui/target-linux/mainframe. No linker options and no
+             rc.exe; a Linux executable has no subsystem and no icon of its own. VexelRay IDE, Calculator and MainFrame each
+             carried this profile by hand before the template did. -->
         <profile>
             <id>native-linux</id>
             <properties>
@@ -398,6 +360,48 @@
                                     <executable>sh</executable>
                                     <workingDirectory>${project.build.directory}/ffmpeg-record</workingDirectory>
                                     <commandlineArgs>-c "LC_ALL=C tar --sort=name --mtime=2026-01-01T00:00:00Z --owner=0 --group=0 --numeric-owner --mode=a=r,u+w -cf - * | gzip -n > ../mainframe-ffmpeg-record-linux-x86_64.tar.gz"</commandlineArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+          This application's own icons, switched on by the folder: art in src/main/icons/small (a 16-unit grid, for
+          24 px and under) or src/main/icons/large (a 64-unit grid, above), SVG or a black-on-white or transparent
+          raster, one file per icon named for it (brush.svg is BRUSH). The build bakes it into MainFrameIcon, a set
+          that extends the suite's dev.vexelray.gui.icons.Icon: its grids, none of its names, and every place an Icon
+          goes. See vexelray-gui/vexelray-gui-icons/README.md, "An application's own icons".
+        -->
+        <profile>
+            <id>app-icons</id>
+            <activation><file><exists>${basedir}/src/main/icons</exists></file></activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>dev.vexelray.gui</groupId>
+                        <artifactId>vexelray-gui-icons-maven-plugin</artifactId>
+                        <version>${vexelray-gui.version}</version>
+                        <executions>
+                            <execution>
+                                <goals><goal>bake</goal></goals>
+                                <configuration>
+                                    <extends>dev.vexelray.gui.icons.Icon</extends>
+                                    <packageName>dev.mainframe</packageName>
+                                    <enumName>MainFrameIcon</enumName>
+                                    <directories>
+                                        <directory>
+                                            <path>src/main/icons/small</path>
+                                            <size>small</size>
+                                            <optional>true</optional>
+                                        </directory>
+                                        <directory>
+                                            <path>src/main/icons/large</path>
+                                            <size>large</size>
+                                            <optional>true</optional>
+                                        </directory>
+                                    </directories>
                                 </configuration>
                             </execution>
                         </executions>

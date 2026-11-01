@@ -3,79 +3,73 @@ package dev.mainframe;
 import sibarum.atchung.Topic;
 
 /**
- * Something the person did that the {@link View} has to act on, sent from the thread it happened on to the view's own
- * lane.
+ * What a key chord asks of the {@link View}: the message the gesture was declared to send.
  *
- * <p>A key chord, a tab's menu, a tile of the Open dialog and a folder picked in the OS's dialog all arrive somewhere
- * other than the view's lane, and what they ask often needs the view's word on its tabs: which tab is in front, what
- * its header says, whether the only tab is still unused. So the handler only says what happened, and the view does
- * it, in order, on its own thread. {@code id} is the tab a gesture is about ({@code NO_TAB} where none is), and
- * {@code text} the folder or workspace it names (blank where none is).
+ * <p>A chord is a declaration ({@code gui.shortcut(chord, sender, message)}, threading.md T7.5): the dispatcher sends
+ * this when the chord is pressed and runs nothing of the application's, and the view hears it in the frame, on the GUI
+ * thread, like any other message.
  */
-record Intent(Command command, long id, String text) {
+record Intent(Command command) {
 
-    static final String TOPIC = "view.intent";
-    static final Topic<Intent> INTENTS = Topic.of(TOPIC, Intent.class);
+    static final Topic<Intent> INTENTS = Topic.edge(Intent.class);
 
     /** Each command is a method on the view, so there is no switch to keep in step with this list. */
     enum Command {
-        /** Ctrl+W: close the tab, after asking. */
-        CLOSE {
+        SAVE_FRONT {
             @Override
-            void on(View view, long id, String text) {
-                view.close(id, true);
+            void on(View view) {
+                view.saveFront();
             }
         },
-        /** Ctrl+Shift+W: close the tab without asking. */
-        CLOSE_NOW {
+        CLOSE_FRONT {
             @Override
-            void on(View view, long id, String text) {
-                view.close(id, false);
+            void on(View view) {
+                view.closeFront();
             }
         },
-        /** A tab's menu: its own environment script. */
-        EDIT_TAB_ENV {
+        NEXT_TAB {
             @Override
-            void on(View view, long id, String text) {
-                view.editEnv(id, true);
+            void on(View view) {
+                view.cycle(1);
             }
         },
-        /** A tab's menu: its workspace's environment script. */
-        EDIT_WORKSPACE_ENV {
+        PREVIOUS_TAB {
             @Override
-            void on(View view, long id, String text) {
-                view.editEnv(id, false);
+            void on(View view) {
+                view.cycle(-1);
             }
         },
-        /** The Open dialog's first tile: ask the OS for a folder. */
-        PICK_FOLDER {
+        FOCUS_PATH {
             @Override
-            void on(View view, long id, String text) {
-                view.pickFolder();
+            void on(View view) {
+                view.focusPath();
             }
         },
-        /** A folder was picked, {@code text}, to open as a tab here. */
-        OPEN_FOLDER {
+        FOCUS_TREE {
             @Override
-            void on(View view, long id, String text) {
-                view.openFolder(text);
+            void on(View view) {
+                view.focusTree();
             }
         },
-        /** Workspace {@code text}, in a MainFrame of its own. */
-        OPEN_WINDOW {
+        ZOOM_IN {
             @Override
-            void on(View view, long id, String text) {
-                view.openWorkspace(text, false);
+            void on(View view) {
+                view.zoom(1);
             }
         },
-        /** Workspace {@code text}'s tabs, here. */
-        OPEN_HERE {
+        ZOOM_OUT {
             @Override
-            void on(View view, long id, String text) {
-                view.openWorkspace(text, true);
+            void on(View view) {
+                view.zoom(-1);
+            }
+        },
+        ZOOM_RESET {
+            @Override
+            void on(View view) {
+                view.zoom(0);
             }
         };
 
-        abstract void on(View view, long id, String text);
+        abstract void on(View view);
     }
 }

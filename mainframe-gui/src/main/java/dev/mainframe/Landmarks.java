@@ -7,44 +7,32 @@ package dev.mainframe;
  * (vexelray-gui/docs/automation.md 5), and it is why these are constants rather than string literals scattered
  * through the view: a landmark is a published contract, so renaming one breaks a script somebody else wrote, and
  * the compiler should be the thing that notices.
+ *
+ * <p>Where you can, carry <em>state in the accessible name</em>. {@code await <landmark> <text>} is how a driver
+ * waits for the application to be ready, and it needs no hook when readiness is declared somewhere the read-model
+ * can already see. {@link #STATUS_FILE} works that way: its name is the front tab's title, dot and all, so
+ * {@code await status.file notes.md} waits for a file to open and {@code await status.file •} for it to go
+ * unsaved.
  */
 final class Landmarks {
 
     /** The tab bar and its pages. */
     static final String TABS = "tabs";
 
-    /** The + after the tab headers. */
-    static final String NEW_TAB = "new-tab";
+    /** What the editor area shows when no file is open. */
+    static final String EMPTY = "empty";
 
-    /** The switch after the +: every chord to the shell while it is on. */
-    static final String PASSTHROUGH = "passthrough";
+    /** The navigator's path bar: type a folder to show it, a file to open it, a new name to create it. */
+    static final String PATH = "path";
 
-    /** The notice over a terminal: why {@code --insert-path} typed nothing, say. */
-    static final String NOTICE = "notice";
+    /** The navigator's tree. */
+    static final String TREE = "navigator";
 
-    /** The settings button in the main window's title bar. */
-    static final String SETTINGS = "settings";
-
-    /** The settings window's General tab. */
-    static final String SETTINGS_GENERAL = "settings.general";
-
-    /** The settings window's Workspaces tab. The page's own parts are {@code workspaces.*}: see {@link WorkspacesPage}. */
-    static final String SETTINGS_WORKSPACES = "settings.workspaces";
-
-    /** General's Change… button for the new tab directory. */
-    static final String SETTINGS_TAB_DIR = "settings.tabdir";
-
-    /** General's drop-down of the workspace to open at start. */
-    static final String SETTINGS_START_WORKSPACE = "settings.startworkspace";
-
-    /** The Open dialog's first tile, Open folder…. */
-    static final String OPEN_FOLDER = "open.folder";
-
-    /** The Open dialog's last tile, New workspace. */
-    static final String OPEN_NEW = "open.new";
-
-    /** The Open dialog's workspace tiles, by position: {@code open.workspace.0} is the first. */
-    static final String OPEN_WORKSPACE = "open.workspace.";
+    /** The status line, and its three slots. */
+    static final String STATUS = "status";
+    static final String STATUS_FILE = "status.file";
+    static final String STATUS_MESSAGE = "status.message";
+    static final String STATUS_POSITION = "status.position";
 
     private Landmarks() {
     }

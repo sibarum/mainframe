@@ -1,239 +1,199 @@
 # MainFrame
 
-A terminal window that wraps the native OS shell. v1 is Windows PowerShell; the design is cross-platform.
+A terminal window that wraps the native OS shell.
 
-**Install it** on Windows, with the other VexelRay applications, from [sibarum.github.io](https://sibarum.github.io/).
-
-It is a real terminal emulator, not a shell of its own: PowerShell runs unmodified inside a Windows pseudoconsole
-(ConPTY), and MainFrame draws what it emits and sends it your keys. It is a VexelRay application, built on
-`vexelray-framework` from its `vexel-desktop` template, so the window, input, clipboard, clock, frame loop, dialogs
-and shutdown are the framework's, and what is here is the terminal.
+A VexelRay desktop application, generated from the `vexel-desktop` template: a small text editor with tabs, a file
+navigator and Markdown in colour. It is the reference implementation of this stack, so every seam the framework
+offers is wired in the tree you are reading — and it is a working editor, so it is also something to change into
+whatever you are actually building.
 
 ## Run it
 
-Needs the local VexelRay stack installed (`vexelray-framework/docs/getting-started.md` gives the order) and
-[vex-suite-common](../vex-suite-common) (`mvn install` there), Java 25 and
-Maven.
+From this folder, the parent of the two modules:
 
-```bash
+```
 mvn compile exec:exec
 ```
 
-From this folder, the parent of `mainframe-core` and `mainframe-gui`. `exec:exec` rather than `exec:java`, so native
-access can be enabled for the pseudoconsole's foreign calls. Options
-and a command line go in `app.args`:
+`exec:exec` rather than `exec:java`, so native access can be enabled for Panama FFM. The window comes up where you
+last left it, at 1100x700 the first time, with the folder and the files you last had open. The first time,
+the navigator shows the working directory.
 
-```bash
-mvn compile exec:exec "-Dapp.args=--dir=C:/work/api --dir=C:/work/web"
+```
+mvn compile exec:exec "-Dapp.args=C:/notes"               # open a folder (or files) named on the command line
+mvn compile exec:exec -Dapp.args=120                      # 120 frames and quit
+mvn compile exec:exec -Dautomation=0                      # a driving socket on a free port (see Taking a screenshot)
+mvn test                                                  # the editor, the jobs, Markdown, the real tree headless
 ```
 
-```bash
-mvn compile exec:exec "-Dapp.args=cmd.exe"
+## A native executable
+
+Two builds, made with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Visual Studio with the "Desktop
+development with C++" workload):
+
+```
+native-build.cmd -Pnative-release package -DskipTests   # mainframe-gui/target/mainframe.exe        what ships: no console
+native-build.cmd -Pnative package -DskipTests           # mainframe-gui/target/mainframe-debug.exe  a console: prints the automation port line
 ```
 
-```bash
-mvn test
+Both carry the automation sockets, off until asked for ([Automation](#automation)), so ottermate can drive either.
+
+On Linux there is one build, with no console subsystem or icon step to choose, and plain `mvn`:
+
+```
+mvn -Pnative-linux package -DskipTests                  # mainframe-gui/target-linux/mainframe
 ```
 
-The tests cover the controller alone, with no window and no shell (`FrameTest`: which tabs a launch opens, the spare
-tab, closing, what follows a rename), the command line, the workspace files and their environment scripts, what `--insert-path` may
-type, and the real window contents built headless with no shell started (`TreeTest`). The VT screen and the
-pseudoconsole are tested where they live, in vex-suite-common.
+`native-build.cmd` is `mvn` inside a Visual Studio developer environment: native-image needs the MSVC `link.exe` and
+the icon step needs `rc.exe`, and neither is on `PATH` in a plain shell. Under Git Bash it is worse, since coreutils'
+own `link.exe` comes first. The script finds `vcvars64.bat` with `vswhere`, loads it, and runs `mvn` with the
+arguments it was given (`./native-build.cmd ...` from Git Bash). Plain `mvn` works too from a developer prompt; from
+anywhere else the icon step stops and says to use the script.
 
-## Keys
+This program's own native-image metadata is `mainframe-gui/src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
+and it is short because almost nothing is this program's: the libraries register their own, and the processor
+registers the icon. If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run it
+on a JVM under `-agentlib:native-image-agent=config-output-dir=...`, do the thing that failed, and add
+only the entries that name this program.
 
-Every command is an action on vexelray-gui's key map (`vexelray-gui/docs/reference/keymap.md`): it has a name, and
-its chords are yours to change. The keyboard button in the title bar opens the editor. A chord no action holds goes to
-the shell as it is, so to give a key back to the shell, remove it from its action there. What you change is kept in
-`~/.mainframe/keys.properties`.
+## The icon
 
-| Action | Keys it starts with |
+`mainframe-gui/src/main/rc/mainframe.ico` is the application's mark, and it is one file read three ways: the window and its
+taskbar button wear it (`@VexelApp(icon = MainFrame.ICON)`; the pom puts it on the class path), and so does the
+title bar the framework draws; the `.exe` links it (`src/main/rc/mainframe.rc`), and so Explorer, a shortcut and a
+pinned button show it too. It starts as the framework's "new app" mark, whose source is `mainframe.svg` beside it.
+
+A second window — a viewer, a settings window — wears the window mark, on the taskbar and in its title bar, with
+nothing to write: declare it in a recipe with `windows.named(...)`, and the framework builds its tree and claims it
+wearing `shell.windowMark()`. That mark is this same one unless
+a `mainframe-window.ico` sits beside it, which is then found by name and registered for the native image with
+the mark. The VexelRay suite's applications ship one: a band of the application's colour over its glyph, so a
+second window reads as its own and is still told apart from the main one.
+
+To make it yours, draw a 64x64 SVG and render it at every size Windows asks for, 16 to 256 px, into that `.ico` —
+`vex-suite-common`'s `tools/Ico.java` does exactly this, from each size's own rasterisation rather than shrinking the
+largest. Replace the file, and the window and the executable change together. An `.ico` or `.png` that is missing is
+a compile error; one that does not decode costs the window its mark, logged, and nothing else.
+
+Run from `mvn exec:exec`, the process is `java.exe`, so the window and its taskbar button wear the mark but Windows
+groups the button with other Java programs, and pinning it pins Java. The native executable has neither problem.
+
+## Using it
+
+| Keys | Does |
 | --- | --- |
-| New tab | Ctrl+Shift+T, Ctrl+T |
-| Close the tab, after asking | Ctrl+W |
-| Close the tab without asking | Ctrl+Shift+W |
-| Rename the tab | Ctrl+Shift+R |
-| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
-| Open a workspace or a folder | Ctrl+O |
-| Larger, smaller, back to normal size | Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's |
-| Copy the selection | Ctrl+Shift+C, Ctrl+C |
-| Paste | Ctrl+Shift+V, Ctrl+V |
-| Interrupt (what Ctrl+C sends a shell, 0x03) | Esc |
-| Scroll back / on a page | Shift+PageUp / Shift+PageDown |
+| Ctrl+L | the path bar: type a folder to show it, a file to open it, a new name to create it; Enter goes |
+| Ctrl+S | save |
+| Ctrl+W | close the tab (asks if it is unsaved) |
+| Ctrl+Tab, Ctrl+PageDown / Ctrl+Shift+Tab, Ctrl+PageUp | next / previous tab |
+| Ctrl+Shift+E | put the keyboard in the navigator |
+| Ctrl+F | find in the file (Enter / Shift+Enter step, Escape closes) |
+| Ctrl+Z / Ctrl+Y | undo / redo |
+| Ctrl+= / Ctrl+- / Ctrl+0 | zoom |
 
-The last five apply while a terminal has the keyboard, so in the rename field Ctrl+V and Esc are the field's.
-Right-click copies a selection or pastes, and the wheel scrolls the history.
+Selecting a file in the navigator opens it — a click, or walking the tree with the arrow keys, which keep the
+keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
+front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
 
-Taking Ctrl+C for copy takes the interrupt away, which is why Esc sends it, and Esc no longer reaches programs that
-want it, such as vim. Ctrl+T, Ctrl+W and Ctrl+O are the shell's too (Ctrl+W's delete-word is also Ctrl+Backspace).
-Unbind any of these and the shell has it again. This replaced the **Remap keybindings** switch: if you had it off,
-the first run since then unbinds Ctrl+T, Ctrl+W, Ctrl+O, Ctrl+C, Ctrl+V and Esc for you, which is what off meant.
-
-## Tabs
-
-Each tab is its own shell. Ctrl+Shift+T opens one (so does the + in the bar), Ctrl+Shift+W closes the current one,
-Ctrl+Tab and Ctrl+Shift+Tab cycle, and a tab's right-click menu has Close. A tab whose shell exits closes itself;
-closing the last one closes the window. Tab titles follow the shell's own title. Rename a tab with Ctrl+Shift+R, by
-double-clicking its header, or from its right-click menu: Enter or clicking away keeps the name, Escape cancels, and
-a blank name hands the header back to the shell's own title.
-
-To open several tabs at once, each starting in its own folder, give MainFrame the folders when launching it, before
-any shell command line:
-
-```
-mainframe --dir=C:/work/api --dir=C:/work/web --dir=~
-mainframe --dirs=C:/work/projects.txt
-```
-
-`--dir` can be repeated, and `--dirs` reads a file with one folder per line (blank lines and `#` comments are
-skipped, and relative paths are taken from the file's own folder). The two can be mixed, and the tabs open in the
-order given. Each tab is named after its folder, the first one is selected, and a folder that does not exist is
-logged and skipped. Tabs opened later with + start where MainFrame itself was started. Switching tabs slides the new
-one in (Settings has Fade and None).
-
-The first argument that is not an option, and everything after it, is a command line that replaces the shell for
-that run: `mainframe pwsh -NoProfile`. Any other `--option` is the framework's (`--automation`, `--log`), and one
-nobody knows stops MainFrame with an error rather than being run as a program (`Command`).
-
-## Settings
-
-The settings button (the gear) in the title bar opens the settings window; clicking it again brings that window to
-the front. Its General tab has font size, tab animation (slide, fade or none), the shell new tabs
-start (Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt), the folder they start in (your user
-profile unless another is chosen), and a workspace to open whenever MainFrame is launched without folders or a
-workspace named (None by default: one plain tab). Changes apply at once and are saved
-in the framework's settings store, `~/.mainframe/settings.properties`, which also remembers where each window was. A
-command line given when launching MainFrame overrides the shell choice for that run only.
-
-## Workspaces
-
-A workspace is a saved list of folders, opened with `mainframe --workspace=<name>`: one tab per folder, in order,
-each named as the workspace names it. Ctrl+O shows them as tiles, after an Open folder… tile: Enter (or a click)
-opens a workspace in a new MainFrame window, Ctrl+Enter opens its tabs in this one, and a tile's right-click menu has
-Edit…. With no workspaces saved, Ctrl+O goes straight to the folder picker. If the window still has only the plain
-tab it started with, and nothing has been typed or pasted into it, whatever Ctrl+O opens takes its place: the tab
-closes, and when the workspace opens in a new window, this window closes with it.
-
-They are made and edited in the settings window's Workspaces tab: New, Delete and the name, and a card per folder
-with its tab name over its path. Drag a card to reorder (or Alt+Up/Down), and remove one from its right-click menu or
-with Backspace or Delete; Add folder picks one. A tab name left blank gets the folder's name back. Every change is
-saved at once, and Ctrl+Z and Ctrl+Y undo and redo them, deleting a workspace included. While no workspace is set
-to open at start, New asks whether the new one should be; once one is, it does not ask.
-
-Each is a CSV file in `~/.mainframe/workspaces/<name>.csv` with a header row, so it can be edited by hand too:
-
-```
-name,path
-,C:\work\api
-web,C:\work\web-frontend
-```
-
-An empty `name` is the folder's own. Columns other than `name` and `path` are kept when MainFrame writes the file
-back, so later versions can add fields (`Workspace`, `WorkspaceStore`). MainFrame adds one itself, `env`, below.
-
-### A workspace's environment
-
-Every tab of a workspace can have its environment extended by scripts that its shell dot-sources as it starts: the
-workspace's, which all its tabs share, and then the tab's own, so a tab's script overrides the workspace's. They are
-in the language of the shell new tabs start: PowerShell scripts (`.ps1`) for Windows PowerShell and PowerShell 7, sh
-scripts (`.sh`) for bash and zsh on Linux. They sit beside the CSV file:
-
-```
-~/.mainframe/workspaces/day.csv
-~/.mainframe/workspaces/day.env.ps1               every tab of day, in PowerShell
-~/.mainframe/workspaces/day.env.sh                every tab of day, in bash or zsh
-~/.mainframe/workspaces/day.env/api-3f9c2a.ps1    the tab whose env column says api-3f9c2a.ps1
-~/.mainframe/workspaces/day.env/api-3f9c2a.sh     the same tab, in bash or zsh
-```
-
-**Edit environment…** makes a script if it is not there and opens it in VexelRay IDE, a window of its own: on the Workspaces
-tab for the workspace, on a card's right-click menu for that tab, and on a workspace tab's right-click menu in the
-terminal window (*Edit environment…* for the tab, *Edit workspace environment…* for the workspace). VexelRay IDE is found by
-its install record, or else as `text-editor` on the `PATH`; without it, a dialog says where the script is.
-
-Each script starts with a region MainFrame rewrites whenever the script is about to be sourced or edited:
-
-```powershell
-# region MainFrame (generated; edits here are replaced)
-$env:MAINFRAME_WORKSPACE = 'day'
-$env:MAINFRAME_TAB = 'api'
-$env:MAINFRAME_TAB_FOLDER = 'C:\work\api'
-# endregion
-```
-
-An sh script's region sets the same variables with `export MAINFRAME_WORKSPACE='day'`. (The workspace's has
-`MAINFRAME_WORKSPACE` and `MAINFRAME_WORKSPACE_ENV_DIR`, the folder of the tab scripts.)
-Everything outside the region is yours and is kept byte for byte. A missing script is skipped.
-
-- **Which tabs.** A workspace's tabs, opened in a window of their own or into this one with Ctrl+Enter. A tab opened
-  with + in a window opened as a workspace sources the workspace's script only, and starts in the new tab directory
-  as any + tab does. A folder opened with Ctrl+O, and every tab of a window opened without a workspace, sources
-  nothing.
-- **Which shells.** PowerShell's scripts are added to its command line as `-NoExit -Command ". 'a'; . 'b'"`, after
-  the profile. They run under your execution policy; where it is `Restricted`, Windows' own default, PowerShell
-  refuses them in the tab, and `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` allows them. On Linux, bash and
-  zsh start on startup files MainFrame keeps in `~/.mainframe/shell/` (bash's `--rcfile`, zsh's `ZDOTDIR`), which
-  read yours as the shell would have (the profile for a login shell, else `~/.bashrc`; each of zsh's) and then
-  source the scripts. Either way only a command line with no command or file of its own is added to; for any other
-  line, or any other shell, the tab says above the terminal that its scripts did not run.
-- **The key.** A tab's script is named by the `env` column, which every row gets the first time its workspace is
-  opened or shown on the Workspaces tab, so the script stays the tab's when it is renamed, moved or pointed at
-  another folder.
-- **Renaming, deleting, undo.** Renaming a workspace moves its scripts. Deleting one puts them aside in
-  `workspaces/.deleted`, and Ctrl+Z puts them back; what is there is cleared after 30 days. A folder removed from a
-  workspace keeps its script, which Ctrl+Z finds again (`EnvScripts`).
-
-`--insert-path=<file>` puts a file's name on the first tab's input line, quoted for its shell, once the prompt is
-drawn: Vexplore's Open MainFrame Here uses it, with the file's folder as the first `--dir`. The name is typed after a
-space with the cursor before it, so what you type next is the command; nothing runs until you press Enter, and
-nothing is typed if you start typing first. It is typed only when it can be proved safe: every character must be one
-that shell's quoting leaves inert (PowerShell's single quotes, cmd's double quotes, which do not stop `%` or `!`). A
-name that fails is replaced by its 8.3 short name if that passes, and otherwise nothing is typed; either way a notice
-above the terminal says so. The file must exist, be named by its full path, and sit directly in the first `--dir`; a
-shell given on the command line is refused, since MainFrame cannot tell how it quotes (`InsertPath`).
+There is no file dialog, by choice: the path bar is the whole of "open", and it works the same in a test as in use. The
+framework brings native pickers (a `PickFile` message, answered by `Picked`) for a project that wants them.
 
 ## How it is put together
 
-The shape of `vexelray-framework`'s `vexel-desktop` template: two modules, split where the dependency edge falls, and
-three kinds of part that never hold each other. **Components** have a lane of their own and are reached only by
-messages; **jobs** do slow work (the disk, another process) on the offload lane, a request in and a reply out;
-**recipes** build a part once and hand it to whoever takes it. Every message is a record in `-core`'s `Messages.java`.
-Run every `mvn` command from this folder, the parent of both modules.
+Two modules under this folder, split where the dependency edge falls, and four kinds of part that never hold each
+other: **components** (logic, reached only by messages: the editor runs on the framework's logic lane), **views**
+(presentation, run on the GUI thread in each frame, `@View`), **jobs** (slow work on the offload lane, a request in
+and a reply out), and **recipes** (a part built once and handed to whoever takes it). The parts talk by messages, and every message is in one file. Read these in this order.
 
 **`mainframe-core`, the controller.** It builds against no widget, so its tests need no window.
 
-| Piece | What it is |
+| File | What belongs in it |
 | --- | --- |
-| `Messages` | Every message the parts send each other, grouped by who sends it to whom. A record holds no list, so a set is a message per member, and a workspace crosses as the text of its file |
-| `Frame` | The controller, a component on the `frame` lane: which tabs a launch opens, which shell a tab starts and where, which tab is spare, whether closing asks, that the window goes with its last tab, and what follows from a workspace renamed, deleted or made |
-| `ResolveTabs`, `PrepareShell`, `CheckInsert`, `LaunchWindow`, `MakeScript` | The jobs that open tabs: what a `--dir`/`--dirs`/`--workspace` names, a tab's command line with its environment scripts, what `--insert-path` may type, another MainFrame, a script made |
-| `ListWorkspaces`, `LoadWorkspace`, `SaveWorkspace`, `RenameWorkspace`, `DeleteWorkspace`, `RestoreWorkspace`, `CreateWorkspace`, `FindWorkspace`, `PruneDeleted` | The jobs that keep the workspace files |
-| `Command` / `Startup` / `InsertPath` | MainFrame's command line, and the tabs and `--insert-path` it comes to on disk |
-| `AppSettings` | The saved settings, over the framework's store; read by both modules |
-| `Workspace` / `WorkspaceStore` / `EnvScripts` / `SelfLaunch` | A workspace and its CSV file, the folder of them (a record, so a job can hold it), the environment scripts, and the command line that starts another MainFrame |
-| `Core` | The list of this module's component and jobs, which `MainFrameApp` names as a starter: the processor compiling `-gui` sees only `-gui`'s sources, so a component or job missing here is never built |
+| `Messages.java` | **every message the parts send each other**, grouped by who sends it to whom, each record beside its topic. A record crosses as itself, so it holds only immutable values; a list it holds is copied in its constructor. |
+| `Editor.java` | **the controller**: every decision (what a typed path names, whether a file is already open, when closing needs a question, what the status line says, what comes back next time) as a declared step on one immutable state, held by a ledger. Each message it hears runs one step; closing is a chain of them that waits on the person and the disk without anything waiting on a thread. It needs no lock, because only its steps change its state and they run one at a time. |
+| `Doc.java` | the shape of the session (which files, which in front, which unsaved, which folder) as one immutable value, part of the editor's state. |
+| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java`, `ListFolder.java`, `MarkText.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
+| `TextFile.java`, `Markdown.java` | the policy between bytes and text, and Markdown as spans: pure functions. |
+| `Core.java` | the list of this module's component and jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `MainFrameApp`'s starters, is how the wiring hears of them. A new component or job goes on it. |
 
-**`mainframe-gui`, the views and the framework integration.**
+**`mainframe-gui`, the view and the framework integration.**
 
-| Piece | What it is |
+| File | What belongs in it |
 | --- | --- |
-| `MainFrame` / `MainFrameApp` | The entry point, which takes MainFrame's own options out of the command line (`Command`) and hands the framework the rest; and the declaration the processor writes `MainFrameAppWiring` from (open it under `mainframe-gui/target/generated-sources` after a build) |
-| `Recipes` | The parts, and the start: it tells the frame to begin in the one recipe that takes the `Shell`, so a test's headless tree starts no shell |
-| `View` / `Intent` | The main window's view, a component on the `view` lane: the frame's messages shown (`AddTab` is a tab, `Ask` a dialog, `Tile` a tile of the Open dialog) and the person's gestures told. `Intent` carries a chord or a menu item onto its lane |
-| `SettingsView` | The settings window's view, a component on the `settings` lane: what the workspace jobs did, handed to the window and its Workspaces page |
-| `TerminalView` | One tab: a shell on vex-suite-common's `ConPty`, drawn by its `TerminalScreen`, what the key map's terminal commands do to it (copy, paste, interrupt, scroll), the notice and `--insert-path`'s typing. A pseudoconsole cannot cross a lane, so the view starts it |
-| `Terminals` | The tab bar and one `TerminalView` per tab, with rename and the tab switch animation. Its `tick` is the frame's `@BeforeFrame` work, and it is a `WakeSource`, so a shell writing into an idle window wakes the parked loop |
-| `SettingsWindow` / `WorkspacesPage` | The settings window (a framework `NamedWindow`) and its Workspaces tab, which asks the workspace jobs itself and records a step once the job's answer has landed |
-| `OpenDialog` | What Ctrl+O opens, from the tiles the frame lists |
-| `OpenInIde` / `Vex` | A job that opens a script in VexelRay IDE, found by the suite's install record |
+| `Recipes.java` | **what this module builds.** One `@Provides` method per part; `MainFrameAppWiring`, which builds them and the components and jobs in order, is generated while it compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. |
+| `View.java` | **the view**, a `@View`: run on the GUI thread in each frame, hearing the editor, its jobs and the widgets as messages; the editor's messages shown (`AddTab` is a tab) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
+| `Intent.java` | what a key chord asks of the view: the message the gesture was declared to send. |
+| `Ui.java` | the window. Holds no state; it shows what the view hands it. |
+| `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |
+| `Navigator.java` | the path bar and the file tree. The tree asks for each level by message, and the view asks `ListFolder`, so the disk is read off the frame. |
+| `Motion.java` | the one tempo every widget moves at, on the framework's clock. |
 
-What is not here is the point: input, the clipboard, window memory, the clock, the frame loop and its pacing, the
-dialogs, the title bar and closing everything in order are the framework's.
+`MainFrame.java` is the entry point and the constants, and nothing else. The application edge — input, the
+clipboard, window memory, the clock, the frame loop with its wakes and its pacing, the dialogs, the command line and
+the shutdown order — is `vexelray-framework`'s. `Look.java`, `Type.java` and `Landmarks.java` are the three
+vocabularies: colour, size, and the names an automation script is allowed to depend on.
 
-The terminal itself is [vex-suite-common](../vex-suite-common)'s `tty` package, shared with VexelRay IDE's build console: the
-pseudoconsole (`ConPty`, kernel32 through the foreign function API, the only Windows-specific part), the VT screen
-(`Terminal`), reading one into the other (`Pump`), the screen drawn as a node with scrolling, selection and copying
-(`TerminalScreen`), and box drawing, block elements and braille drawn rather than taken from the font (`CellArt`).
+### Phases
+
+A phase is a **correctness** constraint rather than a scheduling detail, and having them as a type is what makes the
+constraints structural instead of remembered:
+
+| phase | what exists by then |
+| --- | --- |
+| `CONFIG` | the settings store and the look — values, before there is a `Gui` to apply them to |
+| `MODEL` | what the application knows, before there is anything to draw it with |
+| `GUI` | the `Gui` and the clock; the theme applied and the zoom range set, before the first widget |
+| `TREE` | the widgets: the first phase a part is handed the `Gui`, so anything taking it lands here. Buildable with no window, which is what lets a test build it with no GPU |
+| `WINDOW` | the device and the window handle. Main-thread from here on |
+| `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
+
+Open `mainframe-gui/target/generated-sources/annotations/.../MainFrameAppWiring.java` after a build to see which part landed where.
+
+### Threading, in one paragraph
+
+The GUI loop runs on the main thread, which owns Vulkan, the window and present, and nothing of this application's
+runs there but the view, which is presentation and nothing else (threading.md, T7.4). The editor runs on the
+framework's logic lane and the view on the GUI thread, in each frame's widget tick; each handles one message at a
+time and owns its state outright, so there is no lock anywhere in the application. The editor's state is changed only
+by its declared steps, which the processor reads: a step that touches the disk, waits or reaches outside itself does
+not compile. A widget says what it did as a message, which the view hears in the frame the input arrived, and a key
+chord or a menu item is declared with the message it sends, so nothing of the application's runs at the click. Every
+read and write of a file is a job on the offload lane, so a slow disk is a slow reply and never a frozen window (the
+lanes are named in the framework's `docs/threading.md`).
+
+Two things follow from messages, and both are written where they bite. **One sender's messages to one receiver keep
+their order**: so the view says a tab went unsaved before it asks to close it, and the editor already knows when the
+`Close` arrives. **Jobs are in no order at all**: so the restored session asks for one file at a time. The processor
+checks every message it can see: a mailbox's payload is deeply immutable, a topic carries one type, and no cycle of
+sends can block.
+
+### Spans
+
+`Markdown.spans` is a pure function from text to `Span`s (foreground, background, underline). After each edit
+the view asks `MarkText` for them on the offload lane, and applies the answer only if the field still says the text it
+was computed for. The text is never changed; the field draws the colours and moves each span with its text as you type. A `.txt` file gets none.
+
+### Motion
+
+The widgets animate only when handed a ramp, and without one they cut — so leaving the clock out costs no error,
+only a stiffer window. `Motion` makes the ramps from the framework's clock: the tabs slide, folders open, and a cue
+rings a tab you asked to open that was already open, or the status line when something was refused.
+
+## The stack
+
+Everything below is installed locally rather than downloaded, so `mvn install` in each of those projects has to have
+happened at least once. If the build cannot resolve them, that is why.
+
+| what | why it is here |
+| --- | --- |
+| `vexelray-framework-api`, `vexelray-gui-core` | all `-core` builds against: the framework's annotations, and the values (a span, a colour, the settings store) and the bus that are safe from any thread |
+| `vexelray-framework-shell`, `-automation`, `-processor` | the application edge, the driving socket, and the processor that checks both modules and writes the wiring |
+| `vexelray-gui-widget` | the widgets: `Tabs`, `TreeView`, `TextField`, `SplitPane`, `StatusBar`, `Cues` |
+| `vexelray-gui-krono` | the clock: every transition and cue |
+| `vexelray-gui-automation` | driving the running app the way a person does — a debugging instrument |
+| `tactroller-atchung` | keyboard and pointer input onto an atchung bus (brings `atchung-core`) |
+| `tactroller-clipboard` | the OS clipboard, with no input-subsystem coupling |
+| `vexelray-os-*`, `tactroller-*` | picked by an OS-activated profile; exactly one activates |
 
 ## Automation
 
@@ -245,6 +205,8 @@ log, the Inspector). Both are in every build, the release one too, and both star
   a free one).
 - **Switched on at launch**, for an agent that means to: `--automation=0` (both, on a free port),
   `--automation.control=<port>`, `--automation.diagnostics=<port>`, or `VEXELRAY_AUTOMATION=0` in the environment.
+  **The diagnostics socket is all the Inspector needs**: a run that opens it at launch records everything the
+  Inspector reads, whatever `-Dprobe` says, so there is nothing else to set.
 - **Not there at all**: `--automation.available=none` (or `control`, or `diagnostics`), or
   `VEXELRAY_AUTOMATION_AVAILABLE` in the environment. A socket that is not available cannot be switched on by
   anything, and with neither available the plug is gone.
@@ -264,62 +226,48 @@ The plug's tooltip and the switches' window say the same in words, with the port
 
 ## Taking a screenshot
 
-Screenshots are `ottermate`'s (`vexelray-gui/docs/guides/ottermate.md`), which drives the running window over its
-automation socket. The socket is off unless asked for: `-Dautomation=0` (a free port) or `--automation=<port>`.
-
-```bash
-ottermate shot out.png --launch mvn.cmd -q exec:exec -Dautomation=0
-```
-
-Every open window can be driven. Commands go to the main window until `window settings` (or `window open`) picks
-another; `click settings` (the gear) opens the settings window. The landmarks a script may use are in `Landmarks`.
-A shell takes a moment to draw its first prompt, which `settle` does not wait for, so give it one before typing.
-
-## The stack's environment (planned)
-
-MainFrame is to define the stack's environment and hand it to any terminal as a script to source: the stack's
-tools (`ottermate` first) on the `PATH`, and for AI agents every application's automation socket open. The plan is
-[docs/stack-env.md](docs/stack-env.md), and the terminal moving to a library of its own is
-[docs/terminal-library.md](docs/terminal-library.md); none of either is built yet.
-
-## Native builds
-
-Windows, GraalVM 25 as `JAVA_HOME`, from a Visual Studio developer prompt (or after `vcvars64.bat`) so `link.exe` is
-MSVC's and `rc.exe` is on the path. Two profiles build the same code:
+Screenshots are `ottermate`'s, and only its: it photographs the running window on the application's own device, so
+the picture is right about content as well as chrome. There is no `--capture` flag in this project on purpose.
 
 ```
-mvn -Pnative-release package -DskipTests   # mainframe-gui/target/mainframe.exe        what ships and is signed
-mvn -Pnative package -DskipTests           # mainframe-gui/target/mainframe-debug.exe  for ottermate
+ottermate shot out.png --launch mvn compile exec:exec -Dautomation=0
 ```
 
-- **release** (`installer.json` points at this one): linked as a Windows GUI subsystem program, so no console window
-  ever appears. The log goes to `~/.mainframe/logs/`.
-- **debug**: console subsystem: `mainframe-debug.exe --automation=0` prints `automation: localhost:<port>` for
-  `ottermate`.
+Say what the picture is *of* with options, and `ottermate` sets it first and stops if it cannot. Everything before
+`--launch` is ottermate's; everything after it is the application's command line (on Windows, `mvn.cmd`):
 
-Both carry the automation sockets, off until asked for ([Automation](#automation)). This program's own native-image metadata is
-`mainframe-gui/src/main/resources/META-INF/native-image/.../reachability-metadata.json`: the entry point, the pseudoconsole's
-kernel32 downcalls; the libraries and the processor register the rest, the icon atlas included.
+```
+ottermate --zoom 1.5 --dpi 2 --size 1600x900 shot big.png --launch ...   # pixels
+ottermate --size 36emx20em shot smallest.png --launch ...                # the minimum, in em
+```
 
-The mark is `mainframe-gui/src/main/rc/mainframe.ico` (the window, its taskbar button and the `.exe` all wear it), and
-`mainframe-window.ico` is what the settings and Open windows wear. Both are rendered from the SVGs beside them by
-`vex-suite-common`'s `tools/Ico.java`; `vexelray-icons` is where the art is drawn.
+The landmarks in `Landmarks.java` are the names a script uses: `await status.file notes.md` waits for a file to be in
+front, and `await path <folder>` for the navigator to be showing one. `ottermate help` lists every verb.
 
-## Known limits
+## Logging
 
-- One mono face (Noto Sans Mono Regular): bold is faked by double-striking, italic is not drawn.
-- Latin, Greek, Cyrillic, punctuation, arrows and most math come from the atlas; powerline glyphs, emoji and CJK are
-  not covered and draw as a box.
-- The font size is in pixels and does not follow the display's scale.
-- No mouse reporting to applications yet.
-- The Open dialog does not block the main window while it is up, and the settings window's questions open over the
-  main window (`docs/framework-notes.md`, FN-3 and FN-4).
-- Old experiments (the typed shell, assistant, templates) are at the git tag `archive/pre-v1`; the hand-wired MainFrame
-  this replaced is `b465748`.
+The framework configures logging for you, before anything else runs, and the defaults follow what kind of run it is:
+
+| Run | Console | File |
+| --- | --- | --- |
+| a test | warnings | none |
+| from your checkout (`mvn exec:exec`) | info | `mainframe-gui/target/logs/mainframe.log`, debug |
+| driven by `ottermate` or `-Dautomation` | debug | `…/mainframe.log`, **trace**, with a probe trace beside it |
+| a native image | warnings | `~/.mainframe/logs/mainframe.log`, info |
+
+Write to it with a logger, not `System.out` — the jobs do, as `mainframe.files`:
+
+```java
+private static final Log LOG = Log.of("mainframe.files");   // sibarum.probe.Log
+LOG.warn("could not save {}", path, exception);               // the exception goes last; its stack reaches the file
+```
+
+`--log=debug` (or `off`) changes the level for one launch, and `-Dlog.level.mainframe.files=trace` raises one
+logger. Levels, settings and the rules for what belongs at which level are in `atchung/docs/logging.md`.
 
 ## The three documents
 
-[docs/framework-notes.md](docs/framework-notes.md) is what building MainFrame on the framework found missing in it,
-written when each workaround was; [docs/TODO.md](docs/TODO.md) is what is known about MainFrame itself and not done.
-[docs/retrospective.md](docs/retrospective.md) is filled in at the end of each milestone: the pass over the notes that
-looks for what they have in common, and the one the framework reads first.
+`docs/framework-notes.md` and `docs/TODO.md` start nearly empty and are meant to be filled in as you go. See the note
+at the top of the first one — it is the more important of the two. `docs/retrospective.md` is filled in at the end of
+each milestone: the pass over the notes that looks for what they have in common, and the one the framework reads
+first.

@@ -6,7 +6,7 @@
 
     <groupId>dev.mainframe</groupId>
     <artifactId>mainframe</artifactId>
-    <version>0.1.3-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>mainframe</name>
@@ -15,15 +15,16 @@
     </description>
 
     <!--
-      Two modules, split where the dependency edge falls, as vexelray-framework-template's vexel-desktop is:
-        mainframe-core   the controller: the Frame, which decides, and the jobs that touch the disk and start
-                         processes. Builds against the framework's annotations, the bus, vexelray-gui-core's values and
-                         the pty library's platform facts, and no widget, so its tests need no window.
-        mainframe-gui    the view: the windows, the widgets, the terminals and the framework integration. The entry
-                         point, its wiring, its icons and its native build are all here.
-      They talk by messages and nothing else (-core's Messages). Run everything from this folder:
-      mvn compile exec:exec runs MainFrame, mvn test runs both modules' tests, and the native profiles build
-      mainframe-gui/target/mainframe.exe.
+      Two modules, split where the dependency edge falls:
+
+        mainframe-core   the controller: the editor, which decides, and the jobs that touch the disk. Builds
+                             against the framework's annotations, the bus and vexelray-gui-core's values, and no
+                             widget, so its tests need no window.
+        mainframe-gui    the view: the window, the widgets and the framework integration. The application's
+                             entry point, its wiring, its icon and its native build are all here.
+
+      They talk by messages and nothing else (mainframe-core's Messages). Run everything from this folder:
+      mvn compile exec:exec runs the application, mvn test runs both modules' tests.
     -->
     <modules>
         <module>mainframe-core</module>
@@ -34,12 +35,11 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <vexelray-framework.version>0.1.3-SNAPSHOT</vexelray-framework.version>
-        <vexelray-gui.version>0.1.3-SNAPSHOT</vexelray-gui.version>
+        <vexelray-framework.version>0.2.0-SNAPSHOT</vexelray-framework.version>
+        <vexelray-gui.version>0.2.0-SNAPSHOT</vexelray-gui.version>
         <vexelray.version>0.1.3-SNAPSHOT</vexelray.version>
         <tactroller.version>1.3-SNAPSHOT</tactroller.version>
-        <vexelray-codec.version>0.1.3-SNAPSHOT</vexelray-codec.version>
-        <vex-suite-common.version>0.1.3-SNAPSHOT</vex-suite-common.version>
+        <vexelray-codec.version>0.2.0-SNAPSHOT</vexelray-codec.version>
         <junit.version>5.11.4</junit.version>
 
         <app.mainClass>dev.mainframe.MainFrame</app.mainClass>
@@ -50,8 +50,20 @@
         -->
         <app.args></app.args>
 
-        <!-- The automation driver: "off", "on" for the default port, or a port number. -->
-        <automation>off</automation>
+        <!--
+          The automation driver: "off", "on" for the default port, or a port number. Empty says nothing, so
+          VEXELRAY_AUTOMATION in the environment decides, and with that unset the sockets stay off.
+        -->
+        <automation></automation>
+
+        <!--
+          The probe, passed through by name as automation is, for a run nobody inspects: "mvn exec:exec -Dprobe=gpu"
+          records what it says. The Inspector needs neither: "-Dautomation=0" alone opens its socket and records
+          every lane, traced, whatever these say. Blank, as here, is unset: the probe falls back to the PROBE
+          variables, then to what the mode records.
+        -->
+        <probe></probe>
+        <probe.format></probe.format>
 
         <!--
           Extra JVM flags for exec:exec, split on whitespace. Needed because a -D on the mvn command line sets a
@@ -86,6 +98,7 @@
                 <!--
                   Run in a fresh JVM: mvn compile exec:exec
                   exec:exec rather than exec:java so native access can be enabled for Panama FFM.
+
                   One command line split on whitespace, rather than a list of argument elements. An argument
                   element is exactly one token and a property cannot expand into several, so a multi-word
                   app.args would arrive as a single argument. %classpath is substituted after the split, so it
@@ -99,28 +112,22 @@
                         <skip>${app.run.skip}</skip>
                         <executable>${java.home}/bin/java</executable>
                         <classpathScope>runtime</classpathScope>
-                        <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=${automation} "-Dbuild.dir=${project.build.directory}" ${app.jvmArgs} -classpath %classpath ${app.mainClass} ${app.args}</commandlineArgs>
+                        <commandlineArgs>--enable-native-access=ALL-UNNAMED -Dstdout.encoding=UTF-8 -Dautomation=${automation} -Dprobe=${probe} -Dprobe.format=${probe.format} "-Dbuild.dir=${project.build.directory}" ${app.jvmArgs} -classpath %classpath ${app.mainClass} ${app.args}</commandlineArgs>
                     </configuration>
                 </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- Stamps each module with the exact source of its binaries, and keeps platform-specific code in -windows,
-                 -linux and -macos modules only: vexelray-build's identify and isolate (vexelray-build/README.md). -->
+            <!-- Stamps each module with the exact source of its binaries (the commit, plus a digest of any uncommitted
+                 change), so whatever is built on it knows what it was built from. See vexelray-build/README.md. -->
             <plugin>
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
                 <version>0.1.3-SNAPSHOT</version>
                 <executions>
                     <execution>
-                        <id>identify</id>
                         <goals>
                             <goal>identify</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>isolate</id>
-                        <goals>
                             <goal>isolate</goal>
                         </goals>
                     </execution>
@@ -133,7 +140,7 @@
                 <configuration>
                     <release>${maven.compiler.release}</release>
                     <!-- The framework's annotation processor, in both modules: what its vocabulary calls a compile error
-                         is one in -core as well, where the Frame's mailboxes and the jobs' messages are checked as a
+                         is one in -core as well, where the editor's mailboxes and the jobs' messages are checked as a
                          library. In -gui it also writes the wiring. Named rather than found, because since JDK 23 javac
                          runs no processor it merely finds on the class path. -->
                     <annotationProcessorPaths>

@@ -1,26 +1,40 @@
 package dev.mainframe;
 
-import dev.mainframe.core.Command;
 import dev.vexelray.framework.shell.VexelApplication;
-import dev.vexelray.os.NativePlatform;
+
 
 /**
- * MainFrame: a terminal window around the native shell. v1 hosts Windows PowerShell on a pseudoconsole (ConPTY).
+ * A terminal window that wraps the native OS shell.
  *
  * <h2>What this class is</h2>
  *
- * <p>The entry point, and the constants the rest of this package reads. <b>The application edge is the
- * framework's:</b> opening input, the clipboard, remembering where the window was, the clock, the frame loop with its
- * wakes and its pacing, the dialogs, the command line and closing everything in order. What MainFrame is made of is
- * in {@link Recipes}, one method per part; {@code MainFrameAppWiring}, which builds those parts in order, is generated
- * from them and from the {@code @VexelApp} on {@code MainFrameApp} while the project compiles.
+ * <p>The entry point, and the constants the rest of this package reads. That is all it is, and the reason is
+ * worth knowing before anything else here: <b>the application edge is the framework's.</b> Opening an input
+ * backend, installing a clipboard, remembering where the window was, attaching a clock, wiring the frame loop with
+ * its wakes and its pacing, installing the dialogs, parsing the command line and closing everything in the right
+ * order are all done for you.
  *
- * <p>The command line is MainFrame's own before it is the framework's: see {@link Command}.
+ * <p>What this application builds — a text editor with tabs and a file navigator — is in two modules. This one,
+ * {@code -gui}, is the view: {@link Recipes}, one method per part, and the {@link View}, which shows what the editor
+ * decides. {@code -core} is the controller: the editor, which decides, and the jobs that touch the disk. They talk by
+ * messages and nothing else ({@code Messages}, in {@code -core}). {@code MainFrameAppWiring}, which builds all of it
+ * in order, is generated from them and from the {@code @VexelApp} on {@code MainFrameApp} while this module
+ * compiles — so the facts below are stated once, here, and the wiring reads them.
  *
- * <p>Needs {@code --enable-native-access=ALL-UNNAMED}.
+ * <pre>
+ * MainFrame                     the editor, on the folder it was last showing (or the working directory)
+ * MainFrame &lt;path&gt;...          open these: a folder becomes the navigator's root, a file a tab
+ * MainFrame &lt;frames&gt;            run a fixed number of frames and quit (a script, not a session)
+ * MainFrame --key=value         override a setting for this launch
+ * </pre>
  *
- * <p><b>{@code MainFrameApp} declares the application.</b> It names {@code AutomationStarter}, the automation sockets,
- * in every build, the release one included: off until the launch or the title bar's plug switches them on.
+ * <p>A misspelled flag is refused by name with the alternatives listed, rather than a stack trace before any
+ * window. Needs {@code --enable-native-access=ALL-UNNAMED}.
+ *
+ * <p><b>{@code MainFrameApp} declares the application.</b> Its {@code starters} is everything configuring this
+ * application beyond this module, listed rather than discovered: {@code Core}, which lists {@code -core}'s parts, and
+ * {@code AutomationStarter}, the automation sockets, in every build, the release one included — off until the launch
+ * or the title bar's plug switches them on.
  */
 public final class MainFrame {
 
@@ -35,36 +49,33 @@ public final class MainFrame {
     static final int H = 700;
 
     /**
-     * The mark, from the class path's root: {@code src/main/rc/mainframe.ico}, which the pom also puts there and the
-     * executable links, so the window, its taskbar button and the {@code .exe} wear one file.
+     * The mark, from the class path's root: {@code src/main/rc/mainframe.ico}, which the pom also puts there and
+     * the executable links. It starts as the framework's own; replace the file, and the window, its taskbar button
+     * and the {@code .exe} all change together.
      */
     static final String ICON = "/mainframe.ico";
 
-    /** The smallest this UI is still coherent at, in root ems: a few tab headers, and a terminal still worth typing in. */
-    static final float MIN_W_EM = 30;
-    static final float MIN_H_EM = 12;
+    /**
+     * The smallest this UI is still coherent at, in root ems — a floor, not the design size: a navigator and a
+     * document side by side, each still wide enough to read.
+     *
+     * <p>Named here rather than written at each use because it is read from two places that have to agree:
+     * {@link Recipes#look} declares it to the framework, and a screenshot at exactly the minimum
+     * ({@code ottermate --size 36emx20em shot}) is the picture that shows a panel outgrowing it.
+     */
+    static final float MIN_W_EM = 36;
+    static final float MIN_H_EM = 20;
 
     /**
-     * Entry point: MainFrame's part of the command line is taken out first, and the rest is the framework's.
-     * Screenshots are {@code ottermate}'s; see the README.
+     * Entry point.
+     *
+     * <p>There is no screenshot flag here on purpose. A picture of a running window, at a chosen size, zoom and
+     * density, is {@code ottermate}'s, because it photographs the application's own device and so is correct
+     * about content as well as chrome. See the README, <i>Taking a screenshot</i>.
      */
     public static void main(String[] args) {
-        Command command = Command.parse(osArguments(args));
-        Command.launched(command);
-        VexelApplication.run(new MainFrameAppWiring(), command.framework().toArray(String[]::new));
-    }
-
-    /**
-     * The arguments as the OS holds them: a native image is handed them decoded as ANSI, which loses any character
-     * outside the code page, and a folder named in one would not be found. The framework does this too, but only to
-     * what it is handed, which is after this has read the folders.
-     */
-    private static String[] osArguments(String[] args) {
-        try {
-            return NativePlatform.current().arguments(args);
-        } catch (RuntimeException e) {
-            return args;
-        }
+        String[] cleaned = java.util.Arrays.stream(args).filter(s -> !s.isBlank()).toArray(String[]::new);
+        VexelApplication.run(new MainFrameAppWiring(), cleaned);
     }
 
     private MainFrame() {
