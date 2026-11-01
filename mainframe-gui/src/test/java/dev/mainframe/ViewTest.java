@@ -13,6 +13,7 @@ import dev.vexelray.framework.core.Picked;
 import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
+import dev.vexelray.gui.core.Cuts;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Tabs;
 import org.junit.jupiter.api.AfterEach;
@@ -72,7 +73,17 @@ class ViewTest {
         shell.bus().subscribe(Messages.CAPTION_TOPIC, said::add);
         shell.bus().subscribe(Messages.STATUS_TOPIC, said::add);
         ws = wiring.ui().workspace();
+        cuts = Cuts.watch(shell.gui());
     }
+
+    /**
+     * What changed on screen in one frame while a test ran, which every test here then fails on: nothing this
+     * application shows changes in one frame. The framework fades it all (a colour, an opacity, words, an image, a node
+     * arriving, leaving, hidden or shown) as long as the view keeps its nodes and changes them. A cut found here means
+     * a node was rebuilt where it should have been changed, or something stepped round the framework. Fix that; do not
+     * take this watch out. If the framework cannot do it, that is a framework note (docs/framework-notes.md).
+     */
+    private Cuts cuts;
 
     /** Dialogs that answer a question with {@link #answer}, and cancel every file picker. */
     private final class Answering implements Dialogs {
@@ -90,7 +101,10 @@ class ViewTest {
 
     @AfterEach
     void dispose() {
+        List<Cuts.Cut> found = cuts.found();
+        cuts.close();
         shell.disposer().close();
+        assertEquals(List.of(), found, "changed on screen in one frame; keep the node and change it (see cuts)");
     }
 
     /**
