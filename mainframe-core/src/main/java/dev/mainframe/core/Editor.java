@@ -37,6 +37,7 @@ import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
 import dev.vexelray.framework.core.WindowOpened;
 import sibarum.atchung.Chain;
+import sibarum.atchung.TimedOut;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Ledger;
 import sibarum.atchung.Out;
@@ -81,7 +82,9 @@ import java.util.Set;
  * picks a branch (save, discard, cancel), and the last closes the tabs or answers the close gate. Read top to bottom,
  * it is the whole of what a close does, with every step it takes named; each run has one id, which is the question's
  * number and what a trace groups its steps by. A step that waits (on the person, on the disk) holds the run and keeps
- * the {@link Chain.Resume} in the state; the answer resumes it. Nothing waits on a thread.
+ * the {@link Chain.Resume} in the state; the answer resumes it. Nothing waits on a thread, and nothing waits forever:
+ * the question is held for the person ({@code holdForPerson}), whose dialog always answers, and the saves are held
+ * within the tick's default bound, after which the run goes on with a {@code TimedOut} that {@link #late} takes.
  *
  * <h2>Effects are jobs</h2>
  *
@@ -312,6 +315,7 @@ public final class Editor {
         Step<State, Declined> discard = b.step("discard", Editor::discard);
         Step<State, Ready> finish = b.step("finish", Editor::finish);
         Step<State, Stop> stop = b.step("stop", Editor::stop);
+        Step<State, TimedOut> late = b.step("late", Editor::late);
 
         b.on(WindowOpened.TOPIC, begin)
                 .on(Messages.RECALLED_TOPIC, recalled)
@@ -328,8 +332,9 @@ public final class Editor {
         ledger = b.build(inbox, "editor", CAPACITY);
 
         closing(Chain.start("close tabs", ledger, closeAsked).on(Messages.CLOSE_TOPIC), ask, saveThem, discard, finish,
-                stop);
-        closing(Chain.start("quit", ledger, quitAsked).on(CloseRequested.TOPIC), ask, saveThem, discard, finish, stop);
+                stop, late);
+        closing(Chain.start("quit", ledger, quitAsked).on(CloseRequested.TOPIC), ask, saveThem, discard, finish, stop,
+                late);
     }
 
     /**
@@ -338,13 +343,15 @@ public final class Editor {
      * what {@link #finish} does at the end.
      */
     private <A> void closing(Chain.Builder<State, A> start, Step<State, Unsaved> ask, Step<State, Confirmed> saveThem,
-                             Step<State, Declined> discard, Step<State, Ready> finish, Step<State, Stop> stop) {
+                             Step<State, Declined> discard, Step<State, Ready> finish, Step<State, Stop> stop,
+                             Step<State, TimedOut> late) {
         start.then(Unsaved.class, ledger, ask)
                 .then(Confirmed.class, ledger, saveThem)
                 .or(Declined.class, ledger, discard)
                 .or(Cancelled.class, ledger, stop)
                 .then(Ready.class, ledger, finish)
                 .or(Failed.class, ledger, stop)
+                .or(TimedOut.class, ledger, late)
                 .build();
     }
 
@@ -694,7 +701,7 @@ public final class Editor {
             question = new Ask(out.run(), "Unsaved changes", several, Choice.labels("Save all", "Discard"));
         }
         out.send(Ask.TOPIC, question);
-        return s.withClosing(out.run(), c.holding(out.hold(), Set.of()));
+        return s.withClosing(out.run(), c.holding(out.holdForPerson(), Set.of()));
     }
 
     /**
@@ -734,6 +741,16 @@ public final class Editor {
             out.send(CloseAnswer.TOPIC, new CloseAnswer(c.gate(), false));
         }
         return s.withoutClosing(out.run());
+    }
+
+    /**
+     * The saves did not all land within the chain's bound (the tick's default: writing a file takes far less, so this
+     * means the disk is stuck): stop as a failed save does, and say so. A write that lands later says it was saved and
+     * finds no closing waiting on it.
+     */
+    private static State late(State s, TimedOut late, Out out) {
+        refuse(out, "Saving took too long, so nothing was closed");
+        return stop(s, new Failed(), out);
     }
 
     /** What a closing does at its end: close its tabs, or let the window close. */

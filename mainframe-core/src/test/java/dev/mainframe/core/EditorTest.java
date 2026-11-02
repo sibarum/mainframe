@@ -38,11 +38,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import sibarum.atchung.Atchung;
 import sibarum.atchung.Fatal;
+import sibarum.atchung.HandClock;
 import sibarum.atchung.Inbox;
 import sibarum.atchung.Tick;
 import sibarum.atchung.Topic;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -68,6 +70,7 @@ class EditorTest {
     private Fatal previous;
     private Atchung bus;
     private Tick tick;
+    private HandClock clock;
     private Editor editor;
     /** Everything the editor sent, in order. */
     private final List<Object> sent = new ArrayList<>();
@@ -77,7 +80,9 @@ class EditorTest {
         previous = Atchung.fatal();
         Atchung.onFatal(Fatal.THROW);
         bus = Atchung.create();
-        tick = bus.tick(null);
+        clock = new HandClock(bus);
+        // Time is the test's: a bound is kept by this clock, and a default bound that runs out fails the test.
+        tick = bus.tick(null).alarm(clock).whenOverdue(Tick.Overdue.FAIL);
         editor = new Editor(tick.inbox("editor"));
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(Messages.SHOW_FOLDER_TOPIC, Messages.ADD_TAB_TOPIC, Messages.FRONT_TAB_TOPIC,
@@ -327,6 +332,35 @@ class EditorTest {
         assertTrue(sent.contains(new Status("Could not save a.txt: disk full", true)));
         assertEquals(List.of(new CloseAnswer(3, false)), took(CloseAnswer.class));
         assertTrue(editor.state().closings().isEmpty());
+    }
+
+    @Test
+    void theQuestionWaitsForThePersonHoweverLongTheyTake() {
+        long a = unsaved("a.txt");
+        tell(Messages.CLOSE_TOPIC, new Close(List.of(a)));
+        long question = took(Ask.class).getFirst().id();
+        clock.advance(Duration.ofHours(1));
+        tell(Answer.TOPIC, new Answer(question, 1));
+        assertEquals(List.of(new CloseTabs(List.of(a))), took(CloseTabs.class), "Don't save, an hour later, still closed it");
+    }
+
+    @Test
+    void savesThatNeverLandStopTheQuitAfterTheDefaultBoundAndSaySo() {
+        tick.whenOverdue(Tick.Overdue.TRACE);   // the default running out is what this test is about
+        long a = unsaved("a.txt");
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 5));
+        tell(Answer.TOPIC, new Answer(took(Ask.class).getFirst().id(), 0));
+        tell(Messages.SAVE_TOPIC, new Save(a, "x", true));
+        Write w = took(Write.class).getFirst();
+
+        clock.advance(Tick.DEFAULT_BOUND);
+        tick.run(System.nanoTime() + 60_000_000_000L);
+
+        assertTrue(sent.contains(new Status("Saving took too long, so nothing was closed", true)));
+        assertEquals(List.of(new CloseAnswer(5, false)), took(CloseAnswer.class), "the window stays");
+        assertTrue(editor.state().closings().isEmpty());
+        tell(Messages.WRITTEN_TOPIC, new Written(a, w.path(), ""));
+        assertTrue(took(CloseAnswer.class).isEmpty(), "the write that landed late answered nothing a second time");
     }
 
     @Test
