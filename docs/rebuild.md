@@ -5,8 +5,7 @@ here: 0.1's README (`GitHub/mainframe`, `develop`, f128b20) is the requirement, 
 stack's environment, the terminal as a library) are kept as they were. This file says what the 0.2 version is made
 of, in what order it comes back, and what it waits on.
 
-Nothing here is ruled yet. The author's rulings will be marked **(ruled)**, with the date, as they come; the open
-ones are gathered at the end.
+The author's rulings are marked **(ruled)**, with the date; the first four are gathered at the end.
 
 ## The rule for the port
 
@@ -85,7 +84,8 @@ error. *Measure* what vex-suite-common's TODO leaves open: the screen draws once
 
 **M2. Tabs.** New, close, close without asking, next and previous; rename by Ctrl+Shift+R, a double-click or the
 menu, with Escape cancelling and a blank name handing the header back; `--dir` and `--dirs`; a tab whose shell
-exits closes, and the last one closes the window; the font size chords. *Closing asks* through the template's close
+exits closes, and the last one closes the window; the font size chords; the passthrough switch's behaviour (every key to the shell), in a look redesigned first
+**(ruled 2026-11-05)**. *Closing asks* through the template's close
 chain (`CloseRequested` and `CloseAnswer`, the question held for the person), which is what 0.1's TODO wanted and
 could not easily have: ask when any open tab was ever submitted to, by every way out (×, Alt+F4, the taskbar, the
 last tab, Ctrl+W), with a test for each.
@@ -100,9 +100,11 @@ button's key map editor.
    bash's and zsh's startup files), and the notice when they did not run.
 2. Ctrl+O: the tiles after *Open folder…*, Enter for a new window, Ctrl+Enter for this one, the spare tab replaced,
    the folder picker straight away with no workspaces saved.
-3. The Workspaces tab: New, Delete, the name, a card per folder, reordering by drag (`Board`'s drop, in
-   `gui.core.drop`) or Alt+Up/Down, Add folder, and undo through a `History` whose changes send messages, as
-   Vexplore's M3 does (which also answers 0.1 FN-6).
+3. Editing workspaces, **redesigned (ruled 2026-11-05)**: not 0.1's Workspaces tab ported. The design is proposed
+   before the slice, as the Inspector's was, with 0.1's page as ideas only. What it must still do: make, rename and
+   delete a workspace, add, remove, rename and reorder its folders, and undo every change. The parts to hand: `Board`'s
+   drag (`gui.core.drop`), and a `History` whose changes send messages, as Vexplore's M3 does (which also answers 0.1
+   FN-6).
 4. *Edit environment…* through `OpenInIde`, from the tab, the card and the workspace; and `--insert-path`, typed
    once the first prompt is drawn and only if nothing was typed first.
 
@@ -113,7 +115,7 @@ retrospective.
 
 **After the port.** 0.1's TODO kept these, none of them part of bringing it back: *Save tabs as workspace*,
 *the stack's environment* (stack-env.md), `--insert-command` for the Inspector, *a shell per tab*, mouse reporting,
-the font following the display's scale, and the passthrough switch's look. A shell per tab and `--insert-command`
+and the font following the display's scale. A shell per tab and `--insert-command`
 are small once M4 is in.
 
 ## What it waits on
@@ -132,14 +134,14 @@ goes in [framework-notes.md](framework-notes.md).
 | The automation socket answers before a window is listed (0.1 FN-2) | M1's `ottermate` checks | 📋 re-verify |
 | Linux native builds | M5 | not done anywhere in the stack (framework TODO) |
 
-## For the author
+## Ruled
 
-1. **Workspaces page: ported or redesigned?** At 860 lines it is 0.1's largest view. The plan above brings it back
-   as it was. The Inspector was redesigned fresh from the template instead, and Vexplore was redesigned after its
-   port (its M8). Either way, M4.3 is where it is decided.
-2. **The passthrough switch.** It comes back in M2 as it was, unless its new look is drawn first (0.1 TODO: the
-   " Keys: … " text has to go).
-3. **0.1's one-off migrations.** The first run since the **Remap keybindings** switch was removed unbinds six chords
-   for whoever had it off. The plan drops this from 0.2: anyone upgrading has run 0.1 since.
-4. **Order against phase 8.** MainFrame is last in phase 8's order and began early at the author's ask (2026-11-01).
-   This plan assumes it carries on now, beside Vexplore, and not after it.
+All four ruled by the author 2026-11-05.
+
+1. **The Workspaces page is redesigned**, not ported. 0.1's 860-line page is ideas only, as the 0.1.3 Inspector
+   was. Its design is proposed before M4.3.
+2. **The passthrough switch is redesigned.** What it does stays; its look (0.1's " Keys: … " text in the tab bar) is
+   drawn anew and proposed before M2 brings it back.
+3. **0.1's one-off key migration is dropped.** The first run since the **Remap keybindings** switch was removed
+   unbound six chords for whoever had it off; anyone upgrading has run 0.1 since.
+4. **MainFrame carries on now**, beside Vexplore, ahead of its place last in phase 8's order.
