@@ -14,16 +14,15 @@ import dev.vexelray.framework.shell.VexelApplication;
  * its wakes and its pacing, installing the dialogs, parsing the command line and closing everything in the right
  * order are all done for you.
  *
- * <p>What this application builds — a text editor with tabs and a file navigator — is in two modules. This one,
- * {@code -gui}, is the view: {@link Recipes}, one method per part, and the {@link View}, which shows what the editor
- * decides. {@code -core} is the controller: the editor, which decides, and the jobs that touch the disk. They talk by
- * messages and nothing else ({@code Messages}, in {@code -core}). {@code MainFrameAppWiring}, which builds all of it
- * in order, is generated from them and from the {@code @VexelApp} on {@code MainFrameApp} while this module
- * compiles — so the facts below are stated once, here, and the wiring reads them.
+ * <p>What this application builds is a terminal window that wraps the native OS shell, being rebuilt on 0.2
+ * (docs/rebuild.md); for now it is an empty window. It is in two modules. This one, {@code -gui}, is the view:
+ * {@link Recipes}, one method per part, and the {@link View}. {@code -core} will be the controller, the frame and its
+ * jobs; the two talk by messages and nothing else. {@code MainFrameAppWiring}, which builds all of it in order, is
+ * generated from them and from the {@code @VexelApp} on {@code MainFrameApp} while this module compiles — so the facts
+ * below are stated once, here, and the wiring reads them.
  *
  * <pre>
- * MainFrame                     the editor, on the folder it was last showing (or the working directory)
- * MainFrame &lt;path&gt;...          open these: a folder becomes the navigator's root, a file a tab
+ * MainFrame                     the window
  * MainFrame &lt;frames&gt;            run a fixed number of frames and quit (a script, not a session)
  * MainFrame --key=value         override a setting for this launch
  * </pre>
@@ -56,8 +55,8 @@ public final class MainFrame {
     static final String ICON = "/mainframe.ico";
 
     /**
-     * The smallest this UI is still coherent at, in root ems — a floor, not the design size: a navigator and a
-     * document side by side, each still wide enough to read.
+     * The smallest this UI is still coherent at, in root ems — a floor, not the design size. The template's, until
+     * the terminal says what it needs (M1).
      *
      * <p>Named here rather than written at each use because it is read from two places that have to agree:
      * {@link Recipes#look} declares it to the framework, and a screenshot at exactly the minimum

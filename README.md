@@ -1,6 +1,8 @@
 # MainFrame
 
-A VexelRay desktop application.
+A terminal window that wraps the native OS shell, being rebuilt on VexelRay 0.2: see
+[docs/rebuild.md](docs/rebuild.md). For now it is an empty window, and the rest of this README is still the
+template's, describing the editor M0 took out. It is rewritten for MainFrame when the shape lands.
 
 A VexelRay desktop application, generated from the `vexel-desktop` template: a small text editor with tabs, a file
 navigator and Markdown in colour. It is the reference implementation of this stack, so every seam the framework

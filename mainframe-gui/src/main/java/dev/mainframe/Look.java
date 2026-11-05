@@ -69,15 +69,6 @@ final class Look {
      */
     static final Theme THEME = Theme.of(PALETTE, Shading.ON_DARK, Relief.STANDARD, true, false);
 
-    // ---------------------------------------------------------------- roles of our own
-
-    /**
-     * Emphasis in Markdown, which the framework does not name: a warm gold at the accent's lightness, so it reads
-     * as a second voice beside the accent's headings and links rather than as another shade of them. The atlas has
-     * one weight, so emphasis is a colour rather than a bold face.
-     */
-    static final Color EMPHASIS = Oklab.polar(0.8200, 0.1100, 85.00).toColor();
-
     private Look() {
     }
 }

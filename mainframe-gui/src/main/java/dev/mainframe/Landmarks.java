@@ -10,29 +10,12 @@ package dev.mainframe;
  *
  * <p>Where you can, carry <em>state in the accessible name</em>. {@code await <landmark> <text>} is how a driver
  * waits for the application to be ready, and it needs no hook when readiness is declared somewhere the read-model
- * can already see. {@link #STATUS_FILE} works that way: its name is the front tab's title, dot and all, so
- * {@code await status.file notes.md} waits for a file to open and {@code await status.file •} for it to go
- * unsaved.
+ * can already see.
  */
 final class Landmarks {
 
-    /** The tab bar and its pages. */
-    static final String TABS = "tabs";
-
-    /** What the editor area shows when no file is open. */
-    static final String EMPTY = "empty";
-
-    /** The navigator's path bar: type a folder to show it, a file to open it, a new name to create it. */
-    static final String PATH = "path";
-
-    /** The navigator's tree. */
-    static final String TREE = "navigator";
-
-    /** The status line, and its three slots. */
-    static final String STATUS = "status";
-    static final String STATUS_FILE = "status.file";
-    static final String STATUS_MESSAGE = "status.message";
-    static final String STATUS_POSITION = "status.position";
+    /** The page under the title bar, where the terminals go. */
+    static final String PAGE = "page";
 
     private Landmarks() {
     }

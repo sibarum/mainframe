@@ -1,9 +1,10 @@
 # Working in MainFrame
 
-MainFrame is a VexelRay desktop application, generated from `vexelray-framework`'s `vexel-desktop` template. It
-started as the template's reference application, a small tabbed text editor with a file navigator, and is being
-turned into something else. [README.md](README.md) is the tour: read its *How it is put together* section before
-changing anything, and `Messages.java` before adding a part.
+MainFrame is a VexelRay desktop application, generated from `vexelray-framework`'s `vexel-desktop` template: a
+terminal window that wraps the native OS shell. It is being rebuilt on VexelRay 0.2, milestone by milestone, as
+[docs/rebuild.md](docs/rebuild.md) says; read that first. M0's first step took the template's editor out, so what is
+below about `Editor`, `Doc` and `Messages` describes the shape `Frame` takes in M0's second step, not files that
+exist yet. [README.md](README.md) is still the template's.
 
 ## Where things are
 
