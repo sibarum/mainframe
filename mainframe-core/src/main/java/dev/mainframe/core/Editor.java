@@ -31,6 +31,7 @@ import dev.mainframe.core.Messages.Written;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.Publishes;
+import dev.vexelray.framework.api.Withers;
 import dev.vexelray.framework.core.Answer;
 import dev.vexelray.framework.core.Ask;
 import dev.vexelray.framework.core.CloseAnswer;
@@ -136,8 +137,10 @@ public final class Editor {
      * @param armed     whether the restore is done: before then a write would overwrite what is being restored
      * @param last      the session last sent to be remembered, so an unchanged one is not written again
      */
+    @Withers
     record State(Doc doc, long ids, Set<Path> reading, Map<Long, Closing> closings, List<Restore> restoring,
-                 Optional<Path> front, Optional<Path> started, boolean armed, Optional<Remember> last) {
+                 Optional<Path> front, Optional<Path> started, boolean armed, Optional<Remember> last)
+            implements EditorStateWithers {
 
         State {
             reading = Set.copyOf(reading);
@@ -150,13 +153,12 @@ public final class Editor {
                     false, Optional.empty());
         }
 
-        State withDoc(Doc value) {
-            return new State(value, ids, reading, closings, restoring, front, started, armed, last);
-        }
+        // @Withers generates one wither per component (withDoc, withIds, ... withLast), so a new field is one more
+        // component and nothing else. These are the ones that mean more than "replace this field".
 
         /** A new tab's id, taken. */
         State withNextId() {
-            return new State(doc, ids + 1, reading, closings, restoring, front, started, armed, last);
+            return withIds(ids + 1);
         }
 
         State reading(Path file, boolean asked) {
@@ -166,35 +168,31 @@ public final class Editor {
             } else {
                 next.remove(file);
             }
-            return new State(doc, ids, next, closings, restoring, front, started, armed, last);
+            return withReading(next);
         }
 
         State withClosing(long run, Closing value) {
             Map<Long, Closing> next = new HashMap<>(closings);
             next.put(run, value);
-            return new State(doc, ids, reading, next, restoring, front, started, armed, last);
+            return withClosings(next);
         }
 
         State withoutClosing(long run) {
             Map<Long, Closing> next = new HashMap<>(closings);
             next.remove(run);
-            return new State(doc, ids, reading, next, restoring, front, started, armed, last);
+            return withClosings(next);
         }
 
         State withRestoring(List<Restore> steps, Optional<Path> inFront, Path startedIn) {
-            return new State(doc, ids, reading, closings, steps, inFront, Optional.of(startedIn), armed, last);
-        }
-
-        State withRestoring(List<Restore> steps) {
-            return new State(doc, ids, reading, closings, steps, front, started, armed, last);
+            return withRestoring(steps).withFront(inFront).withStarted(Optional.of(startedIn));
         }
 
         State withArmed() {
-            return new State(doc, ids, reading, closings, restoring, Optional.empty(), started, true, last);
+            return withFront(Optional.empty()).withArmed(true);
         }
 
         State withLast(Remember value) {
-            return new State(doc, ids, reading, closings, restoring, front, started, armed, Optional.of(value));
+            return withLast(Optional.of(value));
         }
     }
 

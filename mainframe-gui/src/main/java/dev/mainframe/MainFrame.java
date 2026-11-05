@@ -4,7 +4,7 @@ import dev.vexelray.framework.shell.VexelApplication;
 
 
 /**
- * A terminal window that wraps the native OS shell.
+ * A VexelRay desktop application.
  *
  * <h2>What this class is</h2>
  *
@@ -45,8 +45,8 @@ public final class MainFrame {
     static final String TITLE = "MainFrame";
 
     /** Window size on a first run, in the engine's logical coordinates. */
-    static final int W = 1100;
-    static final int H = 700;
+    static final int W = 1180;
+    static final int H = 720;
 
     /**
      * The mark, from the class path's root: {@code src/main/rc/mainframe.ico}, which the pom also puts there and

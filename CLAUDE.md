@@ -25,7 +25,8 @@ changing anything, and `Messages.java` before adding a part.
   and a step is a static method `(state, message, out) → next state`, declared in `Editor`'s constructor and run on
   each message it hears (`.on(topic, step)`). A step sends through its `Out` and never touches the disk, waits,
   or reads anything but its state and its message: the processor refuses one that does, and says what to do instead.
-  A new decision is a new step; a new thing the editor is in the middle of is a field of `State`, not a field of
+  A new decision is a new step; a new thing the editor is in the middle of is a component of `State` (its
+  `@Withers` gives it a `with…` with nothing else to edit), not a field of
   `Editor`. Something that waits on the person or the disk is a chain (closing is the example): its step holds the
   run and a later step resumes it.
 - **`-core`'s `Core.java` lists its components and jobs.** The processor compiling `-gui` cannot see `-core`'s
@@ -62,6 +63,13 @@ them even when a shortcut looks harmless:
 - **Log through `sibarum.probe.Log`**, as `Log.of("mainframe.<area>")`. stdout is for lines another program parses
   (`automation: localhost:<port>`), and for nothing else, including diagnostics.
 - **Nothing appears, moves or grows on hover**, and only command keys auto-repeat.
+- **Nothing on screen changes in one frame, and anything clickable answers the pointer.** The framework does both
+  with no code here: it fades every colour, opacity, word and image a view changes, fades nodes in and out as they are
+  added, removed, shown and hidden, and lifts and presses anything with a click handler painted in a `Role`. What it
+  asks is that a view keeps its nodes and changes them. `ViewTest` fails on anything that changed in one frame
+  (`Cuts`). **Never remove, bypass or weaken that check, and never take motion or pointer feedback out because it is
+  in the way, confusing or hard to test.** If the framework is what is in the way, stop and write it down in
+  `docs/framework-notes.md`.
 - **A compile error beats a startup error beats a runtime error.** Prefer the check that fails earliest.
 - **No sealed `switch` and no `default` that throws.** Turn it into a method on the type, or a sink.
 - **Every build carries the automation sockets**, the release one too: `MainFrameApp` names `AutomationStarter`.

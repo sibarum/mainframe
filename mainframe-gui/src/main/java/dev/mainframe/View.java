@@ -24,6 +24,7 @@ import dev.mainframe.core.Messages.Status;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.input.Shortcut;
+import dev.vexelray.gui.keymap.Keymap;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.TextField;
 import dev.vexelray.gui.widget.TreeView;
@@ -94,7 +95,7 @@ final class View {
     /** The tab in front, as the editor was last told. */
     private long front = Messages.NO_TAB;
 
-    View(Gui gui, Ui ui, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
+    View(Gui gui, Keymap keys, Ui ui, Sender<Open> open, Sender<Go> go, Sender<Fronted> fronted,
          Sender<Edited> edited, Sender<Close> close, Sender<Save> save,
          Sender<Listing> listing, Sender<Mark> mark, Sender<TreeView.Children> children, Sender<Intent> intents) {
         this.gui = gui;
@@ -111,33 +112,38 @@ final class View {
         this.mark = mark;
         this.children = children;
         this.intents = intents;
-        shortcuts();
+        commands(keys);
     }
 
     /**
-     * Every chord, as a declaration: the chord and the {@link Intent} it sends. Chords a text field leaves alone, so a
-     * focused field never needs to outrank them. Zoom is here too: which chord zooms, or whether zooming exists at all,
-     * is the application's to say; how far it goes is {@code Appearance.ZoomRange}, the framework's.
+     * Every command the keyboard reaches, as a declaration: a stable id, what the person calls it, the chords it starts
+     * with, and the {@link Intent} it sends. The chords are the person's to change from here: the framework's key
+     * button in the title bar lists these, and a rebind moves the claim without this view hearing of it. So a chord is
+     * never written anywhere else, and the id is the part to keep stable, since it is what the person's changes are
+     * stored under. Chords a text field leaves alone, so a focused field never needs to outrank them. Zoom is here too:
+     * which chord zooms, or whether zooming exists at all, is the application's to say; how far it goes is
+     * {@code Appearance.ZoomRange}, the framework's.
      */
-    private void shortcuts() {
-        chord(Shortcut.of(Key.S, Modifier.CONTROL), Command.SAVE_FRONT);
-        chord(Shortcut.of(Key.W, Modifier.CONTROL), Command.CLOSE_FRONT);
-        chord(Shortcut.of(Key.L, Modifier.CONTROL), Command.FOCUS_PATH);
-        chord(Shortcut.of(Key.E, Modifier.CONTROL, Modifier.SHIFT), Command.FOCUS_TREE);
-        chord(Shortcut.of(Key.TAB, Modifier.CONTROL), Command.NEXT_TAB);
-        chord(Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), Command.PREVIOUS_TAB);
-        chord(Shortcut.of(Key.PAGE_DOWN, Modifier.CONTROL), Command.NEXT_TAB);
-        chord(Shortcut.of(Key.PAGE_UP, Modifier.CONTROL), Command.PREVIOUS_TAB);
-        chord(Shortcut.of(Key.EQUAL, Modifier.CONTROL), Command.ZOOM_IN);
-        chord(Shortcut.of(Key.MINUS, Modifier.CONTROL), Command.ZOOM_OUT);
-        chord(Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), Command.ZOOM_RESET);
-        chord(Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL), Command.ZOOM_IN);
-        chord(Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL), Command.ZOOM_OUT);
-        chord(Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL), Command.ZOOM_RESET);
+    private void commands(Keymap keys) {
+        command(keys, "file.save", "Save", Command.SAVE_FRONT, Shortcut.of(Key.S, Modifier.CONTROL));
+        command(keys, "tab.close", "Close tab", Command.CLOSE_FRONT, Shortcut.of(Key.W, Modifier.CONTROL));
+        command(keys, "tab.next", "Next tab", Command.NEXT_TAB,
+                Shortcut.of(Key.TAB, Modifier.CONTROL), Shortcut.of(Key.PAGE_DOWN, Modifier.CONTROL));
+        command(keys, "tab.previous", "Previous tab", Command.PREVIOUS_TAB,
+                Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.PAGE_UP, Modifier.CONTROL));
+        command(keys, "go.path", "Go to path", Command.FOCUS_PATH, Shortcut.of(Key.L, Modifier.CONTROL));
+        command(keys, "go.files", "Go to files", Command.FOCUS_TREE,
+                Shortcut.of(Key.E, Modifier.CONTROL, Modifier.SHIFT));
+        command(keys, "view.zoom-in", "Zoom in", Command.ZOOM_IN,
+                Shortcut.of(Key.EQUAL, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL));
+        command(keys, "view.zoom-out", "Zoom out", Command.ZOOM_OUT,
+                Shortcut.of(Key.MINUS, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL));
+        command(keys, "view.zoom-reset", "Reset zoom", Command.ZOOM_RESET,
+                Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL));
     }
 
-    private void chord(Shortcut shortcut, Command command) {
-        gui.shortcut(shortcut, intents, new Intent(command));
+    private void command(Keymap keys, String id, String label, Command command, Shortcut... chords) {
+        keys.action(id, label, chords).sends(intents, new Intent(command));
     }
 
     @Subscribe

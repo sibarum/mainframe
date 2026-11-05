@@ -15,6 +15,9 @@ import dev.vexelray.framework.shell.Dialogs;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
 import dev.vexelray.gui.core.Cuts;
+import dev.vexelray.gui.core.input.Shortcut;
+import dev.vexelray.gui.keymap.Action;
+import dev.vexelray.gui.keymap.Keymap;
 import dev.vexelray.gui.widget.Modal;
 import dev.vexelray.gui.widget.Tabs;
 import org.junit.jupiter.api.AfterEach;
@@ -22,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import sibarum.atchung.Sender;
+import sibarum.tactroller.api.Key;
+import sibarum.tactroller.api.Modifier;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -168,6 +173,20 @@ class ViewTest {
     @Test
     void itStartsWithNothingOpen() {
         assertTrue(ws.all().isEmpty());
+    }
+
+    /**
+     * The commands are on the framework's keymap, under their ids and with their default chords, which is what puts
+     * the key button in the title bar and what the person's changes are stored against.
+     */
+    @Test
+    void theCommandsAreOnTheKeymapWithTheirDefaults() {
+        Keymap keys = shell.keymap();
+        Action save = keys.action("file.save").orElseThrow();
+        assertEquals(List.of(Shortcut.of(Key.S, Modifier.CONTROL)), keys.chords(save));
+        Action next = keys.action("tab.next").orElseThrow();
+        assertEquals(List.of(Shortcut.of(Key.TAB, Modifier.CONTROL), Shortcut.of(Key.PAGE_DOWN, Modifier.CONTROL)),
+                keys.chords(next));
     }
 
     @Test

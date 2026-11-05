@@ -1,6 +1,6 @@
 # MainFrame
 
-A terminal window that wraps the native OS shell.
+A VexelRay desktop application.
 
 A VexelRay desktop application, generated from the `vexel-desktop` template: a small text editor with tabs, a file
 navigator and Markdown in colour. It is the reference implementation of this stack, so every seam the framework
@@ -16,7 +16,7 @@ mvn compile exec:exec
 ```
 
 `exec:exec` rather than `exec:java`, so native access can be enabled for Panama FFM. The window comes up where you
-last left it, at 1100x700 the first time, with the folder and the files you last had open. The first time,
+last left it, at 1180x720 the first time, with the folder and the files you last had open. The first time,
 the navigator shows the working directory.
 
 ```
@@ -90,6 +90,11 @@ groups the button with other Java programs, and pinning it pins Java. The native
 | Ctrl+F | find in the file (Enter / Shift+Enter step, Escape closes) |
 | Ctrl+Z / Ctrl+Y | undo / redo |
 | Ctrl+= / Ctrl+- / Ctrl+0 | zoom |
+
+Those are the defaults. The keyboard button in the title bar lists every command and lets you give each one other
+keys; what you change is kept in `keys.properties` in the application's home folder. Find, undo and redo belong to
+the text field and are not on the list. A new command goes in `View.commands`, under an id that stays the same once
+it has shipped, because the id is what someone's changes are stored under.
 
 Selecting a file in the navigator opens it — a click, or walking the tree with the arrow keys, which keep the
 keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
