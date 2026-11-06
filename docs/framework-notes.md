@@ -107,6 +107,11 @@ In M0's runs the title bar showed the screenshot and automation instruments and 
 declares eight actions on the key map and the framework says it places one on every bar. Seen in `ottermate tree`;
 not looked into, so this may be a condition of the button's not yet understood here.
 
+**Resolved, not a gap** (read in the source while drafting docs/passthrough.md, M2): the framework adds the key
+bindings as a line, *Key bindings…*, in the app menu the lockup opens, once any action is declared
+(`VexelApplication`, `KeymapWindow.instrument`). It has no badge, so by design it never stands on the bar. Not yet
+seen live.
+
 
 ## FN-8 · A widget's per-character edge fills a view's mailbox sized for 64 🔬
 

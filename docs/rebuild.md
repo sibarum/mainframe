@@ -124,7 +124,7 @@ the first suspect, and it is not chased further here.
 **M2. Tabs.** New, close, close without asking, next and previous; rename by Ctrl+Shift+R, a double-click or the
 menu, with Escape cancelling and a blank name handing the header back; `--dir` and `--dirs`; a tab whose shell
 exits closes, and the last one closes the window; the font size chords; the passthrough switch's behaviour (every key to the shell), in a look redesigned first
-**(ruled 2026-11-05)**. *Closing asks* through the template's close
+**(ruled 2026-11-05)**, proposed in [passthrough.md](passthrough.md). *Closing asks* through the template's close
 chain (`CloseRequested` and `CloseAnswer`, the question held for the person), which is what 0.1's TODO wanted and
 could not easily have: ask when any open tab was ever submitted to, by every way out (×, Alt+F4, the taskbar, the
 last tab, Ctrl+W), with a test for each.
