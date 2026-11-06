@@ -4,7 +4,7 @@ A terminal window that wraps the native OS shell. It is a real terminal emulator
 runs unmodified inside a Windows pseudoconsole (ConPTY), and MainFrame draws what it writes and sends it your keys.
 
 This is MainFrame rebuilt on VexelRay 0.2, milestone by milestone ([docs/rebuild.md](docs/rebuild.md)). What is here
-now is one tab running one shell; tabs, settings and workspaces come back in M2 to M4. 0.1's README, in
+now is tabs of shells (M2); settings and workspaces come back in M3 and M4. 0.1's README, in
 `GitHub/mainframe`, says what the finished application does.
 
 ## Run it
@@ -41,11 +41,32 @@ title bar. A chord the key map holds outranks typing; every other key goes to th
 | Interrupt (0x03, what Ctrl+C sends a shell) | Esc |
 | Scroll back / on a page | Shift+PageUp / Shift+PageDown |
 | Larger, smaller, normal text | Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's |
+| New tab | Ctrl+Shift+T, Ctrl+T |
+| Close the tab, after asking | Ctrl+W |
+| Close the tab without asking | Ctrl+Shift+W |
+| Rename the tab | Ctrl+Shift+R |
+| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
 
-The text size is the terminal's own (14 to 24 px), not the window's zoom, since a terminal is a grid of cells.
+The first four apply while a terminal has the keyboard, so in the rename field Ctrl+V and Esc are the field's. The
+text size is the terminal's own (14 to 24 px), not the window's zoom, since a terminal is a grid of cells. The
+**Terminal** menu, after the window's name in the title bar, has the tab and text commands too.
 
-A right-click copies the selection, or pastes when nothing is selected. A tab's header is the title its program
-gives itself (a path shortened to its last name), and its folder's name until it gives one.
+**Every key to the shell**, the Terminal menu's last line, lets go of all of these until you take them back, so
+Ctrl+C, Esc and the rest reach a program that wants them (vim, emacs, tmux). While it is on, a pill at the tab bar's
+end says so, and a click on it gives MainFrame its keys back. It is not saved.
+
+A right-click copies the selection, or pastes when nothing is selected.
+
+## Tabs
+
+`--dir=<folder>` (again for more) and `--dirs=<file>` (a folder per line, relative to the file) open a tab per
+folder; with neither, one tab where MainFrame was started. The + at the bar's end, or Ctrl+Shift+T, opens one more
+where the front one is. A tab's header is the name you gave it (Ctrl+Shift+R, a double-click, or its header's
+right-click menu; a blank name hands it back), else the title its program gives itself, else its folder's name.
+
+A tab whose shell exits closes, and the last one closes the window. Closing a tab you have pressed Enter in asks
+first, since something may still be running in it; so does closing the window with such a tab, by any way out.
+Ctrl+Shift+W closes without asking.
 
 ## A native executable
 
@@ -109,9 +130,9 @@ parts that never hold each other and talk only by messages (every message is a r
 
 | Piece | What it is |
 | --- | --- |
-| `Frame` | The controller, on the logic lane: which tabs there are, what each runs, and when its shell starts (on its screen's first size, so a program never starts at a guessed size) |
+| `Frame` | The controller, on the logic lane: which tabs there are, what each runs, and when its shell starts (on its screen's first size, so a program never starts at a guessed size), and when closing asks first |
 | `Shell` | A tab's program on a pseudo-terminal: a `@Source` that reads what it writes and a `@Destination` that writes what is typed and its size, one per tab, keyed by its id. The framework holds each tab's connection. It sends no more than two `Output`s ahead of what the view says it has `Shown`, so a program writing faster than the screen waits on its terminal |
-| `ReadStartup` | A job: what the launch asked for |
+| `ReadStartup`, `Folders` | A job: what the launch asked for, and the folders `--dir` and `--dirs` name |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
 

@@ -31,6 +31,49 @@ reasons and the full method.
 
 ## Milestones
 
+## M2 · tabs · 2026-11-05
+
+Three findings (FN-10 to FN-12), none architectural: each is a widget without a place an application needs, and
+each was met by building around it in `-gui`, with no change to the frame or the messages. FN-7 was closed as no gap.
+
+### The shapes
+
+| | The promise | What happened | How it looked |
+| --- | --- | --- | --- |
+| FN-10 | A tabbed window from the widget library | Nowhere to put a +, a pill or a rename field | Floated in a box round the tabs, at its right end |
+| FN-11 | Every gesture a view hears is declared | A header's double-click is only the tree's clicks | A mailbox opened by hand on `gui.clicks()` |
+| FN-12 | A menu bar teaches its chords | A menu line has no chord | The Terminal menu without its shortcuts |
+
+### What would stop each
+
+1. A trailing slot in `Tabs`, and an in-place header edit that says what was typed (FN-10).
+2. `Tabs.ACTIVATED` for a header double-clicked (FN-11).
+3. A menu item naming the key-map action it stands for, its chord read from the key map (FN-12).
+
+### My own mistakes
+
+- **I asserted "nothing asked" before taking what the frame sent, with a `took` that forgot everything.** Five red
+  tests that were the test's fault, and a debug print to find it. The rule: a helper that consumes must consume only
+  what it was asked for.
+- **I wrote two Esc actions and learnt the key map refuses a shared default in one place.** Every action starts
+  application-wide until moved; declaring the field's first and moving it at once fixed it. The rule: read
+  `Keymap.action`'s throws before declaring a chord twice.
+- **I reached for a header's words (`Node.text()`) after learning in M1 that a node's words cannot be read back.**
+  The rule: what the view sets, the view keeps.
+- **A heredoc with a quote in it ate a whole command, twice in this conversation.** Test files go in with the file
+  tools.
+- **I tried `ottermate window 2` and then a separate call**, which is a new connection with no window chosen. A
+  script keeps the choice.
+
+### What to keep exactly as it is
+
+- **Closing as the template's chain.** Two ways in, one question, held for the person, every gate answered once:
+  twelve frame tests covered every way out before the window was ever opened, and the live run did what they said.
+- **The frame deciding and the view forwarding.** M2 added five messages and seven steps, and no step touches a
+  widget; the view's departures (FN-10, FN-11) changed nothing in `-core`.
+- **The proposal before the look** (docs/passthrough.md). It was accepted as written, and building it was then
+  only a matter of what the widgets could do.
+
 ## M1 · one tab, one shell · 2026-11-05
 
 Two findings (FN-8, FN-9), both architectural in the same way: the 0.2 rule that an edge is never lost

@@ -119,3 +119,19 @@ whether it is there.
 2. **A `Terminal` menu after the lockup** for M2's commands and this switch, or no menus, with the switch turned on
    from somewhere else (the tab's right-click menu, or the key-bindings window)?
 3. **The words:** *Every key to the shell* (on) and *Give MainFrame its keys back* (the menu's way off)?
+
+## Ruled
+
+Accepted as proposed by the author 2026-11-05 ("Accept, build M2"): the pill shown only while on, at the tab bar's
+end; a `Terminal` menu after the lockup; the words as written.
+
+## As built
+
+Built in M2, 2026-11-05, and seen live: on from the menu, Ctrl+C reaching `ping` as the interrupt, the pill clicked,
+the chords back. Where it departs from the proposal:
+
+- **The pill has no keyboard icon.** It is a `Button`, whose label is text only; the words and the × carry it. The
+  tooltip is as written.
+- **The menu shows no chords.** A `Menu` line has a label and an icon and nothing for a shortcut (FN-12).
+- **The pill and the + float at the bar's right end**, in a box round the tabs, since `Tabs` has no place for an
+  application's nodes beside its headers (FN-10). So the + does not follow the last header as 0.1's did.

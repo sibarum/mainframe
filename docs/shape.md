@@ -183,6 +183,23 @@ Built 2026-11-05. Where the code departs from the sketch above, and why:
   size chords), the command line replacing the shell and the window closing with its last tab were all needed to see
   the shape work, so they are built and seen; rebuild.md says what of M1 is left.
 
+## What M2 built differently
+
+Built 2026-11-05. Where the code departs from the sketch:
+
+- **`Submitted(id)` from the view, not `Typed` heard by the frame.** The view sees a CR or LF the person typed and says
+  so once, on a state topic keyed by the tab, so the frame's inbox carries one message per tab rather than every key
+  (a script's line of keys in one frame would overflow it, as FN-8 found for the view's).
+- **No `Header` from the view's own picks:** the bar selects a tab itself on a click or Ctrl+Tab and the view says
+  `Fronted`; the frame only keeps its front in step and sends `Front` for the tabs it adds or closes.
+- **Closing is the template's chain without its saves:** `CloseAsked` or `CloseRequested` in, `Busy` asks, the
+  answer's first button closes and anything else keeps. No `Closing` waits on a bound, since only the person's answer
+  is waited on (`holdForPerson`).
+- **The terminal's chords are the front screen's** (`Action.within`, moved as a tab comes to the front), so the rename
+  field's Ctrl+V and Esc are its own, as 0.1's README says they were.
+- **The +, the pill and the rename field are at the bar's right end** (FN-10); a header's double-click is heard
+  through the tree's clicks (FN-11).
+
 ## Ruled
 
 The sketch was accepted as written by the author 2026-11-05 ("Build it"), with its two proposals:

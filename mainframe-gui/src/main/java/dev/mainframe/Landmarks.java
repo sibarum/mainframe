@@ -20,6 +20,15 @@ final class Landmarks {
     /** The terminal in front. Moves with the front tab, so a script types into whichever is shown. */
     static final String TERMINAL = "terminal";
 
+    /** The + at the tab bar's end: a new tab. */
+    static final String NEW_TAB = "new-tab";
+
+    /** The pill that says every key goes to the shell, there only while it does; a click gives the keys back. */
+    static final String PASSTHROUGH = "passthrough";
+
+    /** The field a tab's new name is typed into, there only while one is. */
+    static final String RENAME = "rename";
+
     private Landmarks() {
     }
 }

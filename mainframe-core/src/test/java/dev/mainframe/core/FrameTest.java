@@ -1,8 +1,14 @@
 package dev.mainframe.core;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.CloseAsked;
+import dev.mainframe.core.Messages.CloseShell;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
+import dev.mainframe.core.Messages.Fronted;
+import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.Rename;
+import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.OpenShell;
 import dev.mainframe.core.Messages.Output;
@@ -11,6 +17,9 @@ import dev.mainframe.core.Messages.Retitled;
 import dev.mainframe.core.Messages.ShellEnded;
 import dev.mainframe.core.Messages.Startup;
 import dev.mainframe.core.Messages.StartupWanted;
+import dev.vexelray.framework.core.Answer;
+import dev.vexelray.framework.core.Ask;
+import dev.vexelray.framework.core.CloseAnswer;
 import dev.vexelray.framework.core.CloseRequested;
 import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.framework.core.WindowOpened;
@@ -58,7 +67,7 @@ class FrameTest {
         frame = new Frame(tick.inbox("frame"));
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, Header.TOPIC, OpenShell.TOPIC, Output.TOPIC,
-                CloseTab.TOPIC, WindowCommand.TOPIC)) {
+                CloseTab.TOPIC, WindowCommand.TOPIC, CloseShell.TOPIC, Ask.TOPIC, CloseAnswer.TOPIC)) {
             listen(heard, t);
         }
     }
@@ -78,10 +87,10 @@ class FrameTest {
         tick.run(System.nanoTime() + 60_000_000_000L);
     }
 
-    /** What was sent of one kind, in order, and forget everything sent so far. */
+    /** What was sent of one kind, in order, and forget those; the other kinds stay to be taken. */
     private <T> List<T> took(Class<T> kind) {
         List<T> out = sent.stream().filter(kind::isInstance).map(kind::cast).toList();
-        sent.clear();
+        sent.removeIf(kind::isInstance);
         return out;
     }
 
@@ -186,5 +195,140 @@ class FrameTest {
     void aTitleForNoTabSaysNothing() {
         tell(Retitled.TOPIC, new Retitled(9, "ghost"));
         assertTrue(took(Header.class).isEmpty());
+    }
+
+    // ------------------------------------------------------------------ M2: tabs
+
+    @Test
+    void aNewTabIsWhereTheFrontOneIsAndComesToTheFront() {
+        started(WORK, WEB);
+        tell(Fronted.TOPIC, new Fronted(2));
+        took(Front.class);
+        sent.clear();
+        tell(NewTab.TOPIC, new NewTab());
+        assertEquals(List.of(new AddTab(3, "web")), took(AddTab.class));
+        assertEquals(List.of(new Front(3)), took(Front.class));
+        tell(Resized.TOPIC, new Resized(3, 80, 24));
+        assertEquals(List.of(new OpenShell(3, "powershell.exe", WEB, 80, 24)), took(OpenShell.class));
+    }
+
+    @Test
+    void aNameOutranksTheTitleAndABlankOneHandsTheHeaderBack() {
+        started(WORK);
+        tell(Retitled.TOPIC, new Retitled(1, "pwsh"));
+        took(Header.class);
+        tell(Rename.TOPIC, new Rename(1, "  build  "));
+        assertEquals(List.of(new Header(1, "build")), took(Header.class));
+        tell(Retitled.TOPIC, new Retitled(1, "vim"));
+        assertTrue(took(Header.class).isEmpty(), "the name stays while the program retitles");
+        tell(Rename.TOPIC, new Rename(1, ""));
+        assertEquals(List.of(new Header(1, "vim")), took(Header.class));
+    }
+
+    @Test
+    void aTabNeverSubmittedToClosesWithoutAskingAndItsShellEnds() {
+        started(WORK, WEB);
+        tell(CloseAsked.TOPIC, new CloseAsked(1, true));
+        assertTrue(took(Ask.class).isEmpty());
+        assertEquals(List.of(new CloseShell(1)), took(CloseShell.class));
+        assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
+    }
+
+    @Test
+    void closingTheFrontTabFrontsTheOneThatTookItsPlace() {
+        started(WORK, WEB, Path.of("C:/work/db"));
+        tell(Fronted.TOPIC, new Fronted(2));
+        took(Front.class);
+        tell(CloseAsked.TOPIC, new CloseAsked(2, false));
+        assertEquals(List.of(new Front(3)), took(Front.class));
+        tell(CloseAsked.TOPIC, new CloseAsked(3, false));
+        assertEquals(List.of(new Front(1)), took(Front.class), "the last closed: the one before it");
+    }
+
+    @Test
+    void aSubmittedTabAsksAndCloseClosesIt() {
+        started(WORK);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(CloseAsked.TOPIC, new CloseAsked(1, true));
+        List<Ask> asked = took(Ask.class);
+        assertEquals(1, asked.size());
+        assertEquals("Close api?", asked.getFirst().title());
+        assertTrue(took(CloseTab.class).isEmpty(), "nothing closes before the answer");
+        tell(Answer.TOPIC, new Answer(asked.getFirst().id(), 0));
+        assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
+        assertTrue(frame.state().closings().isEmpty());
+    }
+
+    @Test
+    void cancelKeepsTheTab() {
+        started(WORK);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(CloseAsked.TOPIC, new CloseAsked(1, true));
+        Ask asked = took(Ask.class).getFirst();
+        tell(Answer.TOPIC, new Answer(asked.id(), 1));
+        assertTrue(took(CloseTab.class).isEmpty());
+        assertTrue(took(CloseShell.class).isEmpty());
+        assertEquals(1, frame.state().tabs().size());
+        assertTrue(frame.state().closings().isEmpty());
+    }
+
+    @Test
+    void closeWithoutAskingClosesASubmittedTabAtOnce() {
+        started(WORK, WEB);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(CloseAsked.TOPIC, new CloseAsked(1, false));
+        assertTrue(took(Ask.class).isEmpty());
+        assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
+    }
+
+    @Test
+    void theWindowClosesAtOnceWhenNoTabWasSubmittedTo() {
+        started(WORK, WEB);
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 7));
+        assertTrue(took(Ask.class).isEmpty());
+        assertEquals(List.of(new CloseAnswer(7, true)), took(CloseAnswer.class));
+    }
+
+    @Test
+    void theWindowAsksAboutEveryBusyTabAndCancelKeepsIt() {
+        started(WORK, WEB);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(Submitted.TOPIC, new Submitted(2));
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 8));
+        Ask asked = took(Ask.class).getFirst();
+        assertEquals(List.of("Close all", "Cancel"), asked.buttons());
+        assertTrue(asked.message().contains("api, web"), asked.message());
+        assertTrue(took(CloseAnswer.class).isEmpty(), "unanswered while the person decides");
+        tell(Answer.TOPIC, new Answer(asked.id(), 1));
+        assertEquals(List.of(new CloseAnswer(8, false)), took(CloseAnswer.class));
+    }
+
+    @Test
+    void theWindowClosesOnTheAnswer() {
+        started(WORK);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 9));
+        Ask asked = took(Ask.class).getFirst();
+        tell(Answer.TOPIC, new Answer(asked.id(), 0));
+        assertEquals(List.of(new CloseAnswer(9, true)), took(CloseAnswer.class));
+    }
+
+    @Test
+    void anotherWindowClosingNeverAsks() {
+        started(WORK);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(CloseRequested.TOPIC, new CloseRequested("about", 4));
+        assertTrue(took(Ask.class).isEmpty());
+        assertEquals(List.of(new CloseAnswer(4, true)), took(CloseAnswer.class));
+    }
+
+    @Test
+    void closingTheLastTabClosesTheWindowWhichThenAsksNothing() {
+        started(WORK);
+        tell(Submitted.TOPIC, new Submitted(1));
+        tell(CloseAsked.TOPIC, new CloseAsked(1, false));
+        assertEquals(List.of(WindowCommand.close(CloseRequested.MAIN)), took(WindowCommand.class));
+        tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 5));
+        assertEquals(List.of(new CloseAnswer(5, true)), took(CloseAnswer.class));
     }
 }

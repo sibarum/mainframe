@@ -1,6 +1,11 @@
 package dev.mainframe;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.CloseAsked;
+import dev.mainframe.core.Messages.Fronted;
+import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.Rename;
+import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
 import dev.mainframe.core.Messages.Header;
@@ -16,6 +21,9 @@ import dev.vexelray.gui.core.Cuts;
 import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.keymap.Action;
 import dev.vexelray.gui.keymap.Keymap;
+import dev.vexelray.gui.widget.Button;
+import dev.vexelray.gui.widget.Tabs;
+import dev.vexelray.gui.widget.TextField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -61,6 +70,11 @@ class ViewTest {
         shell.bus().subscribe(Typed.TOPIC, heard::add);
         shell.bus().subscribe(Retitled.TOPIC, heard::add);
         shell.bus().subscribe(Shown.TOPIC, heard::add);
+        shell.bus().subscribe(Submitted.TOPIC, heard::add);
+        shell.bus().subscribe(Fronted.TOPIC, heard::add);
+        shell.bus().subscribe(NewTab.TOPIC, heard::add);
+        shell.bus().subscribe(CloseAsked.TOPIC, heard::add);
+        shell.bus().subscribe(Rename.TOPIC, heard::add);
         cuts = Cuts.watch(shell.gui());
     }
 
@@ -156,6 +170,89 @@ class ViewTest {
         shell.bus().publish(CloseTab.TOPIC, new CloseTab(1));
         eventually("one tab left", () -> wiring.view().screen(1) == null && wiring.ui().tabs().count() == 1);
         assertTrue(wiring.view().screen(2) != null);
+    }
+
+    // ------------------------------------------------------------------ M2
+
+    private void intent(Intent.Command command) {
+        shell.bus().publish(Intent.INTENTS, new Intent(command));
+    }
+
+    @Test
+    void theTabCommandsTellTheFrameAboutTheTabInFront() throws Exception {
+        tab(1);
+        tab(2);
+        intent(Intent.Command.NEW_TAB);
+        eventually("a new tab asked for", () -> heard.contains(new NewTab()));
+        intent(Intent.Command.CLOSE_TAB);
+        eventually("closing the front tab, asking", () -> heard.contains(new CloseAsked(2, true)));
+        intent(Intent.Command.CLOSE_NOW);
+        eventually("closing it without asking", () -> heard.contains(new CloseAsked(2, false)));
+    }
+
+    @Test
+    void thePlusAsksForANewTab() throws Exception {
+        tab(1);
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.ui().plus().address()));
+        eventually("a new tab asked for", () -> heard.contains(new NewTab()));
+    }
+
+    @Test
+    void nextTabGoesRoundTheEndAndTellsTheFrame() throws Exception {
+        tab(1);
+        tab(2);
+        intent(Intent.Command.NEXT_TAB);
+        eventually("the first tab fronted", () -> heard.contains(new Fronted(1)));
+        assertEquals(0, wiring.ui().tabs().selected());
+    }
+
+    @Test
+    void anEnterTypedIsSubmittedButAnAnswerTheScreenSendsIsNot() throws Exception {
+        TerminalScreen screen = tab(4);
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "\u001b[1;1R\r", false));
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "x", true));
+        eventually("the typed key", () -> heard.contains(new Typed(4, "x")));
+        assertFalse(heard.contains(new Submitted(4)), "a reply is not the person submitting");
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "\r", true));
+        eventually("submitted", () -> heard.contains(new Submitted(4)));
+    }
+
+    @Test
+    void theHeaderMenuRenamesAndEnterNamesTheTab() throws Exception {
+        tab(3);
+        shell.bus().publish(Tabs.CHOSEN, new Tabs.Chosen(wiring.ui().tabs().address(), View.RENAME.id(), 0));
+        eventually("the rename field up", () -> wiring.view().renaming() == 3);
+        wiring.ui().rename().text("build");
+        shell.bus().publish(TextField.SUBMITTED, new TextField.Submitted(wiring.ui().rename().address(), "build"));
+        eventually("the name, as the tab's", () -> heard.contains(new Rename(3, "build")));
+        assertEquals(dev.mainframe.core.Messages.NO_TAB, wiring.view().renaming());
+    }
+
+    @Test
+    void escapeInTheRenameFieldNamesNothing() throws Exception {
+        tab(3);
+        intent(Intent.Command.RENAME);
+        eventually("the rename field up", () -> wiring.view().renaming() == 3);
+        intent(Intent.Command.RENAME_CANCEL);
+        eventually("the field away", () -> wiring.view().renaming() == dev.mainframe.core.Messages.NO_TAB);
+        assertTrue(heard.stream().noneMatch(m -> m instanceof Rename));
+    }
+
+    @Test
+    void theHeaderMenuClosesAfterAsking() throws Exception {
+        tab(1);
+        tab(2);
+        shell.bus().publish(Tabs.CHOSEN, new Tabs.Chosen(wiring.ui().tabs().address(), View.CLOSE.id(), 0));
+        eventually("closing tab 1, asking", () -> heard.contains(new CloseAsked(1, true)));
+    }
+
+    @Test
+    void passthroughLetsGoOfEveryChordAndThePillTakesThemBack() throws Exception {
+        tab(1);
+        intent(Intent.Command.PASSTHROUGH);
+        eventually("the key map paused", () -> shell.keymap().paused());
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.ui().pill().address()));
+        eventually("the key map resumed", () -> !shell.keymap().paused());
     }
 
     /**

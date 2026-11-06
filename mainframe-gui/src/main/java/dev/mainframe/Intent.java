@@ -63,6 +63,54 @@ record Intent(Command command) {
             void on(View view) {
                 view.fontSize(0);
             }
+        },
+        NEW_TAB {
+            @Override
+            void on(View view) {
+                view.newTab();
+            }
+        },
+        CLOSE_TAB {
+            @Override
+            void on(View view) {
+                view.closeFront(true);
+            }
+        },
+        CLOSE_NOW {
+            @Override
+            void on(View view) {
+                view.closeFront(false);
+            }
+        },
+        RENAME {
+            @Override
+            void on(View view) {
+                view.startRename();
+            }
+        },
+        RENAME_CANCEL {
+            @Override
+            void on(View view) {
+                view.endRename(false);
+            }
+        },
+        NEXT_TAB {
+            @Override
+            void on(View view) {
+                view.cycle(1);
+            }
+        },
+        PREVIOUS_TAB {
+            @Override
+            void on(View view) {
+                view.cycle(-1);
+            }
+        },
+        PASSTHROUGH {
+            @Override
+            void on(View view) {
+                view.passthrough();
+            }
         };
 
         abstract void on(View view);

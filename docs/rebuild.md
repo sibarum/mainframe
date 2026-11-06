@@ -121,7 +121,7 @@ once per feed costs nothing worth changing once the feeds are paced, and vex-sui
 change. The 1.1 s over ConPTY is not the GUI thread's; the run was under automation's trace-level recording, which is
 the first suspect, and it is not chased further here.
 
-**M2. Tabs.** New, close, close without asking, next and previous; rename by Ctrl+Shift+R, a double-click or the
+**M2. Tabs.** *Built 2026-11-05 and seen live (below for what departs); retrospective in [retrospective.md](retrospective.md).* New, close, close without asking, next and previous; rename by Ctrl+Shift+R, a double-click or the
 menu, with Escape cancelling and a blank name handing the header back; `--dir` and `--dirs`; a tab whose shell
 exits closes, and the last one closes the window; the font size chords; the passthrough switch's behaviour (every key to the shell), in a look redesigned first
 **(ruled 2026-11-05)**, proposed in [passthrough.md](passthrough.md). *Closing asks* through the template's close

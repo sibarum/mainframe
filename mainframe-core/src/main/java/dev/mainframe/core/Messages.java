@@ -85,6 +85,35 @@ public final class Messages {
         public static final Topic<Shown> TOPIC = Topic.edge(Shown.class, Shown::id);
     }
 
+    /** The person picked a tab (a click on its header, Ctrl+Tab): the frame's front follows. */
+    public record Fronted(long id) {
+        public static final Topic<Fronted> TOPIC = Topic.state(Fronted.class);
+    }
+
+    /**
+     * A CR or LF was typed into a tab: something may be running in it now, so closing it asks. Said by the view, not
+     * worked out by the frame from every {@link Typed}, so the frame's inbox carries one message per tab, not a key per
+     * key; a state topic, so it cannot overflow.
+     */
+    public record Submitted(long id) {
+        public static final Topic<Submitted> TOPIC = Topic.state(Submitted.class, Submitted::id);
+    }
+
+    /** A new tab, in the folder of the one in front and running what it runs. */
+    public record NewTab() {
+        public static final Topic<NewTab> TOPIC = Topic.edge(NewTab.class);
+    }
+
+    /** Close a tab: after asking if it was ever submitted to ({@code ask}), or at once. */
+    public record CloseAsked(long id, boolean ask) {
+        public static final Topic<CloseAsked> TOPIC = Topic.edge(CloseAsked.class);
+    }
+
+    /** The person named a tab; blank hands its header back to the program's title. */
+    public record Rename(long id, String name) {
+        public static final Topic<Rename> TOPIC = Topic.edge(Rename.class);
+    }
+
     // ------------------------------------------------------------------ the frame and the shell
 
     /** Start a tab's program: {@code line} in {@code dir}, on a pseudo-terminal of {@code cols} by {@code rows}. */

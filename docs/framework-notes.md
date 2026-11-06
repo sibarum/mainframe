@@ -144,3 +144,34 @@ waiting. About 70 lines, a record and a test, which every fast reader on 0.2 wou
 **For the framework:** a source's `Sender` that is told when its hearers have room, or a "latest unconsumed batch"
 topic kind whose publisher appends to what has not been taken yet, would make every fast reader (a terminal, a log
 tail, the Inspector's link) correct without a protocol of its own.
+
+## FN-10 · `Tabs` has no place for an application's own nodes, beside the headers or over one 🔬
+
+M2 wanted a + after the last header, the passthrough pill at the bar's end (docs/passthrough.md), and a rename field
+standing in for the header it renames, as 0.1 had all three. `Tabs.bar()` may not be given children ("a stranger
+among them puts every index one out"), `strip()` is to style and not restructure, and a header is the skin's. So the
++, the pill and the rename field float in a box round the tabs, pushed to its right edge by a float at x = 10,000 rem
+that the parent clamps. The + no longer follows the last header, and the rename field is at the bar's end rather
+than over the header. Placing a node over a header by its rect needs the dpi, which only the widget library's
+`Seams` gives.
+
+**For the framework:** a trailing slot in the tab bar (`Tabs.trailing(Node...)`), laid out after the headers and
+outside their index; and an in-place header edit (`Tabs.rename(index)` publishing what was typed), which every
+tabbed application with names wants.
+
+## FN-11 · A double-click on a header is not a message a view can declare 🔬
+
+Renaming a tab by double-clicking its header needs to hear that double-click. `Tabs` publishes `SELECTED` and
+`CHOSEN`, not a header's double-click; the tree's clicks are a per-tree topic (`gui.clicks()`, with `clicks()` 2 for
+a double), which a `@Subscribe` cannot name since it is not a payload's static `TOPIC`. So the view opens
+`gui.mailbox(gui.clicks(), ...)` in its constructor and matches the click's node to a header: drained in the frame
+like its other mailboxes, but a mailbox the processor does not see.
+
+**For the framework:** `Tabs.ACTIVATED` (a header double-clicked or Entered), as `ListView` has for a row.
+
+## FN-12 · A menu line cannot show its chord 💡
+
+The Terminal menu's lines send what the key map's chords send, and a menu bar shows the chord beside each line so a
+person learns it there. `Menu.Builder.item` takes a label, an icon and a message; nothing for a shortcut. 0.1 had no
+menus, so this was not missed then. **For the framework:** an item that names the key-map action it stands for, its
+chord read from the key map as the person has it, so a rebinding shows in the menu.
