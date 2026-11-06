@@ -31,6 +31,45 @@ reasons and the full method.
 
 ## Milestones
 
+## M1 · one tab, one shell · 2026-11-05
+
+Two findings (FN-8, FN-9), both architectural in the same way: the 0.2 rule that an edge is never lost
+(T4.2) turns any producer faster than its consumer into a halt, and the framework leaves pacing to the producer. FN-9
+was the milestone's one real bug, and it was found only because the plan said to measure.
+
+### The shapes
+
+| | The promise | What happened | How it looked |
+| --- | --- | --- | --- |
+| FN-8 | A view hears what its widgets say | A frame's typing must fit 64 slots | One `ottermate type` of 150 characters halted the app |
+| FN-9 | A source sends what it reads | Faster than a view hears, it halts the app | `type` of 8 MB: dead in 250 ms; a `Shown` per `Output` and two in flight fixed it |
+
+### What would stop each
+
+1. A widget's per-frame output as one message, or a view mailbox drained in the frame it is filled (FN-8).
+2. Flow control as the framework's: a sender told when its hearers have room, or a topic that appends to the batch
+   not yet taken (FN-9). Every fast reader (a terminal, a log tail, the Inspector's link) writes it otherwise.
+
+### My own mistakes
+
+- **I wrote the M1 plan's measurement as "what does drawing per feed cost"** without asking what happens first
+  when a producer outruns a consumer under T4.2. The answer was in components.md §11 all along. The rule: for any
+  source, ask what its hearer's mailbox does at ten times the expected rate before measuring anything finer.
+- **My first live check of the halt was one long `ottermate type`**, which found FN-8 instead of what I was looking
+  for, and cost a run. The rule: type a long line in pieces of under 64 characters until a script can say more.
+- **Paste-as-heredoc ate the backslashes** of a Windows path in a Java test, twice, and the second fix was the same
+  as the first. The rule: Java strings with backslashes go in with the Edit tool.
+- **The first pacing draft kept waiting text until the next read.** A shell's prompt would have sat in the buffer.
+  Caught while writing it, not by a test. The rule: in a credit scheme, a returned credit must flush what is waiting.
+
+### What to keep exactly as it is
+
+- **Measuring before deciding.** The plan said to measure the per-feed draw before changing the widget; the
+  measurement found the halt, and then showed the widget needs no change at all (two feeds a frame, 1.5 ms frames).
+- **The pacing in the source, on the source's threads.** Nothing waits on the GUI thread or the logic lane, and the
+  program waits on its terminal exactly as on a slow console.
+- **A no-screen baseline beside the live number.** ConPTY's own 2.9 s is what made 4.0 s readable.
+
 ## M0 · the template becomes a terminal · 2026-11-05
 
 Seven findings (FN-1 to FN-7). Two are architectural, in that they shaped where code went: FN-2 (who may hear a

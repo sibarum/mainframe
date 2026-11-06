@@ -8,6 +8,7 @@ import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
 import dev.mainframe.core.Messages.Retitled;
+import dev.mainframe.core.Messages.Shown;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.api.Subscribe;
@@ -60,6 +61,7 @@ final class View {
     private final Sender<Resized> resized;
     private final Sender<Typed> typed;
     private final Sender<Retitled> retitled;
+    private final Sender<Shown> shown;
     private final Sender<Intent> intents;
 
     /** The mono face's layout, one for every tab: it is only read. */
@@ -74,12 +76,13 @@ final class View {
     private int size = Type.TERMINAL_NORMAL;
 
     View(Gui gui, Keymap keys, Ui ui, Sender<Resized> resized, Sender<Typed> typed, Sender<Retitled> retitled,
-            Sender<Intent> intents) {
+            Sender<Shown> shown, Sender<Intent> intents) {
         this.gui = gui;
         this.tabs = ui.tabs();
         this.resized = resized;
         this.typed = typed;
         this.retitled = retitled;
+        this.shown = shown;
         this.intents = intents;
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
@@ -164,12 +167,18 @@ final class View {
         }
     }
 
+    /**
+     * What a tab's program wrote, fed to its screen, and said to be shown: its shell sends the next only then, so a
+     * program writing faster than the screen draws waits rather than overflowing this mailbox (FN-9). Said for a tab
+     * already gone too, so its shell never waits on a screen that will not come.
+     */
     @Subscribe
     public void output(Output m) {
         TerminalScreen screen = screens.get(m.id());
         if (screen != null) {
             screen.feed(m.text());
         }
+        shown.send(new Shown(m.id()));
     }
 
     // ------------------------------------------------------------------ what the screens say, sent on with the tab

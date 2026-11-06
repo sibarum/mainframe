@@ -82,14 +82,14 @@ shape is caught before code is written against it.
 interrupt, the font size chords re-wrapping the shell, `exit` closing the window; then right-click copy and paste
 (the screen's own, seen through the real clipboard), the tab's header following the shell's title (`Retitled` and
 `Header`, as shape.md sketched them), and an unknown `--option` stopping with exit 2 before a window opens (with the
-framework's message, FN-1). Left: the measurement, which found that a fast program halts MainFrame (FN-9), and the
-fix proposed below.* PowerShell running in a window: keys through the key map, copy and paste (the chords,
+framework's message, FN-1). The measurement found that a fast program halted MainFrame (FN-9); the fix below was
+accepted and built the same day, and the measurement taken with it. Retrospective in [retrospective.md](retrospective.md).* PowerShell running in a window: keys through the key map, copy and paste (the chords,
 the right-click), Esc's interrupt, scrolling back, the title following the shell's, the window going when the shell
 exits. A command line replaces the shell (`mainframe pwsh -NoProfile`), and an unknown `--option` stops with an
 error. *Measure* what vex-suite-common's TODO leaves open: the screen draws once per `Feed`, not once per frame, so
 `type` a large file and see what that costs before deciding anything.
 
-*Proposed 2026-11-05, for the author: a tab's output, paced by what the view has shown (FN-9).* `type` of an 8 MB file
+*Accepted by the author and built 2026-11-05 ("Build it"): a tab's output, paced by what the view has shown (FN-9).* `type` of an 8 MB file
 halted MainFrame within about 250 ms. The shell's reads filled the view's 64-slot `Output` mailbox, and an edge that
 overflows ends the application (T4.2). The framework leaves back-pressure to the source (components.md §11), so:
 
@@ -108,6 +108,18 @@ overflows ends the application (T4.2). The framework leaves back-pressure to the
 
 A test in `ShellTest`: a program writing far more than two reads' worth, with no `Shown` sent, sends exactly two
 `Output`s; one `Shown` lets the rest through as one.
+
+*Built differently in one point:* a `Shown` that finds text waiting sends it at once, from the destination's thread,
+rather than freeing a slot for the reader's next read. Otherwise a shell's last words (its prompt) would wait in the
+buffer until the program wrote again. The end of a program waits up to a second for what it wrote last to go.
+
+*Measured 2026-11-05, with it built:* `type` of 8.4 MB (100,000 lines) took 4.0 s in MainFrame, against 2.9 s through
+`Shell` with no screen at all (ConPTY's own pace: it hands over a line per read, 100,000 reads) and 0.14 s to `NUL`.
+The view drew about 900 `Output`s, two a frame, where unpaced it would have been asked for 100,000. Its frames took
+1.5 ms at the median, 2.7 ms at p90 and 9.1 ms at worst, and the GUI thread was busy 0.7 s of the 4.3 s. So drawing
+once per feed costs nothing worth changing once the feeds are paced, and vex-suite-common's TODO needs no widget
+change. The 1.1 s over ConPTY is not the GUI thread's; the run was under automation's trace-level recording, which is
+the first suspect, and it is not chased further here.
 
 **M2. Tabs.** New, close, close without asking, next and previous; rename by Ctrl+Shift+R, a double-click or the
 menu, with Escape cancelling and a blank name handing the header back; `--dir` and `--dirs`; a tab whose shell

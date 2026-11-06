@@ -71,6 +71,7 @@ record Tab(
 | `Header(long id, String text)` | frame → view | state, by id | a tab's header (M2: the name, else the shell's title) |
 | `Resized(long id, int cols, int rows)` | view → shell, frame | state, by id | the screen's size; the frame opens the shell on the first |
 | `Typed(long id, String text)` | view → shell, frame | edge, by id | what goes to the program; the frame marks `submitted` on a CR or LF (M2) |
+| `Shown(long id)` | view → shell | edge, by id | the view fed one of the tab's `Output`s to its screen: the shell may send another (M1, FN-9) |
 | `Fronted(long id)` | view → frame | state | the person picked a tab (M2) |
 | `Retitled(long id, String title)` | view → frame | state, by id | the shell named itself, from `TITLED` (M2) |
 | `NewTab()`, `CloseAsked(long id, boolean ask)`, `Rename(long id, String name)` | view → frame | edge | M2's gestures |
@@ -175,6 +176,9 @@ Built 2026-11-05. Where the code departs from the sketch above, and why:
 - **Titles are followed from M1, ahead of M2** (2026-11-05): `Retitled` and `Header` as sketched, the name half waiting
   for M2. A title is shortened as 0.1 shortened it (a path to its last name, without `.exe`), since conhost titles a
   pseudoconsole with its program's whole path; a blank one hands the header back to the folder.
+- **`Output` is paced by `Shown`** (M1, FN-9): `Shell` keeps two of a tab's `Output`s on their way to the view, and
+  sends what it read meanwhile as one when the view says it has shown one. Without it, `type` of a large file halted
+  MainFrame.
 - **M1 came with it.** The tab's shell, the key map (copy or interrupt, paste, Esc, Shift+PageUp/PageDown, the font
   size chords), the command line replacing the shell and the window closing with its last tab were all needed to see
   the shape work, so they are built and seen; rebuild.md says what of M1 is left.

@@ -44,6 +44,9 @@ title bar. A chord the key map holds outranks typing; every other key goes to th
 
 The text size is the terminal's own (14 to 24 px), not the window's zoom, since a terminal is a grid of cells.
 
+A right-click copies the selection, or pastes when nothing is selected. A tab's header is the title its program
+gives itself (a path shortened to its last name), and its folder's name until it gives one.
+
 ## A native executable
 
 Two builds, made with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Visual Studio with the "Desktop
@@ -107,7 +110,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | Piece | What it is |
 | --- | --- |
 | `Frame` | The controller, on the logic lane: which tabs there are, what each runs, and when its shell starts (on its screen's first size, so a program never starts at a guessed size) |
-| `Shell` | A tab's program on a pseudo-terminal: a `@Source` that reads what it writes and a `@Destination` that writes what is typed and its size, one per tab, keyed by its id. The framework holds each tab's connection |
+| `Shell` | A tab's program on a pseudo-terminal: a `@Source` that reads what it writes and a `@Destination` that writes what is typed and its size, one per tab, keyed by its id. The framework holds each tab's connection. It sends no more than two `Output`s ahead of what the view says it has `Shown`, so a program writing faster than the screen waits on its terminal |
 | `ReadStartup` | A job: what the launch asked for |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |

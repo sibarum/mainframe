@@ -7,6 +7,7 @@ import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
 import dev.mainframe.core.Messages.Retitled;
+import dev.mainframe.core.Messages.Shown;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.shell.Shell;
@@ -59,6 +60,7 @@ class ViewTest {
         shell.bus().subscribe(Resized.TOPIC, heard::add);
         shell.bus().subscribe(Typed.TOPIC, heard::add);
         shell.bus().subscribe(Retitled.TOPIC, heard::add);
+        shell.bus().subscribe(Shown.TOPIC, heard::add);
         cuts = Cuts.watch(shell.gui());
     }
 
@@ -103,6 +105,16 @@ class ViewTest {
         TerminalScreen screen = tab(3);
         shell.bus().publish(Output.TOPIC, new Output(3, "hello from the shell"));
         eventually("the text on the screen", () -> screen.allText().contains("hello from the shell"));
+    }
+
+    @Test
+    void whatIsFedIsSaidToBeShownSoTheShellSendsMoreEvenForATabGone() throws Exception {
+        TerminalScreen screen = tab(8);
+        shell.bus().publish(Output.TOPIC, new Output(8, "drawn"));
+        eventually("shown, as the tab's", () -> heard.contains(new Shown(8)));
+        assertTrue(screen.allText().contains("drawn"), "fed before it is said to be shown");
+        shell.bus().publish(Output.TOPIC, new Output(99, "for no tab"));
+        eventually("shown, for a tab with no screen", () -> heard.contains(new Shown(99)));
     }
 
     @Test

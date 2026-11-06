@@ -80,6 +80,11 @@ public final class Messages {
         public static final Topic<Retitled> TOPIC = Topic.state(Retitled.class, Retitled::id);
     }
 
+    /** The view has fed one of a tab's {@link Output}s to its screen: the tab's shell may send another (FN-9). */
+    public record Shown(long id) {
+        public static final Topic<Shown> TOPIC = Topic.edge(Shown.class, Shown::id);
+    }
+
     // ------------------------------------------------------------------ the frame and the shell
 
     /** Start a tab's program: {@code line} in {@code dir}, on a pseudo-terminal of {@code cols} by {@code rows}. */

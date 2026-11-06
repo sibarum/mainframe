@@ -132,7 +132,9 @@ The framework's ruling (components.md §11, question 1: "Backpressure: nothing i
 source: one that can outrun its hearers buffers and batches. Batching by time alone keeps the cliff, since a view that
 takes longer to draw a big batch lets the next ones pile up. What bounds it is the source sending only when the
 view has taken what it sent. That is flow control written by every application with a fast source, through a
-message of its own. **Not built yet: proposed in docs/rebuild.md, M1.**
+message of its own. **Built in M1** (rebuild.md's M1 has it and the measurement): `Shown(id)` from the view per
+`Output` fed, and `Shell` holding two in flight per tab, buffering the rest as one, and stopping reading at 1 MB
+waiting. About 70 lines, a record and a test, which every fast reader on 0.2 would write again.
 
 **For the framework:** a source's `Sender` that is told when its hearers have room, or a "latest unconsumed batch"
 topic kind whose publisher appends to what has not been taken yet, would make every fast reader (a terminal, a log
