@@ -129,7 +129,7 @@ chain (`CloseRequested` and `CloseAnswer`, the question held for the person), wh
 could not easily have: ask when any open tab was ever submitted to, by every way out (×, Alt+F4, the taskbar, the
 last tab, Ctrl+W), with a test for each.
 
-**M3. Settings.** The settings window's General tab (font size, tab motion, the shell new tabs start, the folder
+**M3. Settings.** *Sketched in [settings.md](settings.md), for the author.* The settings window's General tab (font size, tab motion, the shell new tabs start, the folder
 they start in, the workspace to open at launch), changes applied at once and kept in `~/.mainframe/`; the keyboard
 button's key map editor.
 
