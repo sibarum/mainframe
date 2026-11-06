@@ -8,7 +8,8 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 
 ## Next
 
-- [ ] Rebuild MainFrame on 0.2, milestone by milestone, as [rebuild.md](rebuild.md) proposes. M0 is next.
+- [ ] Rebuild MainFrame on 0.2, milestone by milestone, as [rebuild.md](rebuild.md) proposes. M1 waits on one fix:
+      a fast program halts it (framework-notes FN-9), proposed in rebuild.md's M1.
 - [ ] Replace the palette anchors in `Look.java` with the design's, measured in Oklab. See the note in that file
       about which authored colours the construction can reproduce and which have to be declared.
 

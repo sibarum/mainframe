@@ -4,8 +4,10 @@ import dev.mainframe.Intent.Command;
 import dev.mainframe.core.Messages.AddTab;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
+import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
+import dev.mainframe.core.Messages.Retitled;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.api.Subscribe;
@@ -50,10 +52,14 @@ import java.util.Map;
 @dev.vexelray.framework.api.View
 final class View {
 
+    /** The most characters typed in one frame the view takes: see {@link #sent}. */
+    static final int SENT_PER_FRAME = 1024;
+
     private final Gui gui;
     private final Tabs tabs;
     private final Sender<Resized> resized;
     private final Sender<Typed> typed;
+    private final Sender<Retitled> retitled;
     private final Sender<Intent> intents;
 
     /** The mono face's layout, one for every tab: it is only read. */
@@ -67,11 +73,13 @@ final class View {
     /** Where on {@link Type#TERMINAL_PX} the terminals' type is. */
     private int size = Type.TERMINAL_NORMAL;
 
-    View(Gui gui, Keymap keys, Ui ui, Sender<Resized> resized, Sender<Typed> typed, Sender<Intent> intents) {
+    View(Gui gui, Keymap keys, Ui ui, Sender<Resized> resized, Sender<Typed> typed, Sender<Retitled> retitled,
+            Sender<Intent> intents) {
         this.gui = gui;
         this.tabs = ui.tabs();
         this.resized = resized;
         this.typed = typed;
+        this.retitled = retitled;
         this.intents = intents;
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
@@ -149,6 +157,14 @@ final class View {
     }
 
     @Subscribe
+    public void header(Header m) {
+        int at = order.indexOf(m.id());
+        if (at >= 0) {
+            tabs.title(at, m.text());
+        }
+    }
+
+    @Subscribe
     public void output(Output m) {
         TerminalScreen screen = screens.get(m.id());
         if (screen != null) {
@@ -158,7 +174,12 @@ final class View {
 
     // ------------------------------------------------------------------ what the screens say, sent on with the tab
 
-    @Subscribe
+    /**
+     * A screen sends a message per character typed, all in the frame they arrive in, and this hears them in the next:
+     * so this mailbox holds a frame's worth of typing, which a script's {@code type} makes a line's worth. One more
+     * than it holds halts the application (docs/framework-notes.md, FN-8).
+     */
+    @Subscribe(capacity = SENT_PER_FRAME)
     public void sent(TerminalScreen.Sent m) {
         Long id = byAddress.get(m.terminal());
         if (id != null) {
@@ -171,6 +192,14 @@ final class View {
         Long id = byAddress.get(m.terminal());
         if (id != null) {
             resized.send(new Resized(id, m.cols(), m.rows()));
+        }
+    }
+
+    @Subscribe
+    public void titled(TerminalScreen.Titled m) {
+        Long id = byAddress.get(m.terminal());
+        if (id != null) {
+            retitled.send(new Retitled(id, m.title()));
         }
     }
 

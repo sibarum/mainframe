@@ -3,9 +3,11 @@ package dev.mainframe.core;
 import dev.mainframe.core.Messages.AddTab;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
+import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.OpenShell;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
+import dev.mainframe.core.Messages.Retitled;
 import dev.mainframe.core.Messages.ShellEnded;
 import dev.mainframe.core.Messages.Startup;
 import dev.mainframe.core.Messages.StartupWanted;
@@ -53,8 +55,8 @@ import java.util.Optional;
  * on a tick of its own.
  */
 @Component
-@Hears({WindowOpened.class, Startup.class, Resized.class, ShellEnded.class})
-@Publishes({StartupWanted.class, AddTab.class, Front.class, OpenShell.class, Output.class, CloseTab.class,
+@Hears({WindowOpened.class, Startup.class, Resized.class, Retitled.class, ShellEnded.class})
+@Publishes({StartupWanted.class, AddTab.class, Front.class, Header.class, OpenShell.class, Output.class, CloseTab.class,
         WindowCommand.class})
 public final class Frame {
 
@@ -105,17 +107,44 @@ public final class Frame {
      * @param dir    where its program starts
      * @param line   the command line it runs
      * @param opened whether its {@link OpenShell} has been sent
+     * @param title  what its program last called itself, shortened ({@link #shorten}); blank for nothing
      */
-    record Tab(long id, Path dir, String line, boolean opened) {
+    record Tab(long id, Path dir, String line, boolean opened, String title) {
 
         Tab started() {
-            return new Tab(id, dir, line, true);
+            return new Tab(id, dir, line, true, title);
         }
 
-        /** What the bar says until the program names itself: its folder's name, or the folder for a drive's root. */
+        Tab titled(String title) {
+            return new Tab(id, dir, line, opened, shorten(title));
+        }
+
+        /**
+         * What the bar says: the program's title, and until it gives one (or when it clears it), the folder's name, or
+         * the folder for a drive's root.
+         */
         String header() {
+            if (!title.isEmpty()) {
+                return title;
+            }
             Path name = dir.getFileName();
             return name == null ? dir.toString() : name.toString();
+        }
+
+        /**
+         * A title as a tab's header can hold it: conhost titles a pseudoconsole with its program's whole path
+         * ({@code C:\WINDOWS\...\powershell.exe}), so a path keeps its last name, without {@code .exe}. As 0.1 did.
+         */
+        static String shorten(String title) {
+            String t = title.strip();
+            int slash = Math.max(t.lastIndexOf('\\'), t.lastIndexOf('/'));
+            if (slash >= 0 && slash < t.length() - 1) {
+                t = t.substring(slash + 1);
+            }
+            if (t.toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) {
+                t = t.substring(0, t.length() - 4);
+            }
+            return t.strip();
         }
     }
 
@@ -129,11 +158,13 @@ public final class Frame {
         Step<State, WindowOpened> begin = b.step("begin", Frame::begin);
         Step<State, Startup> started = b.step("started", Frame::started);
         Step<State, Resized> resized = b.step("resized", Frame::resized);
+        Step<State, Retitled> retitled = b.step("retitled", Frame::retitled);
         Step<State, ShellEnded> ended = b.step("ended", Frame::ended);
 
         b.on(WindowOpened.TOPIC, begin)
                 .on(Startup.TOPIC, started)
                 .on(Resized.TOPIC, resized)
+                .on(Retitled.TOPIC, retitled)
                 .on(ShellEnded.TOPIC, ended);
         ledger = b.build(inbox, "frame", CAPACITY);
     }
@@ -162,7 +193,7 @@ public final class Frame {
         long first = Messages.NO_TAB;
         for (Path dir : startup.dirs()) {
             next = next.withIds(next.ids() + 1);
-            Tab tab = new Tab(next.ids(), dir, startup.line(), false);
+            Tab tab = new Tab(next.ids(), dir, startup.line(), false, "");
             next = next.withTabs(append(next.tabs(), tab));
             out.send(AddTab.TOPIC, new AddTab(tab.id(), tab.header()));
             if (first == Messages.NO_TAB) {
@@ -185,6 +216,20 @@ public final class Frame {
         Tab t = tab.get();
         out.send(OpenShell.TOPIC, new OpenShell(t.id(), t.line(), t.dir(), r.cols(), r.rows()));
         return s.with(t.started());
+    }
+
+    /** A tab's program named itself: its header follows, and is said only when what it says changes. */
+    private static State retitled(State s, Retitled r, Out out) {
+        Optional<Tab> tab = s.tab(r.id());
+        if (tab.isEmpty()) {
+            return s;
+        }
+        Tab was = tab.get();
+        Tab now = was.titled(r.title());
+        if (!now.header().equals(was.header())) {
+            out.send(Header.TOPIC, new Header(now.id(), now.header()));
+        }
+        return s.with(now);
     }
 
     /**

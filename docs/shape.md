@@ -172,7 +172,9 @@ Built 2026-11-05. Where the code departs from the sketch above, and why:
   call, with no `Feed` or command message sent to itself.
 - **Nothing hears `CloseRequested` yet**, so closing the window closes it, and the framework stops every tab's shell
   at shutdown. M2 adds the chain that asks.
-- **Titles are not followed yet**: a tab's header is its folder's name until M2's `Retitled` and `Header`.
+- **Titles are followed from M1, ahead of M2** (2026-11-05): `Retitled` and `Header` as sketched, the name half waiting
+  for M2. A title is shortened as 0.1 shortened it (a path to its last name, without `.exe`), since conhost titles a
+  pseudoconsole with its program's whole path; a blank one hands the header back to the folder.
 - **M1 came with it.** The tab's shell, the key map (copy or interrupt, paste, Esc, Shift+PageUp/PageDown, the font
   size chords), the command line replacing the shell and the window closing with its last tab were all needed to see
   the shape work, so they are built and seen; rebuild.md says what of M1 is left.

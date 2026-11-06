@@ -3,8 +3,10 @@ package dev.mainframe;
 import dev.mainframe.core.Messages.AddTab;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
+import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
+import dev.mainframe.core.Messages.Retitled;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.shell.Shell;
@@ -56,6 +58,7 @@ class ViewTest {
         shell = VexelApplication.tree(wiring, new String[0]);
         shell.bus().subscribe(Resized.TOPIC, heard::add);
         shell.bus().subscribe(Typed.TOPIC, heard::add);
+        shell.bus().subscribe(Retitled.TOPIC, heard::add);
         cuts = Cuts.watch(shell.gui());
     }
 
@@ -114,6 +117,24 @@ class ViewTest {
         tab(5);
         shell.bus().publish(Intent.INTENTS, new Intent(Intent.Command.INTERRUPT));
         eventually("0x03, as the tab's", () -> heard.contains(new Typed(5, "\u0003")));
+    }
+
+    @Test
+    void theProgramsTitleGoesToTheFrameAsTheTabs() throws Exception {
+        TerminalScreen screen = tab(6);
+        shell.bus().publish(TerminalScreen.TITLED, new TerminalScreen.Titled(screen.address(), "pwsh"));
+        eventually("the title, as the tab's", () -> heard.contains(new Retitled(6, "pwsh")));
+    }
+
+    /** A new header is the same node with new words, which the framework fades: the dispose's cut watch says so. */
+    @Test
+    void aHeaderIsChangedInPlace() throws Exception {
+        tab(2);
+        shell.bus().publish(Header.TOPIC, new Header(2, "pwsh"));
+        for (int i = 0; i < 5; i++) {
+            VexelApplication.frame(shell);
+        }
+        assertEquals(1, wiring.ui().tabs().count());
     }
 
     @Test

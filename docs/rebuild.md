@@ -78,14 +78,36 @@ shape is caught before code is written against it.
    of the records and steps, and built once agreed. `Look` on the design system's tokens (the template's TODO asks
    for it), with 0.1's `Look` as the starting point.
 
-**M1. One tab, one shell.** *Mostly built with M0's shape and seen working 2026-11-05: a live PowerShell, typing,
-Esc's interrupt, the font size chords re-wrapping the shell, `exit` closing the window. Left: right-click copy and
-paste, the tab's title following the shell's, a command line's unknown `--option` checked live, and the measurement
-below.* PowerShell running in a window: keys through the key map, copy and paste (the chords,
+**M1. One tab, one shell.** *Built with M0's shape and seen working 2026-11-05: a live PowerShell, typing, Esc's
+interrupt, the font size chords re-wrapping the shell, `exit` closing the window; then right-click copy and paste
+(the screen's own, seen through the real clipboard), the tab's header following the shell's title (`Retitled` and
+`Header`, as shape.md sketched them), and an unknown `--option` stopping with exit 2 before a window opens (with the
+framework's message, FN-1). Left: the measurement, which found that a fast program halts MainFrame (FN-9), and the
+fix proposed below.* PowerShell running in a window: keys through the key map, copy and paste (the chords,
 the right-click), Esc's interrupt, scrolling back, the title following the shell's, the window going when the shell
 exits. A command line replaces the shell (`mainframe pwsh -NoProfile`), and an unknown `--option` stops with an
 error. *Measure* what vex-suite-common's TODO leaves open: the screen draws once per `Feed`, not once per frame, so
 `type` a large file and see what that costs before deciding anything.
+
+*Proposed 2026-11-05, for the author: a tab's output, paced by what the view has shown (FN-9).* `type` of an 8 MB file
+halted MainFrame within about 250 ms. The shell's reads filled the view's 64-slot `Output` mailbox, and an edge that
+overflows ends the application (T4.2). The framework leaves back-pressure to the source (components.md §11), so:
+
+- **One new record, `Shown(long id)`**, view → shell, an edge keyed by the tab's id: the view sends one for each
+  `Output` it has fed to that tab's screen.
+- **`Shell` keeps two `Output`s in flight per tab, no more.** Its session holds two permits. `run` reads as now into
+  a buffer, and sends everything buffered as one `Output` when a permit is free. With none free it goes on reading
+  until the buffer holds 1 MB, then waits for one, so the program waits on the pseudo-terminal as it would on a slow
+  console. `write(Session, Shown)` gives a permit back; `close` frees the wait.
+- **What it does to the draw:** an `Output` is then as large as what arrived while the view drew the last one, so
+  under load the screen draws about once per frame rather than once per read. That is the measurement this
+  milestone asked for, taken once MainFrame survives it, and it may close vex-suite-common's TODO with no widget
+  change.
+- **What it does not do:** nothing waits on the GUI thread or the logic lane. The wait is on `Shell`'s own source
+  thread, which is the outside's.
+
+A test in `ShellTest`: a program writing far more than two reads' worth, with no `Shown` sent, sends exactly two
+`Output`s; one `Shown` lets the rest through as one.
 
 **M2. Tabs.** New, close, close without asking, next and previous; rename by Ctrl+Shift+R, a double-click or the
 menu, with Escape cancelling and a blank name handing the header back; `--dir` and `--dirs`; a tab whose shell

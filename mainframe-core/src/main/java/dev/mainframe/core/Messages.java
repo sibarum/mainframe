@@ -58,6 +58,11 @@ public final class Messages {
         public static final Topic<Front> TOPIC = Topic.state(Front.class);
     }
 
+    /** What a tab's header says now: its name, else the shell's title, else its folder. The last one said counts. */
+    public record Header(long id, String text) {
+        public static final Topic<Header> TOPIC = Topic.state(Header.class, Header::id);
+    }
+
     // ------------------------------------------------------------------ the view tells the frame and the shell
 
     /** A tab's screen is laid out at this many cells. The frame opens its shell on the first; the shell resizes on the rest. */
@@ -68,6 +73,11 @@ public final class Messages {
     /** What goes to a tab's program, every one in order: a key as the terminal spells it, a paste, an answer. */
     public record Typed(long id, String text) {
         public static final Topic<Typed> TOPIC = Topic.edge(Typed.class, Typed::id);
+    }
+
+    /** A tab's program gave itself a title (an OSC 0 or 2); blank when it cleared it. The last one said counts. */
+    public record Retitled(long id, String title) {
+        public static final Topic<Retitled> TOPIC = Topic.state(Retitled.class, Retitled::id);
     }
 
     // ------------------------------------------------------------------ the frame and the shell

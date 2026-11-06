@@ -3,9 +3,11 @@ package dev.mainframe.core;
 import dev.mainframe.core.Messages.AddTab;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
+import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.OpenShell;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
+import dev.mainframe.core.Messages.Retitled;
 import dev.mainframe.core.Messages.ShellEnded;
 import dev.mainframe.core.Messages.Startup;
 import dev.mainframe.core.Messages.StartupWanted;
@@ -55,7 +57,7 @@ class FrameTest {
         tick = bus.tick(null).alarm(new HandClock(bus)).whenOverdue(Tick.Overdue.FAIL);
         frame = new Frame(tick.inbox("frame"));
         Inbox heard = tick.inbox("heard");
-        for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, OpenShell.TOPIC, Output.TOPIC,
+        for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, Header.TOPIC, OpenShell.TOPIC, Output.TOPIC,
                 CloseTab.TOPIC, WindowCommand.TOPIC)) {
             listen(heard, t);
         }
@@ -158,5 +160,31 @@ class FrameTest {
         sent.clear();
         tell(ShellEnded.TOPIC, new ShellEnded(1, 0, ""));
         assertTrue(sent.isEmpty());
+    }
+
+    @Test
+    void aTabsHeaderFollowsItsProgramsTitleShortenedAndOnlyWhenItChanges() {
+        started(WORK, WEB);
+        tell(Retitled.TOPIC, new Retitled(1, "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"));
+        assertEquals(List.of(new Header(1, "powershell")), took(Header.class));
+        tell(Retitled.TOPIC, new Retitled(1, "powershell"));
+        assertTrue(took(Header.class).isEmpty(), "the same header is not said again");
+        tell(Retitled.TOPIC, new Retitled(2, "vim notes.md"));
+        assertEquals(List.of(new Header(2, "vim notes.md")), took(Header.class));
+    }
+
+    @Test
+    void aClearedTitleHandsTheHeaderBackToTheFolder() {
+        started(WORK);
+        tell(Retitled.TOPIC, new Retitled(1, "build"));
+        took(Header.class);
+        tell(Retitled.TOPIC, new Retitled(1, "  "));
+        assertEquals(List.of(new Header(1, "api")), took(Header.class));
+    }
+
+    @Test
+    void aTitleForNoTabSaysNothing() {
+        tell(Retitled.TOPIC, new Retitled(9, "ghost"));
+        assertTrue(took(Header.class).isEmpty());
     }
 }
