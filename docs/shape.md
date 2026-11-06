@@ -159,6 +159,24 @@ Each is checked when the code is written. A friction found is an FN note here an
 4. **No key button in the title bar** in M0's first step's run, though the view declares three actions and the
    framework claims to place one on every bar. Seen in the tree, not looked into.
 
+## What M0 built differently
+
+Built 2026-11-05. Where the code departs from the sketch above, and why:
+
+- **`ShellEnded` carries a `problem`.** What escapes `open` halts the application, so `Shell`'s connection is a
+  `Session(Pty pty, String problem)`, and a program that will not start is a reply (FN-3). The frame keeps that
+  tab open and writes the reason into it, rather than closing a window the person never saw start.
+- **No `CloseWindow`:** the frame sends the framework's `WindowCommand.close(MAIN)`.
+- **The view feeds the screens directly.** `TerminalScreen.feed`, `copyOrInterrupt`, `paste` and `page` are its own
+  methods on the GUI thread, which is the view's, so `Output` becomes `screen.feed` and a key-map command a method
+  call, with no `Feed` or command message sent to itself.
+- **Nothing hears `CloseRequested` yet**, so closing the window closes it, and the framework stops every tab's shell
+  at shutdown. M2 adds the chain that asks.
+- **Titles are not followed yet**: a tab's header is its folder's name until M2's `Retitled` and `Header`.
+- **M1 came with it.** The tab's shell, the key map (copy or interrupt, paste, Esc, Shift+PageUp/PageDown, the font
+  size chords), the command line replacing the shell and the window closing with its last tab were all needed to see
+  the shape work, so they are built and seen; rebuild.md says what of M1 is left.
+
 ## Ruled
 
 The sketch was accepted as written by the author 2026-11-05 ("Build it"), with its two proposals:

@@ -7,7 +7,8 @@ import sibarum.atchung.Topic;
  *
  * <p>A chord is a declaration (a keymap action's {@code sends(sender, message)}, threading.md T7.5): the dispatcher
  * sends this when one of the action's chords is pressed and runs nothing of the application's, and the view hears it
- * in the frame, on the GUI thread, like any other message. Which chords those are is the person's to change.
+ * in the frame, on the GUI thread, like any other message. Which chords those are is the person's to change. A chord
+ * the key map holds outranks the terminal's typing, so taking a chord away from here gives it back to the program.
  */
 record Intent(Command command) {
 
@@ -15,22 +16,52 @@ record Intent(Command command) {
 
     /** Each command is a method on the view, so there is no switch to keep in step with this list. */
     enum Command {
-        ZOOM_IN {
+        COPY {
             @Override
             void on(View view) {
-                view.zoom(1);
+                view.copyOrInterrupt();
             }
         },
-        ZOOM_OUT {
+        PASTE {
             @Override
             void on(View view) {
-                view.zoom(-1);
+                view.paste();
             }
         },
-        ZOOM_RESET {
+        INTERRUPT {
             @Override
             void on(View view) {
-                view.zoom(0);
+                view.interrupt();
+            }
+        },
+        PAGE_BACK {
+            @Override
+            void on(View view) {
+                view.page(-1);
+            }
+        },
+        PAGE_ON {
+            @Override
+            void on(View view) {
+                view.page(1);
+            }
+        },
+        LARGER {
+            @Override
+            void on(View view) {
+                view.fontSize(1);
+            }
+        },
+        SMALLER {
+            @Override
+            void on(View view) {
+                view.fontSize(-1);
+            }
+        },
+        NORMAL {
+            @Override
+            void on(View view) {
+                view.fontSize(0);
             }
         };
 

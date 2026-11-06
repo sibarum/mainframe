@@ -24,8 +24,17 @@ final class Type {
     /** Face 0: the sans. Labels, the path bar, the status line. */
     static final int UI = 0;
 
-    /** Face 1: the mono. The text being edited, so columns line up. */
+    /** Face 1: the mono. The terminals, so columns line up. */
     static final int MONO = 1;
+
+    /**
+     * The terminal's sizes, in the picture's pixels: a terminal is a grid of cells, so its type is sized by the
+     * person (Ctrl+= and Ctrl+-), not by the window's zoom. 0.1's ladder. Saved from M3.
+     */
+    static final float[] TERMINAL_PX = {14f, 16f, 18f, 20f, 24f};
+
+    /** Where the ladder starts, and where Ctrl+0 goes back to. */
+    static final int TERMINAL_NORMAL = 2;
 
     // ------------------------------------------------------------------ type
 

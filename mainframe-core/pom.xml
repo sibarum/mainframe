@@ -14,7 +14,7 @@
 
     <name>mainframe-core</name>
     <description>
-        The controller: the editor, which decides, and the jobs that touch the disk. Reached only by messages.
+        The controller: the frame, which decides, its jobs, and the shell each tab runs. Reached only by messages.
     </description>
 
     <!--
@@ -44,9 +44,44 @@
             <version>${vexelray-gui.version}</version>
         </dependency>
 
+        <!-- The pseudo-terminal a tab's Shell opens: JDK-only, no widget. The platform's own (ConPTY, posix_openpt) is
+             found by ServiceLoader, so -gui takes it at run time and the tests below take it here. -->
+        <dependency>
+            <groupId>dev.sibarum</groupId>
+            <artifactId>vex-suite-common-pty</artifactId>
+            <version>${vex-suite-common.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <profile>
+            <id>platform-windows</id>
+            <activation><os><family>windows</family></os></activation>
+            <dependencies>
+                <dependency>
+                    <groupId>dev.sibarum</groupId>
+                    <artifactId>vex-suite-common-pty-windows</artifactId>
+                    <version>${vex-suite-common.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>platform-linux</id>
+            <activation><os><family>unix</family><name>linux</name></os></activation>
+            <dependencies>
+                <dependency>
+                    <groupId>dev.sibarum</groupId>
+                    <artifactId>vex-suite-common-pty-linux</artifactId>
+                    <version>${vex-suite-common.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

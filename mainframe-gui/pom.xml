@@ -65,6 +65,12 @@
             <artifactId>vexelray-gui-keymap</artifactId>
             <version>${vexelray-gui.version}</version>
         </dependency>
+        <!-- The terminal drawn as a node (TerminalScreen), shared with VexelRay IDE's build console. -->
+        <dependency>
+            <groupId>dev.sibarum</groupId>
+            <artifactId>vex-suite-common-tty</artifactId>
+            <version>${vex-suite-common.version}</version>
+        </dependency>
         <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop
              (vexelray-gui/docs/reference/automation.md). -->
         <dependency>
@@ -434,6 +440,12 @@
                     <version>${tactroller.version}</version>
                     <scope>runtime</scope>
                 </dependency>
+                <dependency>
+                    <groupId>dev.sibarum</groupId>
+                    <artifactId>vex-suite-common-pty-windows</artifactId>
+                    <version>${vex-suite-common.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
             </dependencies>
         </profile>
         <profile>
@@ -450,6 +462,12 @@
                     <groupId>sibarum.tactroller</groupId>
                     <artifactId>tactroller-linux</artifactId>
                     <version>${tactroller.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>dev.sibarum</groupId>
+                    <artifactId>vex-suite-common-pty-linux</artifactId>
+                    <version>${vex-suite-common.version}</version>
                     <scope>runtime</scope>
                 </dependency>
             </dependencies>

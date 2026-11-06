@@ -1,20 +1,19 @@
 package dev.mainframe;
 
 import dev.vexelray.gui.core.Gui;
-import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.layout.LayoutEnums.Direction;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.TitleBar;
 
 /**
- * The window: the framework's title bar over the page the terminals will fill (docs/rebuild.md, M1 and M2). Empty
- * for now.
+ * The window: the framework's title bar over the tab bar, whose pages are the tabs' terminals.
  *
  * <h2>It holds no state</h2>
  *
- * <p>Every label here will say what the frame last told the view. Nothing is remembered here to be shown later: a label
- * that remembers a value can disagree with the frame.
+ * <p>The tabs are the view's to add and remove, as the frame says; this only builds the regions once and keeps them.
+ * Nothing is rebuilt, so nothing on screen changes in one frame: a tab arriving slides in ({@link Motion#change}).
  *
  * <p>Built in the {@code TREE} phase, before there is a window, and needing none: that is what lets a test build the
  * real tree headless.
@@ -25,19 +24,20 @@ import dev.vexelray.gui.widget.TitleBar;
  */
 final class Ui {
 
-    private final Node page;
+    private final Tabs tabs;
 
     Ui(Gui gui, Motion motion, TitleBar titleBar) {
-        page = gui.column().width(Length.FILL).height(Length.grow(1f));
-        gui.landmark(Landmarks.PAGE, page);
+        // Always shown, even with one tab: the + and the passthrough switch live in it (docs/shape.md, ruled).
+        tabs = new Tabs(gui).name("tabs").closable(false).slide(motion.change);
+        tabs.node().width(Length.FILL).height(Length.grow(1f));
+        gui.landmark(Landmarks.TABS, tabs.node());
 
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.PAGE))
-                .children(titleBar.node(), page);
+                .children(titleBar.node(), tabs.node());
     }
 
-    /** Where the terminals go. */
-    Node page() {
-        return page;
+    Tabs tabs() {
+        return tabs;
     }
 }

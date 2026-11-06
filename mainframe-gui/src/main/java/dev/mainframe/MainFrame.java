@@ -1,5 +1,6 @@
 package dev.mainframe;
 
+import dev.mainframe.core.Command;
 import dev.vexelray.framework.shell.VexelApplication;
 
 
@@ -73,8 +74,11 @@ public final class MainFrame {
      * about content as well as chrome. See the README, <i>Taking a screenshot</i>.
      */
     public static void main(String[] args) {
-        String[] cleaned = java.util.Arrays.stream(args).filter(s -> !s.isBlank()).toArray(String[]::new);
-        VexelApplication.run(new MainFrameAppWiring(), cleaned);
+        // MainFrame's own options and the command line it runs come out first: the framework's grammar would refuse
+        // `pwsh -NoProfile` and keep one --dir. The parse reaches ReadStartup through a static (framework-notes FN-1).
+        Command command = Command.parse(args);
+        Command.launched(command);
+        VexelApplication.run(new MainFrameAppWiring(), command.framework().toArray(String[]::new));
     }
 
     private MainFrame() {

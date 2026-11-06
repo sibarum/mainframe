@@ -2,39 +2,40 @@
 
 MainFrame is a VexelRay desktop application, generated from `vexelray-framework`'s `vexel-desktop` template: a
 terminal window that wraps the native OS shell. It is being rebuilt on VexelRay 0.2, milestone by milestone, as
-[docs/rebuild.md](docs/rebuild.md) says; read that first. M0's first step took the template's editor out, so what is
-below about `Editor`, `Doc` and `Messages` describes the shape `Frame` takes in M0's second step, not files that
-exist yet. [README.md](README.md) is still the template's.
+[docs/rebuild.md](docs/rebuild.md) says; read that first, then [docs/shape.md](docs/shape.md), which is how a tab
+works from end to end. [README.md](README.md) is the tour.
 
 ## Where things are
 
-- **Two modules.** `mainframe-core` is the controller: `Editor.java`, which makes every decision as declared steps
-  on one state, and the jobs that touch the disk. `mainframe-gui` is the view and the framework integration:
-  `View.java`, a `@View` on the GUI thread that shows what the editor decides and tells it what the person did, and
-  everything about the window. Run every `mvn` command from this folder, the parent of both.
+- **Two modules.** `mainframe-core` is the controller: `Frame.java`, which makes every decision as declared steps
+  on one state, its job `ReadStartup`, and `Shell`, each tab's program on a pseudo-terminal (a `@Source` and a
+  `@Destination`, keyed by the tab). `mainframe-gui` is the view and the framework integration: `View.java`, a `@View`
+  on the GUI thread that shows what the frame decides, gives each tab a `TerminalScreen`, and tells the frame and the
+  shells what the person did; and everything about the window. Run every `mvn` command from this folder.
 - **The parts talk by messages, and nothing else.** Every message is a record in `-core`'s `Messages.java`. A part
   never holds another part across lanes (the processor refuses it), so a new feature is a message, a mailbox
   (`@Subscribe`) where it arrives, and a `@Publishes` where it is sent. If message passing is awkward for something,
   stop and say so rather than reaching around it with a shared object or a callback.
 - **Disk and anything else slow is a `@Job`**: a request on a topic, a reply on another, run on the offload lane. What
-  can go wrong is a field of the reply, never a throw.
+  can go wrong is a field of the reply, never a throw. Something that keeps reading or writing outside is a source or
+  a destination, as `Shell` is.
 - **`Recipes.java`** is what `-gui` builds: one `@Provides` method per part. `MainFrameAppWiring` is generated from
   it, the components and the jobs by an annotation processor while `-gui` compiles. Nobody writes it, so never create
   or edit a file of that name. After a build it is in `mainframe-gui/target/generated-sources/annotations/`, and it
   shows what is built in which phase.
-- **The editor's state changes only by its steps.** Everything it knows is one immutable `Editor.State` on a ledger,
-  and a step is a static method `(state, message, out) → next state`, declared in `Editor`'s constructor and run on
+- **The frame's state changes only by its steps.** Everything it knows is one immutable `Frame.State` on a ledger,
+  and a step is a static method `(state, message, out) → next state`, declared in `Frame`'s constructor and run on
   each message it hears (`.on(topic, step)`). A step sends through its `Out` and never touches the disk, waits,
   or reads anything but its state and its message: the processor refuses one that does, and says what to do instead.
-  A new decision is a new step; a new thing the editor is in the middle of is a component of `State` (its
-  `@Withers` gives it a `with…` with nothing else to edit), not a field of
-  `Editor`. Something that waits on the person or the disk is a chain (closing is the example): its step holds the
-  run and a later step resumes it.
-- **`-core`'s `Core.java` lists its components and jobs.** The processor compiling `-gui` cannot see `-core`'s
-  sources, so a component or job missing from that list is never built, with no error. Add every new one there. A
-  component that takes an `Inbox` runs on the framework's logic lane and hears through it, never through `@Subscribe`.
-- **`Doc.java`** is the session's shape, part of the editor's state, replaced and never mutated. `Ui.java` holds no
-  state.
+  A new decision is a new step; a new thing the frame is in the middle of is a component of `State` (its
+  `@Withers` gives it a `with…` with nothing else to edit), not a field of `Frame`. Something that waits on the
+  person or the disk is a chain (the template's closing is the example): its step holds the run and a later step
+  resumes it.
+- **`-core`'s `Core.java` lists its components, jobs, sources and destinations.** The processor compiling `-gui`
+  cannot see `-core`'s sources, so a part missing from that list is never built, with no error. Add every new one
+  there. A component that takes an `Inbox` runs on the framework's logic lane and hears through it, never through
+  `@Subscribe`.
+- **`Ui.java` holds no state**: it builds the title bar and the tab bar once. The view adds and removes the tabs.
 - **`-core` builds against no widget**, so its tests need no window. Code with no `Gui` in it goes there.
 - **`Landmarks.java`** names everything an automation script may refer to. A new control a test needs to reach gets
   a landmark there, not a string literal.

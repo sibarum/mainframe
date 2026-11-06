@@ -65,7 +65,9 @@ over: the screen is a widget, and the pseudoconsole is the destination's connect
 Each milestone ends with its retrospective section in [retrospective.md](retrospective.md), and each workaround is
 written in [framework-notes.md](framework-notes.md) when it is written. Commits go on `v0.2`.
 
-**M0. The template becomes a terminal.** Two steps, as Vexplore's M0 was, so each reviews on its own and a wrong
+**M0. The template becomes a terminal.** *Done 2026-11-05: the deletion (ec62d0d), then the shape
+([shape.md](shape.md), with what was built differently). Retrospective in [retrospective.md](retrospective.md).* Two
+steps, as Vexplore's M0 was, so each reviews on its own and a wrong
 shape is caught before code is written against it.
 
 1. *The deletion.* `Spike/mainframe` was generated on 2026-11-01, before the template had modules, so it is the whole
@@ -76,7 +78,10 @@ shape is caught before code is written against it.
    of the records and steps, and built once agreed. `Look` on the design system's tokens (the template's TODO asks
    for it), with 0.1's `Look` as the starting point.
 
-**M1. One tab, one shell.** PowerShell running in a window: keys through the key map, copy and paste (the chords,
+**M1. One tab, one shell.** *Mostly built with M0's shape and seen working 2026-11-05: a live PowerShell, typing,
+Esc's interrupt, the font size chords re-wrapping the shell, `exit` closing the window. Left: right-click copy and
+paste, the tab's title following the shell's, a command line's unknown `--option` checked live, and the measurement
+below.* PowerShell running in a window: keys through the key map, copy and paste (the chords,
 the right-click), Esc's interrupt, scrolling back, the title following the shell's, the window going when the shell
 exits. A command line replaces the shell (`mainframe pwsh -NoProfile`), and an unknown `--option` stops with an
 error. *Measure* what vex-suite-common's TODO leaves open: the screen draws once per `Feed`, not once per frame, so

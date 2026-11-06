@@ -14,8 +14,11 @@ package dev.mainframe;
  */
 final class Landmarks {
 
-    /** The page under the title bar, where the terminals go. */
-    static final String PAGE = "page";
+    /** The tab bar and its pages, the terminals. */
+    static final String TABS = "tabs";
+
+    /** The terminal in front. Moves with the front tab, so a script types into whichever is shown. */
+    static final String TERMINAL = "terminal";
 
     private Landmarks() {
     }

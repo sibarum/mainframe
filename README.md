@@ -1,32 +1,48 @@
 # MainFrame
 
-A terminal window that wraps the native OS shell, being rebuilt on VexelRay 0.2: see
-[docs/rebuild.md](docs/rebuild.md). For now it is an empty window, and the rest of this README is still the
-template's, describing the editor M0 took out. It is rewritten for MainFrame when the shape lands.
+A terminal window that wraps the native OS shell. It is a real terminal emulator, not a shell of its own: PowerShell
+runs unmodified inside a Windows pseudoconsole (ConPTY), and MainFrame draws what it writes and sends it your keys.
 
-A VexelRay desktop application, generated from the `vexel-desktop` template: a small text editor with tabs, a file
-navigator and Markdown in colour. It is the reference implementation of this stack, so every seam the framework
-offers is wired in the tree you are reading — and it is a working editor, so it is also something to change into
-whatever you are actually building.
+This is MainFrame rebuilt on VexelRay 0.2, milestone by milestone ([docs/rebuild.md](docs/rebuild.md)). What is here
+now is one tab running one shell; tabs, settings and workspaces come back in M2 to M4. 0.1's README, in
+`GitHub/mainframe`, says what the finished application does.
 
 ## Run it
 
 From this folder, the parent of the two modules:
 
 ```
-mvn compile exec:exec
+mvn install -DskipTests
+mvn exec:exec -pl mainframe-gui
 ```
 
-`exec:exec` rather than `exec:java`, so native access can be enabled for Panama FFM. The window comes up where you
-last left it, at 1180x720 the first time, with the folder and the files you last had open. The first time,
-the navigator shows the working directory.
+`exec:exec` rather than `exec:java`, so native access can be enabled for the pseudoconsole's foreign calls. The tab
+starts where MainFrame was started (under Maven, `mainframe-gui`), running this platform's first shell: Windows
+PowerShell on Windows. A command line after MainFrame's own options runs instead of the shell:
 
 ```
-mvn compile exec:exec "-Dapp.args=C:/notes"               # open a folder (or files) named on the command line
-mvn compile exec:exec -Dapp.args=120                      # 120 frames and quit
-mvn compile exec:exec -Dautomation=0                      # a driving socket on a free port (see Taking a screenshot)
-mvn test                                                  # the editor, the jobs, Markdown, the real tree headless
+mvn exec:exec -pl mainframe-gui "-Dapp.args=cmd.exe"
+mvn exec:exec -pl mainframe-gui -Dautomation=0         # a driving socket on a free port (see Automation)
+mvn test                                               # the frame, the shell on a real pseudo-terminal, the tree headless
 ```
+
+When the shell exits, its tab closes, and with the last tab the window. A command line that will not start keeps its
+tab open and says why in it.
+
+## Keys
+
+Every command is an action on the framework's key map, with a name and chords that are yours to change from the
+title bar. A chord the key map holds outranks typing; every other key goes to the shell.
+
+| Action | Keys it starts with |
+| --- | --- |
+| Copy the selection, or interrupt when nothing is selected | Ctrl+Shift+C, Ctrl+C |
+| Paste | Ctrl+Shift+V, Ctrl+V |
+| Interrupt (0x03, what Ctrl+C sends a shell) | Esc |
+| Scroll back / on a page | Shift+PageUp / Shift+PageDown |
+| Larger, smaller, normal text | Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's |
+
+The text size is the terminal's own (14 to 24 px), not the window's zoom, since a terminal is a grid of cells.
 
 ## A native executable
 
@@ -80,111 +96,30 @@ a compile error; one that does not decode costs the window its mark, logged, and
 Run from `mvn exec:exec`, the process is `java.exe`, so the window and its taskbar button wear the mark but Windows
 groups the button with other Java programs, and pinning it pins Java. The native executable has neither problem.
 
-## Using it
-
-| Keys | Does |
-| --- | --- |
-| Ctrl+L | the path bar: type a folder to show it, a file to open it, a new name to create it; Enter goes |
-| Ctrl+S | save |
-| Ctrl+W | close the tab (asks if it is unsaved) |
-| Ctrl+Tab, Ctrl+PageDown / Ctrl+Shift+Tab, Ctrl+PageUp | next / previous tab |
-| Ctrl+Shift+E | put the keyboard in the navigator |
-| Ctrl+F | find in the file (Enter / Shift+Enter step, Escape closes) |
-| Ctrl+Z / Ctrl+Y | undo / redo |
-| Ctrl+= / Ctrl+- / Ctrl+0 | zoom |
-
-Those are the defaults. The keyboard button in the title bar lists every command and lets you give each one other
-keys; what you change is kept in `keys.properties` in the application's home folder. Find, undo and redo belong to
-the text field and are not on the list. A new command goes in `View.commands`, under an id that stays the same once
-it has shipped, because the id is what someone's changes are stored under.
-
-Selecting a file in the navigator opens it — a click, or walking the tree with the arrow keys, which keep the
-keyboard in the tree. A tab's menu has Save, Close, Close others, Close all and Reveal in navigator. A bullet in
-front of a tab's name means unsaved changes; closing anything unsaved asks first, and so does quitting.
-
-There is no file dialog, by choice: the path bar is the whole of "open", and it works the same in a test as in use. The
-framework brings native pickers (a `PickFile` message, answered by `Picked`) for a project that wants them.
-
 ## How it is put together
 
-Two modules under this folder, split where the dependency edge falls, and four kinds of part that never hold each
-other: **components** (logic, reached only by messages: the editor runs on the framework's logic lane), **views**
-(presentation, run on the GUI thread in each frame, `@View`), **jobs** (slow work on the offload lane, a request in
-and a reply out), and **recipes** (a part built once and handed to whoever takes it). The parts talk by messages, and every message is in one file. Read these in this order.
+The shape of `vexelray-framework`'s `vexel-desktop` template: two modules, split where the dependency edge falls, and
+parts that never hold each other and talk only by messages (every message is a record in `-core`'s `Messages.java`).
+[docs/shape.md](docs/shape.md) draws one tab from end to end.
 
-**`mainframe-core`, the controller.** It builds against no widget, so its tests need no window.
+**`mainframe-core`**, which builds against no widget, so its tests need no window:
 
-| File | What belongs in it |
+| Piece | What it is |
 | --- | --- |
-| `Messages.java` | **every message the parts send each other**, grouped by who sends it to whom, each record beside its topic. A record crosses as itself, so it holds only immutable values; a list it holds is copied in its constructor. |
-| `Editor.java` | **the controller**: every decision (what a typed path names, whether a file is already open, when closing needs a question, what the status line says, what comes back next time) as a declared step on one immutable state, held by a ledger. Each message it hears runs one step; closing is a chain of them that waits on the person and the disk without anything waiting on a thread. It needs no lock, because only its steps change its state and they run one at a time. |
-| `Doc.java` | the shape of the session (which files, which in front, which unsaved, which folder) as one immutable value, part of the editor's state. |
-| `ReadFile.java`, `WriteFile.java`, `FindPath.java`, `CreateFile.java`, `ReadSession.java`, `WriteSession.java`, `ListFolder.java`, `MarkText.java` | the jobs: every touch of the disk, on the offload lane. What can go wrong is part of the reply. |
-| `TextFile.java`, `Markdown.java` | the policy between bytes and text, and Markdown as spans: pure functions. |
-| `Core.java` | the list of this module's component and jobs. The processor compiling `-gui` sees only `-gui`'s sources, so this list, named among `MainFrameApp`'s starters, is how the wiring hears of them. A new component or job goes on it. |
+| `Frame` | The controller, on the logic lane: which tabs there are, what each runs, and when its shell starts (on its screen's first size, so a program never starts at a guessed size) |
+| `Shell` | A tab's program on a pseudo-terminal: a `@Source` that reads what it writes and a `@Destination` that writes what is typed and its size, one per tab, keyed by its id. The framework holds each tab's connection |
+| `ReadStartup` | A job: what the launch asked for |
+| `Command` | MainFrame's own command line, taken out before the framework reads the rest |
+| `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
 
-**`mainframe-gui`, the view and the framework integration.**
+**`mainframe-gui`**:
 
-| File | What belongs in it |
+| Piece | What it is |
 | --- | --- |
-| `Recipes.java` | **what this module builds.** One `@Provides` method per part; `MainFrameAppWiring`, which builds them and the components and jobs in order, is generated while it compiles. A part's phase is the latest phase of anything it takes, so there is none to declare. |
-| `View.java` | **the view**, a `@View`: run on the GUI thread in each frame, hearing the editor, its jobs and the widgets as messages; the editor's messages shown (`AddTab` is a tab) and the person's gestures told (`Open`, `Close`, `Save`). It decides nothing. |
-| `Intent.java` | what a key chord asks of the view: the message the gesture was declared to send. |
-| `Ui.java` | the window. Holds no state; it shows what the view hands it. |
-| `Workspace.java`, `Buffer.java` | the tab bar and one `Buffer` per tab: a `TextField`, its spans, its save bookkeeping. |
-| `Navigator.java` | the path bar and the file tree. The tree asks for each level by message, and the view asks `ListFolder`, so the disk is read off the frame. |
-| `Motion.java` | the one tempo every widget moves at, on the framework's clock. |
-
-`MainFrame.java` is the entry point and the constants, and nothing else. The application edge — input, the
-clipboard, window memory, the clock, the frame loop with its wakes and its pacing, the dialogs, the command line and
-the shutdown order — is `vexelray-framework`'s. `Look.java`, `Type.java` and `Landmarks.java` are the three
-vocabularies: colour, size, and the names an automation script is allowed to depend on.
-
-### Phases
-
-A phase is a **correctness** constraint rather than a scheduling detail, and having them as a type is what makes the
-constraints structural instead of remembered:
-
-| phase | what exists by then |
-| --- | --- |
-| `CONFIG` | the settings store and the look — values, before there is a `Gui` to apply them to |
-| `MODEL` | what the application knows, before there is anything to draw it with |
-| `GUI` | the `Gui` and the clock; the theme applied and the zoom range set, before the first widget |
-| `TREE` | the widgets: the first phase a part is handed the `Gui`, so anything taking it lands here. Buildable with no window, which is what lets a test build it with no GPU |
-| `WINDOW` | the device and the window handle. Main-thread from here on |
-| `ATTACH` | anything that needed the handle: chrome controls, the close gate, the driving socket |
-
-Open `mainframe-gui/target/generated-sources/annotations/.../MainFrameAppWiring.java` after a build to see which part landed where.
-
-### Threading, in one paragraph
-
-The GUI loop runs on the main thread, which owns Vulkan, the window and present, and nothing of this application's
-runs there but the view, which is presentation and nothing else (threading.md, T7.4). The editor runs on the
-framework's logic lane and the view on the GUI thread, in each frame's widget tick; each handles one message at a
-time and owns its state outright, so there is no lock anywhere in the application. The editor's state is changed only
-by its declared steps, which the processor reads: a step that touches the disk, waits or reaches outside itself does
-not compile. A widget says what it did as a message, which the view hears in the frame the input arrived, and a key
-chord or a menu item is declared with the message it sends, so nothing of the application's runs at the click. Every
-read and write of a file is a job on the offload lane, so a slow disk is a slow reply and never a frozen window (the
-lanes are named in the framework's `docs/threading.md`).
-
-Two things follow from messages, and both are written where they bite. **One sender's messages to one receiver keep
-their order**: so the view says a tab went unsaved before it asks to close it, and the editor already knows when the
-`Close` arrives. **Jobs are in no order at all**: so the restored session asks for one file at a time. The processor
-checks every message it can see: a mailbox's payload is deeply immutable, a topic carries one type, and no cycle of
-sends can block.
-
-### Spans
-
-`Markdown.spans` is a pure function from text to `Span`s (foreground, background, underline). After each edit
-the view asks `MarkText` for them on the offload lane, and applies the answer only if the field still says the text it
-was computed for. The text is never changed; the field draws the colours and moves each span with its text as you type. A `.txt` file gets none.
-
-### Motion
-
-The widgets animate only when handed a ramp, and without one they cut — so leaving the clock out costs no error,
-only a stiffer window. `Motion` makes the ramps from the framework's clock: the tabs slide, folders open, and a cue
-rings a tab you asked to open that was already open, or the status line when something was refused.
+| `MainFrame`, `MainFrameApp` | The entry point, which splits the command line, and the declaration the wiring is generated from |
+| `View` | A `@View` on the GUI thread: a `TerminalScreen` (vex-suite-common-tty) per tab, what the program wrote fed to it, and what it sends forwarded to the tab's shell with the tab's id |
+| `Ui`, `Recipes` | The title bar over the tab bar, built once; and the parts |
+| `Intent`, `Look`, `Type`, `Motion`, `Landmarks` | The key map's commands, the colours, the faces and sizes, the tempo, and the names a script may use |
 
 ## The stack
 
@@ -248,8 +183,9 @@ ottermate --zoom 1.5 --dpi 2 --size 1600x900 shot big.png --launch ...   # pixel
 ottermate --size 36emx20em shot smallest.png --launch ...                # the minimum, in em
 ```
 
-The landmarks in `Landmarks.java` are the names a script uses: `await status.file notes.md` waits for a file to be in
-front, and `await path <folder>` for the navigator to be showing one. `ottermate help` lists every verb.
+The landmarks in `Landmarks.java` are the names a script uses: `await terminal` waits for the tab in front to exist,
+and `click tabs` reaches the bar. A terminal's text is not readable by `await` yet (docs/framework-notes.md, FN-5), so a
+script cannot wait for a prompt. `ottermate help` lists every verb.
 
 ## Logging
 
