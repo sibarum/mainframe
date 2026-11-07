@@ -166,3 +166,21 @@ and a `+` tab in that window sourcing the workspace's script and starting at hom
   file sits in the application's home, and nothing else needs providing.
 - **The frame's `Tab` is `@Withers`** now that it has eleven fields; a shell starts from one place, `start`, once
   the tab is both prepared and sized.
+
+## Slice 2, as built
+
+Built 2026-11-07 and seen live on a home of its own: a plain launch's one tab; Ctrl+O showing the dialog with *Open
+folder…* and `day`; Ctrl+Enter on `day` putting its two tabs in this window, each having run the workspace's script,
+and the spare tab gone; then, from a fresh plain launch, Enter on `day` starting a second MainFrame on the same home
+with `--workspace=day` and the first window closing with its spare tab. Where it departs from the sketch:
+
+- **A list, not tiles.** The widget library has no tile grid; `ListView` gives the arrows, Enter, a double-click and
+  the row menu (*Open in this window*) with nothing written for them.
+- **The dialog's Esc is declared by the main view** (FN-14), and sent to the dialog's view as `OpenPage.Key`.
+- **The tests run on a home of their own and start no process** (FN-15), after a test run had written the real
+  settings file and started a real MainFrame.
+- **Not driven live:** the folder picker (the operating system's dialog), so *Open folder…* and the no-workspace case
+  are held by `ViewTest`.
+- **A warning on every tab's start**, *a message for no open connection — Resized*: the screen is sized before its
+  shell is prepared, and `Shell` hears that first size as a destination with no connection yet. It changes nothing;
+  sending the first size only in `OpenShell` would quiet it, and is left for when the shape is next touched.

@@ -132,9 +132,11 @@ final class Ui {
      * The Terminal menu, declared again: its lines send what the key map's chords send, and its last says which way
      * the passthrough switch would flip.
      */
-    void menu(boolean passthrough, Sender<Intent> intents, Sender<WindowCommand> windows) {
+    void menu(boolean passthrough, Sender<Intent> intents, Sender<WindowCommand> windows,
+              Sender<dev.mainframe.core.Messages.OpenAsked> open) {
         Menu menu = Menu.builder()
                 .item("New tab", intents, new Intent(Intent.Command.NEW_TAB))
+                .item(Icon.OPEN, "Open…", open, new dev.mainframe.core.Messages.OpenAsked())
                 .item("Close tab", intents, new Intent(Intent.Command.CLOSE_TAB))
                 .item("Rename tab…", intents, new Intent(Intent.Command.RENAME))
                 .separator()

@@ -71,4 +71,13 @@ final class Recipes {
         return new SettingsPage(windows.named(
                 NamedWindow.of(SettingsPage.KEY, "Settings", SettingsPage.W, SettingsPage.H).satellite()));
     }
+
+    /**
+     * The Open dialog (Ctrl+O): declared by name, a satellite of the main one, shown by its view when the frame's
+     * workspaces arrive (docs/workspaces.md, slice 2).
+     */
+    @Provides
+    OpenPage open(Windows windows) {
+        return new OpenPage(windows.named(NamedWindow.of(OpenPage.KEY, "Open", OpenPage.W, OpenPage.H).satellite()));
+    }
 }

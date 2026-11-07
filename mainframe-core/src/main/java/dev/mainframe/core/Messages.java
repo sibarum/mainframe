@@ -195,6 +195,71 @@ public final class Messages {
         public static final Topic<Notice> TOPIC = Topic.state(Notice.class, Notice::id);
     }
 
+    // ------------------------------------------------------------------ Ctrl+O (docs/workspaces.md, slice 2)
+
+    /** Ctrl+O, or Open… in the Terminal menu: what is there to open? */
+    public record OpenAsked() {
+        public static final Topic<OpenAsked> TOPIC = Topic.edge(OpenAsked.class);
+    }
+
+    /** Every workspace, keyed, in name order: for Ctrl+O. */
+    public record WorkspacesWanted() {
+        public static final Topic<WorkspacesWanted> TOPIC = Topic.edge(WorkspacesWanted.class);
+    }
+
+    /** {@link WorkspacesWanted}'s reply. */
+    public record Listed(List<Workspace> workspaces) {
+        public static final Topic<Listed> TOPIC = Topic.edge(Listed.class);
+
+        public Listed {
+            workspaces = List.copyOf(workspaces);
+        }
+    }
+
+    /** Show the Open dialog with these; none means ask the folder picker straight away. */
+    public record Tiles(List<Workspace> workspaces) {
+        public static final Topic<Tiles> TOPIC = Topic.edge(Tiles.class);
+
+        public Tiles {
+            workspaces = List.copyOf(workspaces);
+        }
+    }
+
+    /** Open workspace {@code name}: its tabs in this window ({@code here}), or in a new MainFrame window. */
+    public record OpenWorkspace(String name, boolean here) {
+        public static final Topic<OpenWorkspace> TOPIC = Topic.edge(OpenWorkspace.class);
+    }
+
+    /** A tab for this folder, in this window. */
+    public record OpenFolder(Path dir) {
+        public static final Topic<OpenFolder> TOPIC = Topic.edge(OpenFolder.class);
+    }
+
+    /** Start another MainFrame on {@code workspace}. */
+    public record LaunchWorkspace(String workspace) {
+        public static final Topic<LaunchWorkspace> TOPIC = Topic.edge(LaunchWorkspace.class);
+    }
+
+    /** {@link LaunchWorkspace}'s reply: blank when it started, else why not, as a person would be told it. */
+    public record Launched(String workspace, String problem) {
+        public static final Topic<Launched> TOPIC = Topic.edge(Launched.class);
+    }
+
+    /** One workspace, keyed, for opening its tabs here. */
+    public record Load(String name) {
+        public static final Topic<Load> TOPIC = Topic.edge(Load.class);
+    }
+
+    /** {@link Load}'s reply: the workspace, or none when there is no such file now. */
+    public record Loaded(String name, Optional<Workspace> workspace) {
+        public static final Topic<Loaded> TOPIC = Topic.edge(Loaded.class);
+    }
+
+    /** Something was typed or pasted into a tab: it is no longer a launch's spare tab. */
+    public record Touched(long id) {
+        public static final Topic<Touched> TOPIC = Topic.state(Touched.class, Touched::id);
+    }
+
     // ------------------------------------------------------------------ settings (docs/settings.md)
 
     /**

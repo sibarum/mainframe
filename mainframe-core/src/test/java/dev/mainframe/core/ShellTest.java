@@ -167,6 +167,10 @@ class ShellTest {
                 shell.write(s, new Shown(4));
                 delivered(20).forEach(o -> all.append(o.text()));
             }
+            // The reader may publish its last Output after the loop's last tick and before run returns, so the loop can
+            // see the program done with that Output still on the bus: one more tick delivers it. (It failed once in six
+            // without this, 49,999 lines of 50,000.)
+            delivered(100).forEach(o -> all.append(o.text()));
             assertEquals(0, end.get().code());
             int count = all.toString().split("quick brown fox", -1).length - 1;
             assertEquals(lines, count, "every line arrived");

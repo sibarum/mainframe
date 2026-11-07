@@ -99,7 +99,11 @@ workspace window sources the workspace's only. A tab whose command line cannot s
 launch, or a shell other than PowerShell, bash or zsh) starts without them and says so in a band above its terminal,
 which its × puts away. 0.1's README has the rest of how the scripts work, which is unchanged.
 
-Ctrl+O and the Workspaces page, where workspaces are made and edited, come back in M4's next slices.
+**Ctrl+O** (or *Open…* in the Terminal menu) lists the workspaces after an *Open folder…* row: Enter, or a
+double-click, opens one in a new MainFrame window, and Ctrl+Enter, or the row's menu, opens its tabs in this one.
+With no workspace saved, Ctrl+O goes straight to the folder picker. If the window still has only the plain tab it
+started with, and nothing has been typed into it, what Ctrl+O opens takes its place; when that is a new window, this
+one closes with it. The Workspaces page, where workspaces are made and edited, comes back in M4's next slice.
 
 ## A native executable
 
@@ -168,6 +172,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `ReadStartup`, `Folders` | A job: what the launch asked for, and the folders `--dir` and `--dirs` name |
 | `SaveSettings`, `PrefsStore` | A job that saves the settings, and the store's keys, 0.1's, in one place |
 | `PrepareShell` | A job: a tab's command line, with its workspace's environment scripts sourced |
+| `ListWorkspaces`, `LoadWorkspace`, `LaunchWindow`, `SelfLaunch` | Jobs for Ctrl+O: the workspaces, one of them, and another MainFrame on one |
 | `Workspace`, `WorkspaceStore`, `EnvScripts`, `InsertPath` | 0.1's, as they were: the CSV files, their folder, the scripts, what `--insert-path` may type |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
@@ -180,6 +185,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `View` | A `@View` on the GUI thread: a `TerminalScreen` (vex-suite-common-tty) per tab, what the program wrote fed to it, and what it sends forwarded to the tab's shell with the tab's id |
 | `Ui`, `Recipes` | The title bar over the tab bar, built once; and the parts |
 | `SettingsPage`, `SettingsView` | The settings window, declared by name in `Recipes`, and its own `@View` |
+| `OpenPage`, `OpenView` | The Open dialog (Ctrl+O), declared by name in `Recipes`, and its own `@View` |
 | `Intent`, `Look`, `Type`, `Motion`, `Landmarks` | The key map's commands, the colours, the faces and sizes, the tempo, and the names a script may use |
 
 ## The stack

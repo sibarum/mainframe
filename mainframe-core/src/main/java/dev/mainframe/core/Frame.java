@@ -1,6 +1,17 @@
 package dev.mainframe.core;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.LaunchWorkspace;
+import dev.mainframe.core.Messages.Load;
+import dev.mainframe.core.Messages.Tiles;
+import dev.mainframe.core.Messages.WorkspacesWanted;
+import dev.mainframe.core.Messages.Touched;
+import dev.mainframe.core.Messages.OpenFolder;
+import dev.mainframe.core.Messages.Launched;
+import dev.mainframe.core.Messages.Loaded;
+import dev.mainframe.core.Messages.OpenWorkspace;
+import dev.mainframe.core.Messages.Listed;
+import dev.mainframe.core.Messages.OpenAsked;
 import dev.mainframe.core.Messages.ChangePrefs;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.CloseShell;
@@ -91,10 +102,11 @@ import java.util.Optional;
 @Component
 @Hears({WindowOpened.class, Startup.class, Resized.class, Retitled.class, ShellEnded.class, Fronted.class,
         Submitted.class, NewTab.class, Rename.class, CloseAsked.class, CloseRequested.class, Answer.class,
-        ChangePrefs.class, PrefsSaved.class, Prepared.class})
+        ChangePrefs.class, PrefsSaved.class, Prepared.class, OpenAsked.class, Listed.class, OpenWorkspace.class,
+        Loaded.class, Launched.class, OpenFolder.class, Touched.class})
 @Publishes({StartupWanted.class, AddTab.class, Front.class, Header.class, OpenShell.class, Output.class, CloseTab.class,
         CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class, Prefs.class, SavePrefs.class, Prepare.class,
-        Notice.class})
+        Notice.class, WorkspacesWanted.class, Tiles.class, Load.class, LaunchWorkspace.class})
 public final class Frame {
 
     /** How many of each message the frame's inbox holds. A resize is the busiest, and is a state topic. */
@@ -121,11 +133,14 @@ public final class Frame {
      * @param unsaved  a change was made while it was, and is saved when it answers
      * @param workspace  the workspace this window was opened as, whose script every tab sources; blank for none
      * @param workspaces every workspace's name, for Settings
+     * @param spare    the launch's one plain tab while nothing has been typed into it, which what Ctrl+O opens
+     *                 replaces; {@link Messages#NO_TAB} for none
      */
     @Withers
     record State(List<Tab> tabs, long front, long ids, Map<Long, Closing> closings, Preferences prefs,
                  List<ShellChoice> shells, String override, Path home, long saves, boolean saving,
-                 boolean unsaved, String workspace, List<String> workspaces) implements FrameStateWithers {
+                 boolean unsaved, String workspace, List<String> workspaces, long spare)
+            implements FrameStateWithers {
 
         State {
             tabs = List.copyOf(tabs);
@@ -136,7 +151,7 @@ public final class Frame {
 
         static State initial() {
             return new State(List.of(), Messages.NO_TAB, 0, Map.of(), Preferences.DEFAULT, List.of(), "",
-                    Path.of("."), 0, false, false, "", List.of());
+                    Path.of("."), 0, false, false, "", List.of(), Messages.NO_TAB);
         }
 
         /** What a new tab runs: the launch's command line, else the chosen shell, else this platform's first. */
@@ -303,6 +318,13 @@ public final class Frame {
         Step<State, Startup> started = b.step("started", Frame::started);
         Step<State, Resized> resized = b.step("resized", Frame::resized);
         Step<State, Prepared> prepared = b.step("prepared", Frame::prepared);
+        Step<State, OpenAsked> openAsked = b.step("openAsked", Frame::openAsked);
+        Step<State, Listed> listed = b.step("listed", Frame::listed);
+        Step<State, OpenWorkspace> openWorkspace = b.step("openWorkspace", Frame::openWorkspace);
+        Step<State, Loaded> loaded = b.step("loaded", Frame::loaded);
+        Step<State, Launched> launched = b.step("launched", Frame::launched);
+        Step<State, OpenFolder> openFolder = b.step("openFolder", Frame::openFolder);
+        Step<State, Touched> touched = b.step("touched", Frame::touched);
         Step<State, Retitled> retitled = b.step("retitled", Frame::retitled);
         Step<State, ShellEnded> ended = b.step("ended", Frame::ended);
         Step<State, Fronted> fronted = b.step("fronted", Frame::fronted);
@@ -323,6 +345,13 @@ public final class Frame {
                 .on(Startup.TOPIC, started)
                 .on(Resized.TOPIC, resized)
                 .on(Prepared.TOPIC, prepared)
+                .on(OpenAsked.TOPIC, openAsked)
+                .on(Listed.TOPIC, listed)
+                .on(OpenWorkspace.TOPIC, openWorkspace)
+                .on(Loaded.TOPIC, loaded)
+                .on(Launched.TOPIC, launched)
+                .on(OpenFolder.TOPIC, openFolder)
+                .on(Touched.TOPIC, touched)
                 .on(Retitled.TOPIC, retitled)
                 .on(ShellEnded.TOPIC, ended)
                 .on(Fronted.TOPIC, fronted)
@@ -376,11 +405,13 @@ public final class Frame {
         List<TabSpec> tabs = startup.tabs().isEmpty() ? List.of(new TabSpec(next.dir(), "", "")) : startup.tabs();
         long first = Messages.NO_TAB;
         for (TabSpec t : tabs) {
-            next = add(next, t.dir(), t.name(), t.env(), out);
+            next = add(next, t.dir(), t.name(), t.env(), next.workspace(), out);
             if (first == Messages.NO_TAB) {
                 first = next.ids();
             }
         }
+        // A launch that named nothing opened one plain tab: spare until something is typed into it.
+        next = next.withSpare(startup.tabs().isEmpty() ? first : Messages.NO_TAB);
         return front(next, first, out);
     }
 
@@ -389,7 +420,7 @@ public final class Frame {
      * window it sources the workspace's script, and no row's.
      */
     private static State newTab(State s, NewTab m, Out out) {
-        State next = add(s, s.dir(), "", "", out);
+        State next = add(s.withSpare(Messages.NO_TAB), s.dir(), "", "", s.workspace(), out);
         return front(next, next.ids(), out);
     }
 
@@ -485,6 +516,93 @@ public final class Frame {
         return remove(s, e.id(), out);
     }
 
+
+    // ------------------------------------------------------------------ Ctrl+O (docs/workspaces.md, slice 2)
+
+    /** The Ask id of a dialog that only tells: no closing has it, so its answer finds nothing to resume. */
+    static final long TELL = -2;
+
+    /** Ctrl+O: ask what workspaces there are. */
+    private static State openAsked(State s, OpenAsked m, Out out) {
+        out.send(WorkspacesWanted.TOPIC, new WorkspacesWanted());
+        return s;
+    }
+
+    /** The workspaces, for the Open dialog; and for Settings, whose list follows. */
+    private static State listed(State s, Listed l, Out out) {
+        out.send(Tiles.TOPIC, new Tiles(l.workspaces()));
+        List<String> names = l.workspaces().stream().map(Workspace::name).toList();
+        if (names.equals(s.workspaces())) {
+            return s;
+        }
+        State next = s.withWorkspaces(names);
+        out.send(Prefs.TOPIC, next.said());
+        return next;
+    }
+
+    /** A workspace chosen: its tabs here, or another MainFrame on it. */
+    private static State openWorkspace(State s, OpenWorkspace o, Out out) {
+        if (o.here()) {
+            out.send(Load.TOPIC, new Load(o.name()));
+        } else {
+            out.send(LaunchWorkspace.TOPIC, new LaunchWorkspace(o.name()));
+        }
+        return s;
+    }
+
+    /** A workspace to open here: its rows as tabs, each sourcing its scripts, in place of the spare tab. */
+    private static State loaded(State s, Loaded l, Out out) {
+        if (l.workspace().isEmpty()) {
+            out.send(Ask.TOPIC, Ask.info(TELL, "No workspace called " + l.name(),
+                    "Its file is not in the workspaces folder any more."));
+            return s;
+        }
+        State next = s;
+        long first = Messages.NO_TAB;
+        for (Workspace.Entry e : l.workspace().get().entries()) {
+            next = add(next, Path.of(e.path()), e.title(), e.env(), l.name(), out);
+            if (first == Messages.NO_TAB) {
+                first = next.ids();
+            }
+        }
+        return first == Messages.NO_TAB ? s : opened(next, first, out);
+    }
+
+    /** Another MainFrame started, or did not: with it started, a window holding only its spare tab closes. */
+    private static State launched(State s, Launched l, Out out) {
+        if (!l.problem().isBlank()) {
+            out.send(Ask.TOPIC, Ask.info(TELL, "Could not open " + l.workspace(), l.problem()));
+            return s;
+        }
+        return dropSpare(s, out);
+    }
+
+    /** A folder picked: a tab for it here, in place of the spare tab. */
+    private static State openFolder(State s, OpenFolder o, Out out) {
+        State next = add(s, o.dir(), "", "", "", out);
+        return opened(next, next.ids(), out);
+    }
+
+    /** Something was typed into the spare tab: it is the person's now. */
+    private static State touched(State s, Touched t, Out out) {
+        return t.id() == s.spare() ? s.withSpare(Messages.NO_TAB) : s;
+    }
+
+    /** Tabs were opened, {@code first} the first of them: the spare tab goes, and {@code first} comes to the front. */
+    private static State opened(State s, long first, Out out) {
+        return front(dropSpare(s, out), first, out);
+    }
+
+    /** The spare tab closes, if there is one; with nothing else open, so does the window. */
+    private static State dropSpare(State s, Out out) {
+        long spare = s.spare();
+        State next = s.withSpare(Messages.NO_TAB);
+        if (spare == Messages.NO_TAB || next.tab(spare).isEmpty()) {
+            return next;
+        }
+        out.send(CloseShell.TOPIC, new CloseShell(spare));
+        return remove(next, spare, out);
+    }
     // ------------------------------------------------------------------ closing: the chain's steps
 
     /** Close a tab: at once if it was never submitted to or the person said not to ask, else ask. */
@@ -585,10 +703,10 @@ public final class Frame {
      * A tab, put in the bar, and its command line asked for: the line a new tab runs, with the scripts of this
      * window's workspace and of the tab's row ({@code env}) to be sourced.
      */
-    private static State add(State s, Path dir, String name, String env, Out out) {
+    private static State add(State s, Path dir, String name, String env, String workspace, Out out) {
         State next = s.withIds(s.ids() + 1);
         Tab tab = Tab.of(next.ids(), dir, s.line(), name, env);
-        out.send(Prepare.TOPIC, new Prepare(tab.id(), tab.line(), dir, s.workspace(), env));
+        out.send(Prepare.TOPIC, new Prepare(tab.id(), tab.line(), dir, workspace, env));
         List<Tab> tabs = new ArrayList<>(next.tabs());
         tabs.add(tab);
         out.send(AddTab.TOPIC, new AddTab(tab.id(), tab.header()));

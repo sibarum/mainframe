@@ -1,6 +1,17 @@
 package dev.mainframe.core;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.LaunchWorkspace;
+import dev.mainframe.core.Messages.Load;
+import dev.mainframe.core.Messages.Tiles;
+import dev.mainframe.core.Messages.WorkspacesWanted;
+import dev.mainframe.core.Messages.Touched;
+import dev.mainframe.core.Messages.OpenFolder;
+import dev.mainframe.core.Messages.Launched;
+import dev.mainframe.core.Messages.Loaded;
+import dev.mainframe.core.Messages.OpenWorkspace;
+import dev.mainframe.core.Messages.Listed;
+import dev.mainframe.core.Messages.OpenAsked;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.CloseShell;
 import dev.mainframe.core.Messages.CloseTab;
@@ -78,7 +89,8 @@ class FrameTest {
         frame = new Frame(tick.inbox("frame"));
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, Header.TOPIC, OpenShell.TOPIC, Output.TOPIC,
-                Prefs.TOPIC, SavePrefs.TOPIC, Prepare.TOPIC, Notice.TOPIC,
+                Prefs.TOPIC, SavePrefs.TOPIC, Prepare.TOPIC, Notice.TOPIC, WorkspacesWanted.TOPIC, Tiles.TOPIC,
+                Load.TOPIC, LaunchWorkspace.TOPIC,
                 CloseTab.TOPIC, WindowCommand.TOPIC, CloseShell.TOPIC, Ask.TOPIC, CloseAnswer.TOPIC)) {
             listen(heard, t);
         }
@@ -504,5 +516,108 @@ class FrameTest {
         preparing = false;
         launched(Preferences.DEFAULT, WORK);
         assertEquals("", took(Prepare.class).getFirst().workspace());
+    }
+
+    // ------------------------------------------------------------------ M4.2: Ctrl+O
+
+    private static final Path DB = Path.of("C:/work/db");
+
+    private static Workspace night() {
+        return new Workspace("night", List.of(new Workspace.Entry("", DB.toString()).withEnv("db-1"),
+                new Workspace.Entry("logs", WEB.toString()).withEnv("logs-2")));
+    }
+
+    /** A plain launch: one tab in the chosen folder (home), spare. */
+    private void plain() {
+        launched(Preferences.DEFAULT);
+        sent.clear();
+    }
+
+    @Test
+    void ctrlOListsTheWorkspacesForTheDialogAndSettings() {
+        plain();
+        tell(OpenAsked.TOPIC, new OpenAsked());
+        assertEquals(List.of(new WorkspacesWanted()), took(WorkspacesWanted.class));
+        tell(Listed.TOPIC, new Listed(List.of(night())));
+        assertEquals(List.of(new Tiles(List.of(night()))), took(Tiles.class));
+        assertEquals(List.of("night"), took(Prefs.class).getFirst().workspaces(), "Settings' list follows");
+    }
+
+    @Test
+    void aWorkspaceOpenedHereReplacesTheSpareTabAndSourcesItsScripts() {
+        preparing = false;
+        plain();
+        tell(OpenWorkspace.TOPIC, new OpenWorkspace("night", true));
+        assertEquals(List.of(new Load("night")), took(Load.class));
+        tell(Loaded.TOPIC, new Loaded("night", java.util.Optional.of(night())));
+        assertEquals(List.of(new AddTab(2, "db"), new AddTab(3, "logs")), took(AddTab.class));
+        assertEquals(List.of(new Prepare(2, "powershell.exe -NoLogo", DB, "night", "db-1"),
+                new Prepare(3, "powershell.exe -NoLogo", WEB, "night", "logs-2")), took(Prepare.class));
+        assertEquals(List.of(new CloseShell(1)), took(CloseShell.class));
+        assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
+        assertEquals(2, took(Front.class).getLast().id());
+        assertTrue(took(WindowCommand.class).isEmpty(), "the window stays: it has the workspace now");
+    }
+
+    @Test
+    void aWorkspaceOpenedElsewhereClosesAWindowHoldingOnlyItsSpareTab() {
+        plain();
+        tell(OpenWorkspace.TOPIC, new OpenWorkspace("night", false));
+        assertEquals(List.of(new LaunchWorkspace("night")), took(LaunchWorkspace.class));
+        tell(Launched.TOPIC, new Launched("night", ""));
+        assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
+        assertEquals(List.of(WindowCommand.close(CloseRequested.MAIN)), took(WindowCommand.class));
+    }
+
+    @Test
+    void aTouchedTabIsNoLongerSpareSoOpeningElsewhereLeavesItAlone() {
+        plain();
+        tell(Touched.TOPIC, new Touched(1));
+        tell(Launched.TOPIC, new Launched("night", ""));
+        assertTrue(took(CloseTab.class).isEmpty());
+        assertTrue(took(WindowCommand.class).isEmpty());
+    }
+
+    @Test
+    void aLaunchThatNamedFoldersHasNoSpareTab() {
+        started(WORK);
+        sent.clear();
+        tell(Launched.TOPIC, new Launched("night", ""));
+        assertTrue(took(CloseTab.class).isEmpty());
+    }
+
+    @Test
+    void aFolderPickedReplacesTheSpareTab() {
+        plain();
+        tell(OpenFolder.TOPIC, new OpenFolder(DB));
+        assertEquals(List.of(new AddTab(2, "db")), took(AddTab.class));
+        assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
+        assertEquals(2, took(Front.class).getLast().id());
+    }
+
+    @Test
+    void aNewTabEndsTheSpareTab() {
+        plain();
+        tell(NewTab.TOPIC, new NewTab());
+        tell(OpenFolder.TOPIC, new OpenFolder(DB));
+        assertTrue(took(CloseTab.class).isEmpty(), "with two tabs, neither is the launch's plain one alone");
+    }
+
+    @Test
+    void aLaunchThatFailedSaysWhyAndClosesNothing() {
+        plain();
+        tell(Launched.TOPIC, new Launched("night", "A new MainFrame did not start: no java"));
+        Ask told = took(Ask.class).getFirst();
+        assertEquals(Frame.TELL, told.id());
+        assertEquals("Could not open night", told.title());
+        assertTrue(took(CloseTab.class).isEmpty());
+    }
+
+    @Test
+    void aWorkspaceGoneSinceItWasListedIsSaid() {
+        plain();
+        tell(Loaded.TOPIC, new Loaded("night", java.util.Optional.empty()));
+        assertEquals("No workspace called night", took(Ask.class).getFirst().title());
+        assertTrue(took(AddTab.class).isEmpty());
     }
 }

@@ -11,6 +11,8 @@ import dev.mainframe.core.Messages.Front;
 import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.OpenAsked;
+import dev.mainframe.core.Messages.Touched;
 import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Rename;
@@ -105,6 +107,10 @@ final class View {
     private final Sender<Rename> rename;
     private final Sender<ChangePrefs> changePrefs;
     private final Sender<WindowCommand> windows;
+    private final Sender<OpenAsked> openAsked;
+    private final Sender<Touched> touched;
+    /** The tabs something was typed into, so each is said {@link Touched} once. */
+    private final java.util.Set<Long> touchedTabs = new java.util.HashSet<>();
     private final Sender<Intent> intents;
 
     /** The mono face's layout, one for every tab: it is only read. */
@@ -144,7 +150,8 @@ final class View {
     View(Gui gui, Keymap keys, Ui ui, Sender<Resized> resized, Sender<Typed> typed, Sender<Retitled> retitled,
             Sender<Shown> shown, Sender<Submitted> submitted, Sender<Fronted> fronted, Sender<NewTab> newTab,
             Sender<CloseAsked> closeAsked, Sender<Rename> rename, Sender<ChangePrefs> changePrefs,
-            Sender<WindowCommand> windows, Sender<Intent> intents) {
+            Sender<WindowCommand> windows, Sender<OpenAsked> openAsked, Sender<Touched> touched,
+            OpenPage open, Sender<OpenPage.Key> openKeys, Sender<Intent> intents) {
         this.gui = gui;
         this.keys = keys;
         this.ui = ui;
@@ -160,12 +167,14 @@ final class View {
         this.rename = rename;
         this.changePrefs = changePrefs;
         this.windows = windows;
+        this.openAsked = openAsked;
+        this.touched = touched;
         this.intents = intents;
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
         tabs.action(RENAME).action(CLOSE);
-        commands(keys);
-        ui.menu(false, intents, windows);
+        commands(keys, open, openKeys);
+        ui.menu(false, intents, windows, openAsked);
         // A double-click on a header renames its tab. The bar says nothing of one, so the tree's clicks are read,
         // in a mailbox of the widgets' tick like every other the view has (FN-11).
         gui.mailbox(gui.clicks(), this::clicked, 64);
@@ -177,11 +186,15 @@ final class View {
      * <i>Key bindings…</i>. A chord held here outranks the terminal's typing, which is why Ctrl+C copies and Esc
      * interrupts (0.1's README, <i>Keys</i>): unbind one and the program has it again.
      */
-    private void commands(Keymap keys) {
+    private void commands(Keymap keys, OpenPage open, Sender<OpenPage.Key> openKeys) {
         // Esc in the rename field puts it away. First, and moved to the field at once: two actions may not both
         // default to Esc in one place, and every action starts application-wide, where the interrupt's Esc is.
         command(keys, "tab.rename-cancel", "Cancel renaming the tab", Command.RENAME_CANCEL, Shortcut.of(Key.ESCAPE))
                 .within(gui, ui.rename().node(), ClaimScope.FOCUSED);
+        // The Open dialog's Esc, here for the same reason: an action can only be declared application-wide and moved
+        // after, so the view whose Esc is first declared wins the place (docs/framework-notes.md, FN-14).
+        keys.action("open.close", "Close the Open dialog", Shortcut.of(Key.ESCAPE))
+                .sends(openKeys, new OpenPage.Key(false)).within(open.gui(), open.listNode(), ClaimScope.FOCUSED);
         terminal.add(command(keys, "terminal.copy", "Copy the selection, or interrupt", Command.COPY,
                 Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.C, Modifier.CONTROL)));
         terminal.add(command(keys, "terminal.paste", "Paste", Command.PASTE,
@@ -207,6 +220,8 @@ final class View {
         command(keys, "tab.next", "Next tab", Command.NEXT_TAB, Shortcut.of(Key.TAB, Modifier.CONTROL));
         command(keys, "tab.previous", "Previous tab", Command.PREVIOUS_TAB,
                 Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT));
+        keys.action("app.open", "Open a workspace or a folder", Shortcut.of(Key.O, Modifier.CONTROL))
+                .sends(openAsked, new OpenAsked());
         keys.action("app.settings", "Settings", Shortcut.of(Key.COMMA, Modifier.CONTROL))
                 .sends(windows, WindowCommand.show(SettingsPage.KEY));
     }
@@ -345,6 +360,9 @@ final class View {
         Long id = byAddress.get(m.terminal());
         if (id != null) {
             typed.send(new Typed(id, m.text()));
+            if (m.typed() && touchedTabs.add(id)) {
+                touched.send(new Touched(id));
+            }
             if (m.typed() && (m.text().indexOf('\r') >= 0 || m.text().indexOf('\n') >= 0)) {
                 submitted.send(new Submitted(id));
             }
@@ -578,7 +596,7 @@ final class View {
         boolean on = !keys.paused();
         keys.paused(on);
         ui.passthrough(on);
-        ui.menu(on, intents, windows);
+        ui.menu(on, intents, windows, openAsked);
         TerminalScreen s = front();
         if (s != null) {
             gui.focus(s.node());

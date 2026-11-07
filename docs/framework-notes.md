@@ -186,3 +186,34 @@ out; the app menu's *Key bindings…*, which the framework adds itself, works.
 
 **For the framework:** declare the key-bindings window through `Windows` like any other, so a `WindowCommand` (from a
 menu, a chord, a script) can open it by its key.
+
+## FN-14 · A key-map action can only be declared application-wide, then moved 🔬
+
+The Open dialog (M4.2) wanted Esc on its list, scoped to it, as the rename field (M2) wanted Esc on its field. An
+action is born application-wide (`Keymap.action`) and moved with `within`, and the key map refuses two actions that
+default to one chord in one place, checked at the declaration. The terminal's Esc is application-wide until the first
+tab comes to the front, so whichever of two views declares its Esc second fails, and the order views are built in is
+the wiring's, not the application's. Both scoped Escs are declared first in the main view's constructor, and the
+dialog's is sent to the dialog's view as a message (`OpenPage.Key`).
+
+**For the framework:** `keys.action(id, label, chords).in(gui, node, scope)`, declaring an action straight into its
+place so the refusal is checked there; or the shared-default check done when the chords are claimed, not when the
+action is named.
+
+## FN-15 · A headless tree runs the real jobs against the real home 🔬
+
+`VexelApplication.tree` builds the application without a window, and `ViewTest` drives it by message, which is what
+makes the view testable at all. But the tree runs the real components and the real jobs, with the framework's
+`Settings` on the person's own home. From M3 on, a test's `ChangePrefs` reached the frame, which saved it: the real
+`~/.mainframe/settings.properties` (shared with a 0.1 MainFrame) was overwritten with a test's text size and motion,
+and the keys a 0.1 MainFrame had for its shell, folder and launch workspace were removed. In M4.2 a test's
+`OpenWorkspace("night", false)` reached the real `LaunchWindow`, which started a real MainFrame on the real home.
+Found when the build hung on that child's inherited output.
+
+Done: the parent pom's surefire gives every test JVM a home of its own (`user.home` = `target/test-home`) and
+`mainframe.launch=off`, which `SelfLaunch` honours; `ViewTest` refuses to build its tree without both. A switch in
+production code for a test is the cost.
+
+**For the framework:** a tree for tests that runs on a home of its own by default, and a way to stand a job in for
+a test (`VexelApplication.tree(wiring, args, Jobs.answering(...))`), so a view test hears what the view sent without
+the frame and the jobs acting on it.

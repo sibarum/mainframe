@@ -12,6 +12,13 @@ import dev.vexelray.gui.widget.Segment;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.OpenAsked;
+import dev.mainframe.core.Messages.OpenFolder;
+import dev.mainframe.core.Messages.OpenWorkspace;
+import dev.mainframe.core.Messages.Tiles;
+import dev.mainframe.core.Messages.Touched;
+import dev.mainframe.core.Workspace;
+import dev.vexelray.gui.widget.ListView;
 import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Submitted;
@@ -72,9 +79,14 @@ class ViewTest {
     private Cuts cuts;
     /** The same, on the settings window's tree. */
     private Cuts settingsCuts;
+    private Cuts openCuts;
 
     @BeforeEach
     void build() {
+        // The tree runs the real frame and jobs, which save settings and start processes: never on the real home.
+        assertTrue(System.getProperty("user.home").replace('\\', '/').endsWith("target/test-home"),
+                "tests run on a home of their own (the parent pom's surefire): " + System.getProperty("user.home"));
+        assertEquals("off", System.getProperty("mainframe.launch"), "and start no process");
         wiring = new MainFrameAppWiring();
         shell = VexelApplication.tree(wiring, new String[0]);
         shell.bus().subscribe(Resized.TOPIC, heard::add);
@@ -88,16 +100,23 @@ class ViewTest {
         shell.bus().subscribe(Rename.TOPIC, heard::add);
         shell.bus().subscribe(ChangePrefs.TOPIC, heard::add);
         shell.bus().subscribe(PickFile.TOPIC, heard::add);
+        shell.bus().subscribe(OpenWorkspace.TOPIC, heard::add);
+        shell.bus().subscribe(OpenFolder.TOPIC, heard::add);
+        shell.bus().subscribe(Touched.TOPIC, heard::add);
+        shell.bus().subscribe(OpenAsked.TOPIC, heard::add);
         cuts = Cuts.watch(shell.gui());
         settingsCuts = Cuts.watch(wiring.settings().gui());
+        openCuts = Cuts.watch(wiring.open().gui());
     }
 
     @AfterEach
     void dispose() {
         List<Cuts.Cut> found = new java.util.ArrayList<>(cuts.found());
         found.addAll(settingsCuts.found());
+        found.addAll(openCuts.found());
         cuts.close();
         settingsCuts.close();
+        openCuts.close();
         shell.disposer().close();
         assertEquals(List.of(), found, "changed on screen in one frame; keep the node and change it (see cuts)");
     }
@@ -355,6 +374,67 @@ class ViewTest {
         shell.bus().publish(dev.vexelray.gui.widget.Select.COMMITTED,
                 new dev.vexelray.gui.widget.Select.Committed(wiring.settings().startAddress(), java.util.Set.of("day")));
         eventually("the workspace", () -> changed(p -> p.startWorkspace().equals("day")));
+    }
+
+    // ------------------------------------------------------------------ M4.2
+
+    private static final Workspace NIGHT = new Workspace("night",
+            List.of(new Workspace.Entry("", "C:/work/db"), new Workspace.Entry("logs", "C:/work/web")));
+
+    @Test
+    void ctrlOAsksTheFrame() throws Exception {
+        tab(1);
+        shell.keymap().action("app.open").orElseThrow().run();
+        eventually("asked", () -> heard.contains(new OpenAsked()));
+    }
+
+    @Test
+    void withNoWorkspaceSavedCtrlOGoesStraightToTheFolderPicker() throws Exception {
+        shell.bus().publish(Tiles.TOPIC, new Tiles(List.of()));
+        eventually("the picker asked", () -> heard.contains(PickFile.folder(OpenView.PICK, "")));
+        java.nio.file.Path work = java.nio.file.Path.of("C:/work").toAbsolutePath();
+        shell.bus().publish(Picked.TOPIC, new Picked(OpenView.PICK, work.toString()));
+        eventually("a tab for it", () -> heard.contains(new OpenFolder(work)));
+    }
+
+    @Test
+    void enterOpensAWorkspaceInANewWindowAndTheRowMenuOpensItHere() throws Exception {
+        shell.bus().publish(Tiles.TOPIC, new Tiles(List.of(NIGHT)));
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        assertFalse(heard.stream().anyMatch(m -> m instanceof PickFile), "with a workspace, the dialog, not the picker");
+        String list = wiring.open().listAddress();
+        OpenPage.Row night = new OpenPage.Row("night", NIGHT.describe());
+        shell.bus().publish(ListView.ACTIVATED, new ListView.Activated(list, night));
+        eventually("a new window", () -> heard.contains(new OpenWorkspace("night", false)));
+        shell.bus().publish(ListView.CHOSEN, new ListView.Chosen(list, OpenPage.HERE.id(), night));
+        eventually("this window", () -> heard.contains(new OpenWorkspace("night", true)));
+        shell.bus().publish(ListView.ACTIVATED, new ListView.Activated(list, OpenPage.Row.FOLDER));
+        eventually("the picker", () -> heard.contains(PickFile.folder(OpenView.PICK, "")));
+    }
+
+    @Test
+    void ctrlEnterOpensTheSelectedWorkspaceHere() throws Exception {
+        shell.bus().publish(Tiles.TOPIC, new Tiles(List.of(NIGHT)));
+        String list = wiring.open().listAddress();
+        OpenPage.Row night = new OpenPage.Row("night", NIGHT.describe());
+        shell.bus().publish(ListView.SELECTED, new ListView.Selected(list, java.util.Set.of(night)));
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        shell.keymap().action("open.here").orElseThrow().run();
+        eventually("this window", () -> heard.contains(new OpenWorkspace("night", true)));
+    }
+
+    @Test
+    void theFirstKeyTypedIntoATabTouchesItOnce() throws Exception {
+        TerminalScreen screen = tab(6);
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "\u001b[0n", false));
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "l", true));
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "s", true));
+        eventually("both keys", () -> heard.contains(new Typed(6, "s")));
+        assertEquals(1, heard.stream().filter(m -> m instanceof Touched).count(), "once, and not for a reply");
     }
 
     /**
