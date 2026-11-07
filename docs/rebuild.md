@@ -139,7 +139,7 @@ button's key map editor.
    bash's and zsh's startup files), and the notice when they did not run.
 2. Ctrl+O: the tiles after *Open folder…*, Enter for a new window, Ctrl+Enter for this one, the spare tab replaced,
    the folder picker straight away with no workspaces saved.
-3. Editing workspaces, **redesigned (ruled 2026-11-05)**: not 0.1's Workspaces tab ported. The design is proposed
+3. Editing workspaces, **redesigned (ruled 2026-11-05)**: *proposed in [workspaces-page.md](workspaces-page.md), for the author.* not 0.1's Workspaces tab ported. The design is proposed
    before the slice, as the Inspector's was, with 0.1's page as ideas only. What it must still do: make, rename and
    delete a workspace, add, remove, rename and reorder its folders, and undo every change. The parts to hand: `Board`'s
    drag (`gui.core.drop`), and a `History` whose changes send messages, as Vexplore's M3 does (which also answers 0.1
