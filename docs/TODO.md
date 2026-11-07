@@ -9,7 +9,8 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 ## Next
 
 - [ ] Rebuild MainFrame on 0.2, milestone by milestone, as [rebuild.md](rebuild.md) proposes. M4 (workspaces) is
-      under way: slices 1 and 2 are built, and the Workspaces page is to be proposed before M4.3 is built.
+      under way: slices 1 to 3 are built; slice 4 (Edit environment… and `--insert-path`) and M4's retrospective are
+      next.
 - [ ] Replace the palette anchors in `Look.java` with the design's, measured in Oklab. See the note in that file
       about which authored colours the construction can reproduce and which have to be declared.
 

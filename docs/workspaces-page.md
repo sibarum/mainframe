@@ -112,7 +112,12 @@ then is it a step: a rename the store refuses leaves nothing to undo.
   removed, every step undone back to nothing and redone, a delete brought back with its script, and the CSV and the
   scripts on disk after each.
 
-## For the author
+## Ruled
+
+2026-11-07, as recommended: its own *Workspaces* window; a new `-core` component, `Workspaces`, holding the window's
+state and the journal; renaming a tab as a gesture; and no question about opening at launch when a workspace is made.
+
+## For the author (answered above)
 
 1. **Its own window, *Workspaces***, opened from the Terminal menu and from Ctrl+O, rather than a tab in the settings
    window?
@@ -120,3 +125,35 @@ then is it a step: a rename the store refuses leaves nothing to undo.
    more of the frame?
 3. **Renaming a tab as a gesture** (its menu, or a double-click, turns the name into a field in place), rather than
    0.1's field on every card; and **no question about opening at launch** when a workspace is made?
+
+## As built
+
+Built 2026-11-07 as ruled, and seen live on a home of its own: a workspace made from Ctrl+O's *New workspace…* row and
+named by typing, another workspace's card moved by Alt+Down and its tab renamed from its ⋯ menu, that workspace
+deleted from the list by Delete; then those five steps undone with Ctrl+Z and redone with Ctrl+Y, the CSV files, the
+script and `.deleted` checked on disk after each. 13 tests of the component (`WorkspacesTest`), 2 of its jobs on a
+temporary home (`WorkspaceJobsTest`), 6 of the window (`ViewTest`, with the cut watch on its tree).
+
+Where it differs from the proposal:
+
+- **What crosses.** `Shown` was taken (the tabs' pacing), so the window's state is `Showing`. The jobs' requests and
+  replies are their own records (`Gather`/`Gathered`, `Write`/`Written`, `Make`/`Made`, `Move`/`Moved`,
+  `Stash`/`Stashed`, `Restore`/`Restored`, `Prune`), each carrying the journal entry and a `Turn` (made now, undone,
+  redone), and the jobs are named for what they do (`WriteWorkspace`, `MoveWorkspace`, `StashWorkspace`, ...) so that
+  `RenameWorkspace` and `DeleteWorkspace` are only the person's gestures. `NameWanted` puts the keyboard in a name just
+  made. The stash name is chosen by the job, not the component, since a step may not read the clock.
+- **One disk job at a time, not one per workspace.** A rename and a save of the same file would pass each other, so
+  the component keeps a queue: a save waits as the workspace's name and writes the rows there when its turn comes
+  (several changes in a row are one write), a rename that lands takes a waiting save with it, and a delete drops one.
+  The read when the window opens waits its turn too, and a *New workspace* asked for with it is named after it lands,
+  so the name is one not taken (a live run found the first version naming it before the read).
+- **Renaming a card's tab** is a field under the cards ("Rename front to [ ]"), not in the card (FN-16), and Delete
+  does not remove a card; the card's menu does.
+- **Each field keeps its own typing** (`TextField.history`): in the window's history, a field put away stopped every
+  undo behind it (FN-18).
+- **The list's echo of a selection the view made is not the person's** (FN-17).
+- **The name is 1.25rem**, not larger: a field's larger text loses its descenders (FN-20).
+- **Prune runs when the window first opens** in a run, not at launch: a run that never opens it never needs it.
+- **Adding a folder and changing one were not seen live**: `ottermate` cannot answer the folder picker (FN-19).
+  `ViewTest` publishes `Picked` for both.
+- *Edit environment…* is placed, greyed, on the card's menu and below the cards; M4.4 builds it.

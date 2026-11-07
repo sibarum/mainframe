@@ -1,6 +1,19 @@
 package dev.mainframe;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.AddRow;
+import dev.mainframe.core.Messages.DeleteWorkspace;
+import dev.mainframe.core.Messages.EditWorkspaces;
+import dev.mainframe.core.Messages.MoveRow;
+import dev.mainframe.core.Messages.NewWorkspace;
+import dev.mainframe.core.Messages.Recorded;
+import dev.mainframe.core.Messages.RenameRow;
+import dev.mainframe.core.Messages.RenameWorkspace;
+import dev.mainframe.core.Messages.Select;
+import dev.mainframe.core.Messages.Showing;
+import dev.mainframe.core.Messages.Undo;
+import dev.vexelray.gui.widget.Deck;
+import dev.vexelray.gui.widget.Placement;
 import dev.mainframe.core.Messages.ChangePrefs;
 import dev.mainframe.core.Messages.Preferences;
 import dev.mainframe.core.Messages.Prefs;
@@ -80,6 +93,11 @@ class ViewTest {
     /** The same, on the settings window's tree. */
     private Cuts settingsCuts;
     private Cuts openCuts;
+    private Cuts workspacesCuts;
+
+    private <T> void subscribe(sibarum.atchung.Topic<T> topic) {
+        shell.bus().subscribe(topic, heard::add);
+    }
 
     @BeforeEach
     void build() {
@@ -104,9 +122,14 @@ class ViewTest {
         shell.bus().subscribe(OpenFolder.TOPIC, heard::add);
         shell.bus().subscribe(Touched.TOPIC, heard::add);
         shell.bus().subscribe(OpenAsked.TOPIC, heard::add);
+        for (var t : List.of(Select.TOPIC, NewWorkspace.TOPIC, RenameWorkspace.TOPIC, DeleteWorkspace.TOPIC, AddRow.TOPIC,
+                MoveRow.TOPIC, RenameRow.TOPIC, Undo.TOPIC, EditWorkspaces.TOPIC)) {
+            subscribe(t);
+        }
         cuts = Cuts.watch(shell.gui());
         settingsCuts = Cuts.watch(wiring.settings().gui());
         openCuts = Cuts.watch(wiring.open().gui());
+        workspacesCuts = Cuts.watch(wiring.workspaces().gui());
     }
 
     @AfterEach
@@ -114,6 +137,8 @@ class ViewTest {
         List<Cuts.Cut> found = new java.util.ArrayList<>(cuts.found());
         found.addAll(settingsCuts.found());
         found.addAll(openCuts.found());
+        found.addAll(workspacesCuts.found());
+        workspacesCuts.close();
         cuts.close();
         settingsCuts.close();
         openCuts.close();
@@ -449,5 +474,83 @@ class ViewTest {
                 keys.chords(copy));
         Action interrupt = keys.action("terminal.interrupt").orElseThrow();
         assertEquals(List.of(Shortcut.of(Key.ESCAPE)), keys.chords(interrupt));
+    }
+
+    // ------------------------------------------------------------------ the Workspaces window
+
+    private static final Workspace DAY = new Workspace("day", List.of(new Workspace.Entry("", "C:/work/api")));
+
+    /** The component's word: day and night, night on the right, day opening at launch. */
+    private void showNight() throws InterruptedException {
+        shell.bus().publish(Showing.TOPIC, new Showing(List.of(DAY, NIGHT), "night", "day", "", "night shown."));
+        eventually("night's cards", () -> wiring.workspaces().cards().size() == 2);
+    }
+
+    @Test
+    void showingFillsTheListAndTheBoard() throws Exception {
+        showNight();
+        assertEquals(List.of("#0", "#1"), wiring.workspaces().cards());
+        shell.bus().publish(Showing.TOPIC, new Showing(List.of(DAY, NIGHT), "day", "day", "", ""));
+        eventually("day's one card", () -> wiring.workspaces().cards().size() == 1);
+    }
+
+    @Test
+    void theListsGesturesTellTheComponent() throws Exception {
+        showNight();
+        String list = wiring.workspaces().listAddress();
+        WorkspacesPage.Row day = new WorkspacesPage.Row("day", true);
+        shell.bus().publish(ListView.SELECTED, new ListView.Selected(list, java.util.Set.of(day)));
+        eventually("picked", () -> heard.contains(new Select("day")));
+        shell.bus().publish(ListView.CHOSEN, new ListView.Chosen(list, WorkspacesPage.HERE.id(), day));
+        eventually("opened here", () -> heard.contains(new OpenWorkspace("day", true)));
+        shell.bus().publish(ListView.CHOSEN, new ListView.Chosen(list, WorkspacesPage.DELETE.id(), day));
+        eventually("deleted", () -> heard.contains(new DeleteWorkspace("day")));
+        shell.bus().publish(TextField.SUBMITTED, new TextField.Submitted(wiring.workspaces().nameAddress(), "evening"));
+        eventually("renamed", () -> heard.contains(new RenameWorkspace("night", "evening")));
+    }
+
+    @Test
+    void aCardDroppedIsAMoveAndItsMenuRenamesItsTab() throws Exception {
+        showNight();
+        shell.bus().publish(Deck.PLACED, new Deck.Placed(wiring.workspaces().deckAddress(), "#1",
+                Placement.before("#0"), dev.vexelray.gui.core.drop.DropEffect.MOVE));
+        eventually("moved", () -> heard.contains(new MoveRow("night", 1, 0)));
+
+        shell.bus().publish(WorkspacesPage.CardAsk.TOPIC, new WorkspacesPage.CardAsk("#1", false));
+        eventually("the field", () -> "#1".equals(wiring.workspacesView().card()));
+        shell.bus().publish(TextField.SUBMITTED, new TextField.Submitted(wiring.workspaces().retitleAddress(), "web"));
+        eventually("renamed", () -> heard.contains(new RenameRow("night", 1, "web")));
+        assertEquals(null, wiring.workspacesView().card());
+    }
+
+    @Test
+    void addFolderPicksOneAndItIsACard() throws Exception {
+        showNight();
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.workspaces().addAddress()));
+        eventually("the picker", () -> heard.contains(PickFile.folder(WorkspacesView.ADD_PICK, "")));
+        java.nio.file.Path docs = java.nio.file.Path.of("C:/work/docs").toAbsolutePath();
+        shell.bus().publish(Picked.TOPIC, new Picked(WorkspacesView.ADD_PICK, docs.toString()));
+        eventually("added", () -> heard.contains(new AddRow("night", docs)));
+    }
+
+    @Test
+    void aStepIsOneHistoryEntryWhoseUndoAsksTheComponent() throws Exception {
+        showNight();
+        shell.bus().publish(Recorded.TOPIC, new Recorded(7, "web added to night."));
+        dev.vexelray.gui.core.edit.History history = wiring.workspaces().gui().history();
+        eventually("recorded", history::canUndo);
+        history.undo();
+        eventually("asked", () -> heard.contains(new Undo(7)));
+    }
+
+    @Test
+    void theOpenDialogsEditAndNewRowsOpenTheWorkspacesWindow() throws Exception {
+        shell.bus().publish(Tiles.TOPIC, new Tiles(List.of(NIGHT)));
+        String list = wiring.open().listAddress();
+        shell.bus().publish(ListView.CHOSEN, new ListView.Chosen(list, OpenPage.EDIT.id(),
+                new OpenPage.Row("night", NIGHT.describe())));
+        eventually("edit night", () -> heard.contains(new EditWorkspaces("night", false)));
+        shell.bus().publish(ListView.ACTIVATED, new ListView.Activated(list, OpenPage.Row.NEW));
+        eventually("a new one", () -> heard.contains(new EditWorkspaces("", true)));
     }
 }

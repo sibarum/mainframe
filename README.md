@@ -103,7 +103,16 @@ which its × puts away. 0.1's README has the rest of how the scripts work, which
 double-click, opens one in a new MainFrame window, and Ctrl+Enter, or the row's menu, opens its tabs in this one.
 With no workspace saved, Ctrl+O goes straight to the folder picker. If the window still has only the plain tab it
 started with, and nothing has been typed into it, what Ctrl+O opens takes its place; when that is a new window, this
-one closes with it. The Workspaces page, where workspaces are made and edited, comes back in M4's next slice.
+one closes with it.
+
+**Workspaces…** in the Terminal menu, *Edit…* on a workspace's row in Ctrl+O, or Ctrl+O's *New workspace…* row opens
+the **Workspaces** window: the workspaces down the left (*launch* beside the one Settings opens at launch) and the one
+selected on the right, its name a heading you click (or Ctrl+Shift+R) to rename, and its folders as cards. Drag a card,
+or Alt+Up and Alt+Down, to reorder; its ⋯ menu, or a right-click, renames its tab, gives it another folder or removes
+it; *Add folder…* adds one at the end. A row's menu opens, renames or deletes a workspace, and Delete deletes the
+selected one without asking. Everything is saved as it is done, and Ctrl+Z and Ctrl+Y undo and redo every change,
+deleting a workspace included (it waits in `workspaces/.deleted` with its scripts for 30 days). The line at the
+bottom says what the last change was.
 
 ## A native executable
 
@@ -173,6 +182,8 @@ parts that never hold each other and talk only by messages (every message is a r
 | `SaveSettings`, `PrefsStore` | A job that saves the settings, and the store's keys, 0.1's, in one place |
 | `PrepareShell` | A job: a tab's command line, with its workspace's environment scripts sourced |
 | `ListWorkspaces`, `LoadWorkspace`, `LaunchWindow`, `SelfLaunch` | Jobs for Ctrl+O: the workspaces, one of them, and another MainFrame on one |
+| `Workspaces` | The Workspaces window's controller, on the logic lane beside the frame: which workspaces there are, every change to them, one disk job at a time, and the journal its undo walks |
+| `GatherWorkspaces`, `WriteWorkspace`, `MakeWorkspace`, `MoveWorkspace`, `StashWorkspace`, `RestoreWorkspace`, `PruneDeleted` | Its jobs: read them all, save one, make, rename, put aside, bring back, and clear what was put aside a month ago |
 | `Workspace`, `WorkspaceStore`, `EnvScripts`, `InsertPath` | 0.1's, as they were: the CSV files, their folder, the scripts, what `--insert-path` may type |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
@@ -186,6 +197,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `Ui`, `Recipes` | The title bar over the tab bar, built once; and the parts |
 | `SettingsPage`, `SettingsView` | The settings window, declared by name in `Recipes`, and its own `@View` |
 | `OpenPage`, `OpenView` | The Open dialog (Ctrl+O), declared by name in `Recipes`, and its own `@View` |
+| `WorkspacesPage`, `WorkspacesView`, `Journaled` | The Workspaces window, declared by name in `Recipes`; its own `@View`; and the history entry that asks `Workspaces` to undo a step |
 | `Intent`, `Look`, `Type`, `Motion`, `Landmarks` | The key map's commands, the colours, the faces and sizes, the tempo, and the names a script may use |
 
 ## The stack

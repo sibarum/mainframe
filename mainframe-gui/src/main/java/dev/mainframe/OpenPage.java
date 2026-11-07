@@ -40,22 +40,31 @@ final class OpenPage {
     /** A row's menu: its tabs in this window. */
     static final MenuAction HERE = MenuAction.of("open-here", "Open in this window");
 
+    /** A row's menu: the workspace in the Workspaces window. */
+    static final MenuAction EDIT = MenuAction.of("open-edit", "Edit…");
+
     /**
      * One row: a workspace by its name, or the folder picker.
      *
-     * @param name   the workspace's name; blank for <i>Open folder…</i>
+     * @param name   the workspace's name; blank for <i>Open folder…</i> and <i>New workspace…</i>
      * @param detail what is under the name
+     * @param make   the <i>New workspace…</i> row
      */
-    record Row(String name, String detail) {
+    record Row(String name, String detail, boolean make) {
 
-        static final Row FOLDER = new Row("", "A tab for a folder you pick, in this window");
+        static final Row FOLDER = new Row("", "A tab for a folder you pick, in this window", false);
+        static final Row NEW = new Row("", "Made in the Workspaces window, where you give it its folders", true);
+
+        Row(String name, String detail) {
+            this(name, detail, false);
+        }
 
         boolean folder() {
-            return name.isEmpty();
+            return name.isEmpty() && !make;
         }
 
         String title() {
-            return folder() ? "Open folder…" : name;
+            return make ? "New workspace…" : folder() ? "Open folder…" : name;
         }
     }
 
@@ -72,7 +81,7 @@ final class OpenPage {
         list = new ListView<Row>(gui, 3.25f, (nodes, r) -> nodes.column().children(
                 nodes.text(r.title()).textColor(Role.INK),
                 nodes.text(r.detail()).textColor(Role.DIM).textSize(Length.rem(0.8125f))))
-                .name(LIST).action(HERE);
+                .name(LIST).action(HERE).action(EDIT);
         list.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(LIST, list.node());
         Node hint = gui.text("Enter opens a workspace in a new window; Ctrl+Enter opens its tabs in this one.")
@@ -91,6 +100,7 @@ final class OpenPage {
         for (Workspace w : workspaces) {
             rows.add(new Row(w.name(), w.describe()));
         }
+        rows.add(Row.NEW);
         list.items(rows);
         gui.focus(list.node());
     }

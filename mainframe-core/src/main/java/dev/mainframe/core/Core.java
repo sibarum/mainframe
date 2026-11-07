@@ -12,7 +12,8 @@ import dev.vexelray.framework.api.Configuration;
  * here as if it were its own, and checks every message between them. A new part in this module goes on this list,
  * or nothing builds it.
  */
-@Configuration(components = Frame.class, jobs = {ReadStartup.class, SaveSettings.class, PrepareShell.class, ListWorkspaces.class,
-        LoadWorkspace.class, LaunchWindow.class}, sources = Shell.class, destinations = Shell.class)
+@Configuration(components = {Frame.class, Workspaces.class}, jobs = {ReadStartup.class, SaveSettings.class, PrepareShell.class, ListWorkspaces.class,
+        LoadWorkspace.class, LaunchWindow.class, GatherWorkspaces.class, WriteWorkspace.class, MakeWorkspace.class,
+        MoveWorkspace.class, StashWorkspace.class, RestoreWorkspace.class, PruneDeleted.class}, sources = Shell.class, destinations = Shell.class)
 public final class Core {
 }

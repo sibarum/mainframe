@@ -133,12 +133,14 @@ final class Ui {
      * the passthrough switch would flip.
      */
     void menu(boolean passthrough, Sender<Intent> intents, Sender<WindowCommand> windows,
-              Sender<dev.mainframe.core.Messages.OpenAsked> open) {
+              Sender<dev.mainframe.core.Messages.OpenAsked> open,
+              Sender<dev.mainframe.core.Messages.EditWorkspaces> edit) {
         Menu menu = Menu.builder()
                 .item("New tab", intents, new Intent(Intent.Command.NEW_TAB))
                 .item(Icon.OPEN, "Open…", open, new dev.mainframe.core.Messages.OpenAsked())
                 .item("Close tab", intents, new Intent(Intent.Command.CLOSE_TAB))
                 .item("Rename tab…", intents, new Intent(Intent.Command.RENAME))
+                .item("Workspaces…", edit, new dev.mainframe.core.Messages.EditWorkspaces("", false))
                 .separator()
                 .item("Next tab", intents, new Intent(Intent.Command.NEXT_TAB))
                 .item("Previous tab", intents, new Intent(Intent.Command.PREVIOUS_TAB))

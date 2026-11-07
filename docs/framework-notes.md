@@ -217,3 +217,55 @@ production code for a test is the cost.
 **For the framework:** a tree for tests that runs on a home of its own by default, and a way to stand a job in for
 a test (`VexelApplication.tree(wiring, args, Jobs.answering(...))`), so a view test hears what the view sent without
 the frame and the jobs acting on it.
+
+## FN-16 · A Board card has no place for a field, and no key of its own 🔬
+
+The Workspaces window (M4.3) shows a workspace's folders as cards on a `Board`, and the design (docs/workspaces-page.md)
+renames a card's tab in place: its name becomes a field, Enter keeps it, Escape gives it back; and Delete removes the
+selected card. A card is a node the application's face builds once, and the board owns where it is, so a field in it
+would be one more widget per card, named per card, made and dropped as cards come and go; and a key for a card cannot
+be declared, since a keymap action is born application-wide (FN-14) and a `FOCUSED` claim needs the node that holds
+focus, which is whichever card the board focused.
+
+Done: one rename field under the cards ("Rename front to [ ]"), as the tab bar's is beside its headers (FN-10), opened
+from the card's menu; Remove only from the menu, not by Delete. What the framework could do: a card face that can
+hold an in-place editor (a `Face` with an editing state, as a list row's would want too), and a deck-level action that
+reaches the focused card's item, as `ListView.action` does for a row.
+
+## FN-17 · A list says back a selection the application made as if the person had made it 🔬
+
+`ListView.selection().at(row)` selects a row, and the list then publishes `SELECTED`, a frame or more later, exactly
+as for a click. The Workspaces view selects the row the component says is shown, and tells the component when the
+person picks another. With the echo arriving late, it read as the person picking the old row: the component had moved
+on to a workspace just made, and the echo selected the one before it again. Seen live in the first run of M4.3.
+
+Done: the view keeps the selections it made and drops each when the list says it back (`WorkspacesView.echoes`). What
+the framework could do: say who selected (`Selected.byPerson`), or not publish for a selection set in code, as
+`TextField.text` makes no undo entry.
+
+## FN-18 · A field put away keeps its typing in the window's history, and undo stops there 🔬
+
+A `TextField` records its typing in the history bound above it: in a framework application, the window's. The
+Workspaces window records its steps there too (Vexplore's `Journaled`), and a card's rename field is shown, typed in
+and put away. The next Ctrl+Z undid the rename; the one after reached the typing, whose field was hidden, and was
+refused (`Gui.undo` refuses an entry whose target has left the tree). Every step behind it was out of reach. Seen live:
+two Ctrl+Z, one undo.
+
+Done: both of the window's fields keep their own history (`TextField.history(new History())`), so inside a field Ctrl+Z
+undoes its typing and outside the window's steps. What the framework could do: drop, or step past, an entry whose
+target is hidden for good; or say in `TextField`'s javadoc that a field shown for a moment wants its own history, as it
+says a document does.
+
+## FN-19 · ottermate cannot answer a folder picker 🔬
+
+`PickFile` opens the platform's dialog, and a live check driving the app by `ottermate` has no verb for it, so *Add
+folder…* and *Change folder…* (and Settings' *Choose…*, and Ctrl+O's *Open folder…*) are checked only in `ViewTest`,
+by publishing `Picked`. The live check of M4.3 used folders a workspace already had. What the framework could do: let
+an automation run answer `PickFile` itself (`ottermate pick <path>`), as `Dialogs` can be replaced in a test.
+
+## FN-20 · A text field's larger text loses its descenders 🔬
+
+The Workspaces window's name is a heading that is a field: a `TextField` with `textSize(1.5rem)`. Its "y" and "g"
+were cut at the baseline ("day" read "dav"), with the field's default height or one of 2.75rem. At 1.25rem they are
+whole. Done: 1.25rem. What the framework could do: size the field's line from its text size, or clip at the node
+rather than at the line.

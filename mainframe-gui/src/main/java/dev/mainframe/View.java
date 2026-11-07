@@ -12,6 +12,7 @@ import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.NewTab;
 import dev.mainframe.core.Messages.OpenAsked;
+import dev.mainframe.core.Messages.EditWorkspaces;
 import dev.mainframe.core.Messages.Touched;
 import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.Output;
@@ -108,6 +109,7 @@ final class View {
     private final Sender<ChangePrefs> changePrefs;
     private final Sender<WindowCommand> windows;
     private final Sender<OpenAsked> openAsked;
+    private final Sender<EditWorkspaces> editWorkspaces;
     private final Sender<Touched> touched;
     /** The tabs something was typed into, so each is said {@link Touched} once. */
     private final java.util.Set<Long> touchedTabs = new java.util.HashSet<>();
@@ -151,7 +153,9 @@ final class View {
             Sender<Shown> shown, Sender<Submitted> submitted, Sender<Fronted> fronted, Sender<NewTab> newTab,
             Sender<CloseAsked> closeAsked, Sender<Rename> rename, Sender<ChangePrefs> changePrefs,
             Sender<WindowCommand> windows, Sender<OpenAsked> openAsked, Sender<Touched> touched,
-            OpenPage open, Sender<OpenPage.Key> openKeys, Sender<Intent> intents) {
+            OpenPage open, Sender<OpenPage.Key> openKeys, WorkspacesPage workspaces,
+            Sender<WorkspacesPage.Key> workspacesKeys, Sender<EditWorkspaces> editWorkspaces, Sender<Intent> intents) {
+        this.editWorkspaces = editWorkspaces;
         this.gui = gui;
         this.keys = keys;
         this.ui = ui;
@@ -173,8 +177,8 @@ final class View {
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
         tabs.action(RENAME).action(CLOSE);
-        commands(keys, open, openKeys);
-        ui.menu(false, intents, windows, openAsked);
+        commands(keys, open, openKeys, workspaces, workspacesKeys);
+        ui.menu(false, intents, windows, openAsked, editWorkspaces);
         // A double-click on a header renames its tab. The bar says nothing of one, so the tree's clicks are read,
         // in a mailbox of the widgets' tick like every other the view has (FN-11).
         gui.mailbox(gui.clicks(), this::clicked, 64);
@@ -186,7 +190,8 @@ final class View {
      * <i>Key bindings…</i>. A chord held here outranks the terminal's typing, which is why Ctrl+C copies and Esc
      * interrupts (0.1's README, <i>Keys</i>): unbind one and the program has it again.
      */
-    private void commands(Keymap keys, OpenPage open, Sender<OpenPage.Key> openKeys) {
+    private void commands(Keymap keys, OpenPage open, Sender<OpenPage.Key> openKeys, WorkspacesPage workspaces,
+                          Sender<WorkspacesPage.Key> workspacesKeys) {
         // Esc in the rename field puts it away. First, and moved to the field at once: two actions may not both
         // default to Esc in one place, and every action starts application-wide, where the interrupt's Esc is.
         command(keys, "tab.rename-cancel", "Cancel renaming the tab", Command.RENAME_CANCEL, Shortcut.of(Key.ESCAPE))
@@ -195,6 +200,14 @@ final class View {
         // after, so the view whose Esc is first declared wins the place (docs/framework-notes.md, FN-14).
         keys.action("open.close", "Close the Open dialog", Shortcut.of(Key.ESCAPE))
                 .sends(openKeys, new OpenPage.Key(false)).within(open.gui(), open.listNode(), ClaimScope.FOCUSED);
+        // The Workspaces window's Esc (a field back as it was) and Ctrl+Shift+R (to the name), for the same reason:
+        // the terminal's Esc and the tab bar's Ctrl+Shift+R are declared below, application-wide.
+        keys.action("workspaces.cancel", "Put back the name being typed", Shortcut.of(Key.ESCAPE))
+                .sends(workspacesKeys, new WorkspacesPage.Key(true))
+                .within(workspaces.gui(), workspaces.root(), ClaimScope.VISIBLE);
+        keys.action("workspaces.rename", "Rename the workspace", Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT))
+                .sends(workspacesKeys, new WorkspacesPage.Key(false))
+                .within(workspaces.gui(), workspaces.root(), ClaimScope.VISIBLE);
         terminal.add(command(keys, "terminal.copy", "Copy the selection, or interrupt", Command.COPY,
                 Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.C, Modifier.CONTROL)));
         terminal.add(command(keys, "terminal.paste", "Paste", Command.PASTE,
@@ -596,7 +609,7 @@ final class View {
         boolean on = !keys.paused();
         keys.paused(on);
         ui.passthrough(on);
-        ui.menu(on, intents, windows, openAsked);
+        ui.menu(on, intents, windows, openAsked, editWorkspaces);
         TerminalScreen s = front();
         if (s != null) {
             gui.focus(s.node());

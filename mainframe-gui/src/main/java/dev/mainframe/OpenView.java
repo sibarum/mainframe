@@ -1,5 +1,6 @@
 package dev.mainframe;
 
+import dev.mainframe.core.Messages.EditWorkspaces;
 import dev.mainframe.core.Messages.OpenFolder;
 import dev.mainframe.core.Messages.OpenWorkspace;
 import dev.mainframe.core.Messages.Tiles;
@@ -37,12 +38,14 @@ final class OpenView {
     private final Sender<OpenFolder> folder;
     private final Sender<PickFile> pick;
     private final Sender<WindowCommand> windows;
+    private final Sender<EditWorkspaces> edit;
 
     /** The row the list has selected, which Ctrl+Enter opens; null before one is. */
     private OpenPage.Row selected;
 
     OpenView(OpenPage page, Keymap keys, Sender<OpenWorkspace> open, Sender<OpenFolder> folder, Sender<PickFile> pick,
-             Sender<WindowCommand> windows, Sender<OpenPage.Key> dialogKeys) {
+             Sender<WindowCommand> windows, Sender<OpenPage.Key> dialogKeys, Sender<EditWorkspaces> edit) {
+        this.edit = edit;
         this.page = page;
         this.open = open;
         this.folder = folder;
@@ -79,12 +82,17 @@ final class OpenView {
         }
     }
 
-    /** The row's menu: Open in this window. */
+    /** The row's menu: Open in this window, or Edit… in the Workspaces window. */
     @Subscribe
     public void chosen(ListView.Chosen m) {
-        if (m.at().equals(page.listAddress()) && m.action().equals(OpenPage.HERE.id())
-                && m.item() instanceof OpenPage.Row row) {
+        if (!m.at().equals(page.listAddress()) || !(m.item() instanceof OpenPage.Row row)) {
+            return;
+        }
+        if (m.action().equals(OpenPage.HERE.id())) {
             choose(row, true);
+        } else if (m.action().equals(OpenPage.EDIT.id())) {
+            windows.send(WindowCommand.hide(OpenPage.KEY));
+            edit.send(new EditWorkspaces(row.folder() ? "" : row.name(), row.make()));
         }
     }
 
@@ -113,7 +121,9 @@ final class OpenView {
 
     private void choose(OpenPage.Row row, boolean here) {
         windows.send(WindowCommand.hide(OpenPage.KEY));
-        if (row.folder()) {
+        if (row.make()) {
+            edit.send(new EditWorkspaces("", true));
+        } else if (row.folder()) {
             pick.send(PickFile.folder(PICK, ""));
         } else {
             open.send(new OpenWorkspace(row.name(), here));

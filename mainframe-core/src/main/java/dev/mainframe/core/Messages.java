@@ -339,4 +339,189 @@ public final class Messages {
     public record PrefsSaved(long seq, String problem) {
         public static final Topic<PrefsSaved> TOPIC = Topic.edge(PrefsSaved.class);
     }
+
+    // ------------------------------------------------------------------ the Workspaces window (docs/workspaces-page.md)
+
+    /** The Workspaces window's key: what {@code WindowCommand.show} names, here so the component can open it. */
+    public static final String WORKSPACES_WINDOW = "workspaces";
+
+    /** No journal entry: a change the person made just now, not one the history is taking back or doing again. */
+    public static final long NO_ENTRY = -1;
+
+    /**
+     * Open the Workspaces window on {@code select} (blank: the one shown last, or the first); with {@code make}, a new
+     * workspace is made in it as well, as the Open dialog's <i>New workspace</i> row asks.
+     */
+    public record EditWorkspaces(String select, boolean make) {
+        public static final Topic<EditWorkspaces> TOPIC = Topic.edge(EditWorkspaces.class);
+    }
+
+    /**
+     * Everything the Workspaces window shows: every workspace in name order, the one on the right, the one Settings
+     * opens at launch, why the last name typed was refused (blank: it was not), and the footer's line.
+     */
+    public record Showing(List<Workspace> all, String selected, String launch, String problem, String said) {
+        public static final Topic<Showing> TOPIC = Topic.state(Showing.class);
+
+        public Showing {
+            all = List.copyOf(all);
+        }
+    }
+
+    /** A workspace was just made by the person: the view puts the keyboard in its name. */
+    public record NameWanted(String workspace) {
+        public static final Topic<NameWanted> TOPIC = Topic.edge(NameWanted.class);
+    }
+
+    /** The person picked a workspace in the list. */
+    public record Select(String name) {
+        public static final Topic<Select> TOPIC = Topic.edge(Select.class);
+    }
+
+    /** <i>New workspace</i>. */
+    public record NewWorkspace() {
+        public static final Topic<NewWorkspace> TOPIC = Topic.edge(NewWorkspace.class);
+    }
+
+    /** A workspace's name, typed. */
+    public record RenameWorkspace(String from, String to) {
+        public static final Topic<RenameWorkspace> TOPIC = Topic.edge(RenameWorkspace.class);
+    }
+
+    /** Delete a workspace: no question, since undo brings it back. */
+    public record DeleteWorkspace(String name) {
+        public static final Topic<DeleteWorkspace> TOPIC = Topic.edge(DeleteWorkspace.class);
+    }
+
+    /** A folder picked for <i>Add folder…</i>: a card at the end. */
+    public record AddRow(String workspace, Path dir) {
+        public static final Topic<AddRow> TOPIC = Topic.edge(AddRow.class);
+    }
+
+    /** A card removed. */
+    public record RemoveRow(String workspace, int at) {
+        public static final Topic<RemoveRow> TOPIC = Topic.edge(RemoveRow.class);
+    }
+
+    /** A card moved from place {@code from} to place {@code to}, counted as the list is once it has moved. */
+    public record MoveRow(String workspace, int from, int to) {
+        public static final Topic<MoveRow> TOPIC = Topic.edge(MoveRow.class);
+    }
+
+    /** A card's tab name, typed: blank is the folder's own. */
+    public record RenameRow(String workspace, int at, String name) {
+        public static final Topic<RenameRow> TOPIC = Topic.edge(RenameRow.class);
+    }
+
+    /** A card given another folder (<i>Change folder…</i>). */
+    public record RepointRow(String workspace, int at, Path dir) {
+        public static final Topic<RepointRow> TOPIC = Topic.edge(RepointRow.class);
+    }
+
+    /** A step landed: the view records one history entry for it, which says {@code words}. */
+    public record Recorded(long entry, String words) {
+        public static final Topic<Recorded> TOPIC = Topic.edge(Recorded.class);
+    }
+
+    /** The window's history took entry {@code entry} back. It holds only the number; what it did is the component's. */
+    public record Undo(long entry) {
+        public static final Topic<Undo> TOPIC = Topic.edge(Undo.class);
+    }
+
+    /** The window's history did entry {@code entry} again. */
+    public record Redo(long entry) {
+        public static final Topic<Redo> TOPIC = Topic.edge(Redo.class);
+    }
+
+    /** Every workspace's name, after any change: what Settings' <i>Open at launch</i> offers. */
+    public record WorkspaceNames(List<String> names) {
+        public static final Topic<WorkspaceNames> TOPIC = Topic.state(WorkspaceNames.class);
+
+        public WorkspaceNames {
+            names = List.copyOf(names);
+        }
+    }
+
+    /** Which way a change of the set of workspaces goes: made just now, or the history taking it back or again. */
+    public enum Turn {
+        DO("", ""), UNDO("Undone: ", "Could not undo: "), REDO("Redone: ", "Could not redo: ");
+
+        /** What the footer says before the change's own words, when it landed and when it did not. */
+        public final String landed;
+        public final String refused;
+
+        Turn(String landed, String refused) {
+            this.landed = landed;
+            this.refused = refused;
+        }
+    }
+
+    /** Read every workspace, keyed, for the Workspaces window ({@code GatherWorkspaces}). */
+    public record Gather() {
+        public static final Topic<Gather> TOPIC = Topic.edge(Gather.class);
+    }
+
+    /** {@link Gather}'s reply. */
+    public record Gathered(List<Workspace> all) {
+        public static final Topic<Gathered> TOPIC = Topic.edge(Gathered.class);
+
+        public Gathered {
+            all = List.copyOf(all);
+        }
+    }
+
+    /** Write a workspace's file whole ({@code WriteWorkspace}). */
+    public record Write(Workspace workspace) {
+        public static final Topic<Write> TOPIC = Topic.edge(Write.class);
+    }
+
+    /** {@link Write}'s reply: blank, or why it was not written. */
+    public record Written(String name, String problem) {
+        public static final Topic<Written> TOPIC = Topic.edge(Written.class);
+    }
+
+    /** Make an empty workspace called {@code name}, refused if there is one ({@code MakeWorkspace}). */
+    public record Make(String name, long entry, Turn turn) {
+        public static final Topic<Make> TOPIC = Topic.edge(Make.class);
+    }
+
+    /** {@link Make}'s reply. */
+    public record Made(String name, long entry, Turn turn, String problem) {
+        public static final Topic<Made> TOPIC = Topic.edge(Made.class);
+    }
+
+    /** Rename a workspace, its file and its scripts ({@code MoveWorkspace}). */
+    public record Move(String from, String to, long entry, Turn turn) {
+        public static final Topic<Move> TOPIC = Topic.edge(Move.class);
+    }
+
+    /** {@link Move}'s reply. */
+    public record Moved(String from, String to, long entry, Turn turn, String problem) {
+        public static final Topic<Moved> TOPIC = Topic.edge(Moved.class);
+    }
+
+    /** Put a workspace and its scripts aside in {@code .deleted}, under a name the job chooses ({@code StashWorkspace}). */
+    public record Stash(String name, long entry, Turn turn) {
+        public static final Topic<Stash> TOPIC = Topic.edge(Stash.class);
+    }
+
+    /** {@link Stash}'s reply: where it was put, which is what brings it back. */
+    public record Stashed(String name, String stash, long entry, Turn turn, String problem) {
+        public static final Topic<Stashed> TOPIC = Topic.edge(Stashed.class);
+    }
+
+    /** Bring back as {@code name} what {@link Stash} put in {@code stash} ({@code RestoreWorkspace}). */
+    public record Restore(String stash, String name, long entry, Turn turn) {
+        public static final Topic<Restore> TOPIC = Topic.edge(Restore.class);
+    }
+
+    /** {@link Restore}'s reply: the workspace as it came back, keyed, or why it did not. */
+    public record Restored(String name, Optional<Workspace> workspace, long entry, Turn turn, String problem) {
+        public static final Topic<Restored> TOPIC = Topic.edge(Restored.class);
+    }
+
+    /** Clear what deleting put aside more than a month ago ({@code PruneDeleted}): once a run. */
+    public record Prune() {
+        public static final Topic<Prune> TOPIC = Topic.edge(Prune.class);
+    }
 }

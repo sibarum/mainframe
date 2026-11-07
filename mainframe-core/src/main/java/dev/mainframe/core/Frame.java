@@ -6,6 +6,7 @@ import dev.mainframe.core.Messages.Load;
 import dev.mainframe.core.Messages.Tiles;
 import dev.mainframe.core.Messages.WorkspacesWanted;
 import dev.mainframe.core.Messages.Touched;
+import dev.mainframe.core.Messages.WorkspaceNames;
 import dev.mainframe.core.Messages.OpenFolder;
 import dev.mainframe.core.Messages.Launched;
 import dev.mainframe.core.Messages.Loaded;
@@ -103,7 +104,7 @@ import java.util.Optional;
 @Hears({WindowOpened.class, Startup.class, Resized.class, Retitled.class, ShellEnded.class, Fronted.class,
         Submitted.class, NewTab.class, Rename.class, CloseAsked.class, CloseRequested.class, Answer.class,
         ChangePrefs.class, PrefsSaved.class, Prepared.class, OpenAsked.class, Listed.class, OpenWorkspace.class,
-        Loaded.class, Launched.class, OpenFolder.class, Touched.class})
+        Loaded.class, Launched.class, OpenFolder.class, Touched.class, WorkspaceNames.class})
 @Publishes({StartupWanted.class, AddTab.class, Front.class, Header.class, OpenShell.class, Output.class, CloseTab.class,
         CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class, Prefs.class, SavePrefs.class, Prepare.class,
         Notice.class, WorkspacesWanted.class, Tiles.class, Load.class, LaunchWorkspace.class})
@@ -325,6 +326,7 @@ public final class Frame {
         Step<State, Launched> launched = b.step("launched", Frame::launched);
         Step<State, OpenFolder> openFolder = b.step("openFolder", Frame::openFolder);
         Step<State, Touched> touched = b.step("touched", Frame::touched);
+        Step<State, WorkspaceNames> named = b.step("workspacesNamed", Frame::workspacesNamed);
         Step<State, Retitled> retitled = b.step("retitled", Frame::retitled);
         Step<State, ShellEnded> ended = b.step("ended", Frame::ended);
         Step<State, Fronted> fronted = b.step("fronted", Frame::fronted);
@@ -352,6 +354,7 @@ public final class Frame {
                 .on(Launched.TOPIC, launched)
                 .on(OpenFolder.TOPIC, openFolder)
                 .on(Touched.TOPIC, touched)
+                .on(WorkspaceNames.TOPIC, named)
                 .on(Retitled.TOPIC, retitled)
                 .on(ShellEnded.TOPIC, ended)
                 .on(Fronted.TOPIC, fronted)
@@ -531,7 +534,16 @@ public final class Frame {
     /** The workspaces, for the Open dialog; and for Settings, whose list follows. */
     private static State listed(State s, Listed l, Out out) {
         out.send(Tiles.TOPIC, new Tiles(l.workspaces()));
-        List<String> names = l.workspaces().stream().map(Workspace::name).toList();
+        return names(s, l.workspaces().stream().map(Workspace::name).toList(), out);
+    }
+
+    /** The Workspaces window changed the set: Settings' list follows. */
+    private static State workspacesNamed(State s, WorkspaceNames n, Out out) {
+        return names(s, n.names(), out);
+    }
+
+    /** Every workspace's name, said to Settings when it is news. */
+    private static State names(State s, List<String> names, Out out) {
         if (names.equals(s.workspaces())) {
             return s;
         }

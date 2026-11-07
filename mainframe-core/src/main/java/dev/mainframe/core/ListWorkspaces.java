@@ -22,11 +22,15 @@ public final class ListWorkspaces {
     }
 
     public Listed run(WorkspacesWanted w) {
-        WorkspaceStore store = WorkspaceStore.of(settings);
+        return new Listed(all(WorkspaceStore.of(settings)));
+    }
+
+    /** Every workspace in {@code store}, keyed, in name order. */
+    static List<Workspace> all(WorkspaceStore store) {
         List<Workspace> out = new ArrayList<>();
         for (String name : store.names()) {
             store.keyed(name).ifPresent(out::add);
         }
-        return new Listed(out);
+        return out;
     }
 }

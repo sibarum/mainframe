@@ -80,4 +80,14 @@ final class Recipes {
     OpenPage open(Windows windows) {
         return new OpenPage(windows.named(NamedWindow.of(OpenPage.KEY, "Open", OpenPage.W, OpenPage.H).satellite()));
     }
+
+    /**
+     * The Workspaces window: declared by name, a satellite of the main one, opened by the {@code Workspaces}
+     * component once it has read the workspaces (docs/workspaces-page.md).
+     */
+    @Provides
+    WorkspacesPage workspaces(Windows windows) {
+        return new WorkspacesPage(windows.named(NamedWindow.of(WorkspacesPage.KEY, "Workspaces", WorkspacesPage.W,
+                WorkspacesPage.H).satellite()));
+    }
 }
