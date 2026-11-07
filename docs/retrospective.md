@@ -65,6 +65,11 @@ there, and when a window has opened.
   a consequence the runner can check.
 - **I had found in M4 that the folder picker cannot be driven, and still wrote a key sequence that could open it.**
   The rule: a script steps through a list by name or by a count checked against a shot, never by a guess.
+- **I closed M4.4's live run with a click on its × and did not look.** It stayed open for 40 minutes, until another
+  session's stack reinstall replaced `kronometer-core` under it and it died loading a class. Then I told that session
+  its jar lacked the class, and had to take it back: the new jar has it, and the JVM had only lost the file it was
+  reading. Two rules: a close is checked with `windows` (nothing listening is the answer), and a missing class in a run
+  that outlived an install is the swap until the new jar is shown to lack it.
 - **The 0.1 README's claim that metadata "is short because the libraries register their own"** was carried over and
   was not true for the pty. The rule: a claim about what the stack does is checked by the first native run, not
   copied.
