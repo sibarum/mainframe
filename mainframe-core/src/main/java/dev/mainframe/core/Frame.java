@@ -9,9 +9,12 @@ import dev.mainframe.core.Messages.Front;
 import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.OpenShell;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Preferences;
+import dev.mainframe.core.Messages.Prepare;
+import dev.mainframe.core.Messages.Prepared;
 import dev.mainframe.core.Messages.Prefs;
 import dev.mainframe.core.Messages.PrefsSaved;
 import dev.mainframe.core.Messages.SavePrefs;
@@ -23,6 +26,7 @@ import dev.mainframe.core.Messages.ShellEnded;
 import dev.mainframe.core.Messages.Startup;
 import dev.mainframe.core.Messages.StartupWanted;
 import dev.mainframe.core.Messages.Submitted;
+import dev.mainframe.core.Messages.TabSpec;
 import dev.vexelray.framework.api.Component;
 import dev.vexelray.framework.api.Hears;
 import dev.vexelray.framework.api.Publishes;
@@ -87,9 +91,10 @@ import java.util.Optional;
 @Component
 @Hears({WindowOpened.class, Startup.class, Resized.class, Retitled.class, ShellEnded.class, Fronted.class,
         Submitted.class, NewTab.class, Rename.class, CloseAsked.class, CloseRequested.class, Answer.class,
-        ChangePrefs.class, PrefsSaved.class})
+        ChangePrefs.class, PrefsSaved.class, Prepared.class})
 @Publishes({StartupWanted.class, AddTab.class, Front.class, Header.class, OpenShell.class, Output.class, CloseTab.class,
-        CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class, Prefs.class, SavePrefs.class})
+        CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class, Prefs.class, SavePrefs.class, Prepare.class,
+        Notice.class})
 public final class Frame {
 
     /** How many of each message the frame's inbox holds. A resize is the busiest, and is a state topic. */
@@ -114,21 +119,24 @@ public final class Frame {
      * @param saves    the last {@link SavePrefs} number given out
      * @param saving   a save is in flight: jobs are in no order, so the next waits for its answer
      * @param unsaved  a change was made while it was, and is saved when it answers
+     * @param workspace  the workspace this window was opened as, whose script every tab sources; blank for none
+     * @param workspaces every workspace's name, for Settings
      */
     @Withers
     record State(List<Tab> tabs, long front, long ids, Map<Long, Closing> closings, Preferences prefs,
                  List<ShellChoice> shells, String override, Path home, long saves, boolean saving,
-                 boolean unsaved) implements FrameStateWithers {
+                 boolean unsaved, String workspace, List<String> workspaces) implements FrameStateWithers {
 
         State {
             tabs = List.copyOf(tabs);
             closings = Map.copyOf(closings);
             shells = List.copyOf(shells);
+            workspaces = List.copyOf(workspaces);
         }
 
         static State initial() {
             return new State(List.of(), Messages.NO_TAB, 0, Map.of(), Preferences.DEFAULT, List.of(), "",
-                    Path.of("."), 0, false, false);
+                    Path.of("."), 0, false, false, "", List.of());
         }
 
         /** What a new tab runs: the launch's command line, else the chosen shell, else this platform's first. */
@@ -146,7 +154,7 @@ public final class Frame {
         }
 
         Prefs said() {
-            return new Prefs(prefs, shells, override);
+            return new Prefs(prefs, shells, override, workspaces);
         }
 
         Optional<Tab> tab(long id) {
@@ -182,33 +190,36 @@ public final class Frame {
      * One tab.
      *
      * @param id        its id
-     * @param dir       where its program starts
-     * @param line      the command line it runs
+     * @param dir       where its program starts: as asked, then as {@link Prepared} found it
+     * @param line      the command line it runs: as asked, then with its scripts sourced, once {@code prepared}
      * @param opened    whether its {@link OpenShell} has been sent
      * @param title     what its program last called itself, shortened ({@link #shorten}); blank for nothing
-     * @param name      what the person named it; blank for none
+     * @param name      what the person or its workspace row named it; blank for none
      * @param submitted whether a CR or LF was ever typed into it, so a program may be running: closing it asks
+     * @param env       its workspace row's script key; blank for none
+     * @param prepared  whether its {@link Prepared} has come, so {@code line} and {@code dir} are final
+     * @param cols      its screen's first width in cells, or 0 until it is laid out
+     * @param rows      its screen's first height in cells, or 0 until it is laid out
      */
-    record Tab(long id, Path dir, String line, boolean opened, String title, String name, boolean submitted) {
+    @Withers
+    record Tab(long id, Path dir, String line, boolean opened, String title, String name, boolean submitted,
+               String env, boolean prepared, int cols, int rows) implements FrameTabWithers {
 
-        static Tab of(long id, Path dir, String line) {
-            return new Tab(id, dir, line, false, "", "", false);
-        }
-
-        Tab started() {
-            return new Tab(id, dir, line, true, title, name, submitted);
+        static Tab of(long id, Path dir, String line, String name, String env) {
+            return new Tab(id, dir, line, false, "", name.strip(), false, env, false, 0, 0);
         }
 
         Tab titled(String title) {
-            return new Tab(id, dir, line, opened, shorten(title), name, submitted);
+            return withTitle(shorten(title));
         }
 
         Tab named(String name) {
-            return new Tab(id, dir, line, opened, title, name.strip(), submitted);
+            return withName(name.strip());
         }
 
-        Tab submittedTo() {
-            return new Tab(id, dir, line, opened, title, name, true);
+        /** Its shell may start: its line is prepared and its size known, and it has not started yet. */
+        boolean ready() {
+            return prepared && cols > 0 && !opened;
         }
 
         /**
@@ -291,6 +302,7 @@ public final class Frame {
         Step<State, WindowOpened> begin = b.step("begin", Frame::begin);
         Step<State, Startup> started = b.step("started", Frame::started);
         Step<State, Resized> resized = b.step("resized", Frame::resized);
+        Step<State, Prepared> prepared = b.step("prepared", Frame::prepared);
         Step<State, Retitled> retitled = b.step("retitled", Frame::retitled);
         Step<State, ShellEnded> ended = b.step("ended", Frame::ended);
         Step<State, Fronted> fronted = b.step("fronted", Frame::fronted);
@@ -310,6 +322,7 @@ public final class Frame {
         b.on(WindowOpened.TOPIC, begin)
                 .on(Startup.TOPIC, started)
                 .on(Resized.TOPIC, resized)
+                .on(Prepared.TOPIC, prepared)
                 .on(Retitled.TOPIC, retitled)
                 .on(ShellEnded.TOPIC, ended)
                 .on(Fronted.TOPIC, fronted)
@@ -358,12 +371,12 @@ public final class Frame {
      */
     private static State started(State s, Startup startup, Out out) {
         State next = s.withPrefs(startup.prefs()).withShells(startup.shells()).withOverride(startup.line())
-                .withHome(startup.home());
+                .withHome(startup.home()).withWorkspace(startup.workspace()).withWorkspaces(startup.names());
         out.send(Prefs.TOPIC, next.said());
-        List<Path> dirs = startup.dirs().isEmpty() ? List.of(next.dir()) : startup.dirs();
+        List<TabSpec> tabs = startup.tabs().isEmpty() ? List.of(new TabSpec(next.dir(), "", "")) : startup.tabs();
         long first = Messages.NO_TAB;
-        for (Path dir : dirs) {
-            next = add(next, dir, next.line(), out);
+        for (TabSpec t : tabs) {
+            next = add(next, t.dir(), t.name(), t.env(), out);
             if (first == Messages.NO_TAB) {
                 first = next.ids();
             }
@@ -371,9 +384,12 @@ public final class Frame {
         return front(next, first, out);
     }
 
-    /** One more tab, in the folder chosen in Settings and running the shell chosen there, put in front. */
+    /**
+     * One more tab, in the folder chosen in Settings and running the shell chosen there, put in front. In a workspace
+     * window it sources the workspace's script, and no row's.
+     */
     private static State newTab(State s, NewTab m, Out out) {
-        State next = add(s, s.dir(), s.line(), out);
+        State next = add(s, s.dir(), "", "", out);
         return front(next, next.ids(), out);
     }
 
@@ -398,15 +414,40 @@ public final class Frame {
         return next;
     }
 
-    /** A tab's screen is laid out: on the first size, start its program at it. Later sizes are the shell's. */
+    /**
+     * A tab's screen is laid out: its first size is kept, and its program starts at it once its line is prepared too.
+     * Later sizes are the shell's.
+     */
     private static State resized(State s, Resized r, Out out) {
         Optional<Tab> tab = s.tab(r.id());
-        if (tab.isEmpty() || tab.get().opened()) {
+        if (tab.isEmpty() || tab.get().opened() || tab.get().cols() > 0) {
             return s;
         }
-        Tab t = tab.get();
-        out.send(OpenShell.TOPIC, new OpenShell(t.id(), t.line(), t.dir(), r.cols(), r.rows()));
-        return s.with(t.started());
+        return start(s, tab.get().withCols(r.cols()).withRows(r.rows()), out);
+    }
+
+    /**
+     * A tab's command line is prepared: kept, with the folder it starts in, and said above its terminal if its scripts
+     * did not run; its program starts once its size is known too.
+     */
+    private static State prepared(State s, Prepared p, Out out) {
+        Optional<Tab> tab = s.tab(p.id());
+        if (tab.isEmpty() || tab.get().prepared()) {
+            return s;
+        }
+        if (!p.refused().isBlank()) {
+            out.send(Notice.TOPIC, new Notice(p.id(), p.refused()));
+        }
+        return start(s, tab.get().withLine(p.line()).withDir(p.dir()).withPrepared(true), out);
+    }
+
+    /** Keep {@code t}, and start its program if it is ready: prepared and sized, whichever came last. */
+    private static State start(State s, Tab t, Out out) {
+        if (!t.ready()) {
+            return s.with(t);
+        }
+        out.send(OpenShell.TOPIC, new OpenShell(t.id(), t.line(), t.dir(), t.cols(), t.rows()));
+        return s.with(t.withOpened(true));
     }
 
     /** A tab's program named itself: its header follows, and is said only when what it says changes. */
@@ -426,7 +467,7 @@ public final class Frame {
 
     /** Something was submitted in a tab: closing it asks from now on. */
     private static State submitted(State s, Submitted m, Out out) {
-        return s.tab(m.id()).filter(t -> !t.submitted()).map(t -> s.with(t.submittedTo())).orElse(s);
+        return s.tab(m.id()).filter(t -> !t.submitted()).map(t -> s.with(t.withSubmitted(true))).orElse(s);
     }
 
     /**
@@ -540,9 +581,14 @@ public final class Frame {
 
     // ------------------------------------------------------------------ what the steps share
 
-    private static State add(State s, Path dir, String line, Out out) {
+    /**
+     * A tab, put in the bar, and its command line asked for: the line a new tab runs, with the scripts of this
+     * window's workspace and of the tab's row ({@code env}) to be sourced.
+     */
+    private static State add(State s, Path dir, String name, String env, Out out) {
         State next = s.withIds(s.ids() + 1);
-        Tab tab = Tab.of(next.ids(), dir, line);
+        Tab tab = Tab.of(next.ids(), dir, s.line(), name, env);
+        out.send(Prepare.TOPIC, new Prepare(tab.id(), tab.line(), dir, s.workspace(), env));
         List<Tab> tabs = new ArrayList<>(next.tabs());
         tabs.add(tab);
         out.send(AddTab.TOPIC, new AddTab(tab.id(), tab.header()));

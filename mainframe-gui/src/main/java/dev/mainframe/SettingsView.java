@@ -61,12 +61,15 @@ final class SettingsView {
         }
     }
 
-    /** The shell new tabs run. */
+    /** The shell new tabs run, or the workspace a launch opens. */
     @Subscribe
     public void chosen(Select.Committed m) {
         if (m.select().equals(page.shellAddress())) {
             m.chosen().stream().findFirst().flatMap(page::shell)
                     .ifPresent(c -> change.send(new ChangePrefs(page.prefs().withShell(c.id()))));
+        } else if (m.select().equals(page.startAddress())) {
+            m.chosen().stream().findFirst().filter(String.class::isInstance).map(String.class::cast)
+                    .ifPresent(w -> change.send(new ChangePrefs(page.prefs().withStartWorkspace(w))));
         }
     }
 

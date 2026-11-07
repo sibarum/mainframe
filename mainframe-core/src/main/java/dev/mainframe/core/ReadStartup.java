@@ -3,6 +3,7 @@ package dev.mainframe.core;
 import dev.mainframe.core.Messages.Startup;
 import dev.mainframe.core.Messages.StartupWanted;
 import dev.mainframe.core.Messages.ShellChoice;
+import dev.mainframe.core.Messages.Preferences;
 import dev.vexelray.gui.core.app.Settings;
 import dev.sibarum.suite.tty.PtyPlatform;
 import dev.vexelray.framework.api.Job;
@@ -16,8 +17,8 @@ import java.util.List;
  * command line and working directory, which a step may not.
  *
  * <p>The folders {@code --dir} and {@code --dirs} name ({@link Folders}), the command line given after MainFrame's
- * options, the settings ({@link PrefsStore}) and this platform's shells. Which folder and shell a tab gets when the
- * launch names none is the frame's to decide from these (docs/settings.md); M4 adds workspaces.
+ * options, the settings ({@link PrefsStore}), the workspaces and this platform's shells. Which folder and shell a tab gets when the
+ * launch names none is the frame's to decide from these (docs/settings.md, docs/workspaces.md).
  *
  * <p>The command line reaches this job through a static, {@link Command#launched()}, set once by {@code main}: the
  * framework's {@code Launch} cannot carry MainFrame's grammar, and a value parsed before the framework runs has no
@@ -40,7 +41,14 @@ public final class ReadStartup {
         }
         String line = c.shellLine() == null ? "" : c.shellLine();
         Path here = Path.of("").toAbsolutePath();
-        return new Startup(Folders.of(c.sources(), here), line, PrefsStore.read(settings), shells,
-                Path.of(System.getProperty("user.home")));
+        Preferences prefs = PrefsStore.read(settings);
+        WorkspaceStore workspaces = WorkspaceStore.of(settings);
+        // A launch that names no folder and no workspace opens the one Settings says, if any (0.1's README).
+        List<Command.Source> sources = c.sources().isEmpty() && !prefs.startWorkspace().isBlank()
+                ? List.of(new Command.Source(Command.Kind.WORKSPACE, prefs.startWorkspace()))
+                : c.sources();
+        Folders.Opened opened = Folders.of(sources, here, workspaces);
+        return new Startup(opened.tabs(), line, prefs, shells, Path.of(System.getProperty("user.home")),
+                opened.workspace(), workspaces.names());
     }
 }

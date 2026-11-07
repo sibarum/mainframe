@@ -12,6 +12,7 @@ import dev.vexelray.gui.widget.Segment;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.CloseTab;
@@ -280,7 +281,7 @@ class ViewTest {
 
     /** Play the frame saying what is set. */
     private void said(Preferences prefs) {
-        shell.bus().publish(Prefs.TOPIC, new Prefs(prefs, SHELLS, ""));
+        shell.bus().publish(Prefs.TOPIC, new Prefs(prefs, SHELLS, "", List.of("day", "night")));
     }
 
     @Test
@@ -332,6 +333,28 @@ class ViewTest {
         eventually("the folder", () -> heard.contains(new ChangePrefs(Preferences.DEFAULT.withDir(
                 java.util.Optional.of(work)))));
         assertEquals(1, heard.stream().filter(m -> m instanceof ChangePrefs).count(), "a cancel changes nothing");
+    }
+
+    // ------------------------------------------------------------------ M4.1
+
+    @Test
+    void aNoticeIsShownAboveItsTabsTerminalAndTheCrossPutsItAway() throws Exception {
+        tab(5);
+        shell.bus().publish(Notice.TOPIC, new Notice(5, "This tab's environment scripts did not run: cmd."));
+        eventually("the band shown", () -> wiring.view().noticing(5));
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.view().noticeClose(5)));
+        eventually("the band put away", () -> !wiring.view().noticing(5));
+    }
+
+    @Test
+    void openAtLaunchChangesTheWorkspaceALaunchOpens() throws Exception {
+        said(Preferences.DEFAULT);
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        shell.bus().publish(dev.vexelray.gui.widget.Select.COMMITTED,
+                new dev.vexelray.gui.widget.Select.Committed(wiring.settings().startAddress(), java.util.Set.of("day")));
+        eventually("the workspace", () -> changed(p -> p.startWorkspace().equals("day")));
     }
 
     /**

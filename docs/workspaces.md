@@ -145,3 +145,24 @@ may need to say when its program first waits for input, which would be a finding
    message fewer but disk work and a notice to send from inside the shell's connection. I recommend the job.
 2. **The notice as a band above the terminal**, with a × that puts it away, in the tab's page?
 3. **`Touched(id)` for "nothing typed yet"**, beside M2's `Submitted`, rather than one message that says both?
+
+## Ruled
+
+All three accepted as recommended by the author 2026-11-07 ("Accept, build slice 1"): the command line prepared by a
+job before the shell starts, the notice as a band above the terminal with a ×, and `Touched(id)` beside `Submitted`.
+
+## Slice 1, as built
+
+Built 2026-11-07 and seen live on a home of its own: `--workspace=day` opening its two rows as tabs named *work* and
+*front*, the workspace's script run in each (`$env:MAINFRAME_WORKSPACE` and the script's own variable set), every row
+given its `env` key in the CSV; a launch command line (`cmd.exe`) starting the tabs without the scripts and saying so
+in the band, which its × put away; *Open at launch* set to `day` in Settings and a launch with no arguments opening it;
+and a `+` tab in that window sourcing the workspace's script and starting at home. Where it departs from the sketch:
+
+- **`InsertPath` came in slice 1**, not 4: `EnvScripts` uses its check for control characters.
+- **A row with no name is named for its folder** (the row's `title()`), as 0.1 named it, so the shell's title does
+  not replace it. The first live run showed *powershell* where 0.1 showed the folder.
+- **The store is found from `Settings`** (`WorkspaceStore.of`), since a job is handed the framework's `Settings`, whose
+  file sits in the application's home, and nothing else needs providing.
+- **The frame's `Tab` is `@Withers`** now that it has eleven fields; a shell starts from one place, `start`, once
+  the tab is both prepared and sized.

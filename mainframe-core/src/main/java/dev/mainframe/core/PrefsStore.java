@@ -19,6 +19,7 @@ final class PrefsStore {
     static final String MOTION = "tabs.motion";
     static final String SHELL = "shell.id";
     static final String DIR = "tabs.dir";
+    static final String START = "start.workspace";
 
     private PrefsStore() {
     }
@@ -27,7 +28,8 @@ final class PrefsStore {
         // 0.1 wrote the size as a float ("18.0"); the store reads either.
         int px = Math.round(s.getFloat(FONT, Preferences.DEFAULT.fontPx()));
         Preferences p = new Preferences(Preferences.SIZES.contains(px) ? px : Preferences.DEFAULT.fontPx(),
-                TabMotion.named(s.getString(MOTION, "")), s.getString(SHELL, ""), dir(s.getString(DIR, "")));
+                TabMotion.named(s.getString(MOTION, "")), s.getString(SHELL, ""), dir(s.getString(DIR, "")),
+                s.getString(START, "").strip());
         return p;
     }
 
@@ -44,6 +46,11 @@ final class PrefsStore {
             s.putString(DIR, p.dir().get().toString());
         } else {
             s.remove(DIR);
+        }
+        if (p.startWorkspace().isBlank()) {
+            s.remove(START);
+        } else {
+            s.putString(START, p.startWorkspace());
         }
         s.save();
     }

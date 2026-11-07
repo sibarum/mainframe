@@ -50,11 +50,13 @@ final class SettingsPage {
     static final String CHOOSE = "settings.choose";
     static final String HOME = "settings.home";
     static final String PROBLEM = "settings.problem";
+    static final String START = "settings.start";
 
     private final Gui gui;
     private final Segment<Integer> size;
     private final Segment<TabMotion> motion;
     private final Select<ShellChoice> shell;
+    private final Select<String> start;
     private final Node override;
     private final Node dir;
     private final Tooltip dirTip;
@@ -63,7 +65,7 @@ final class SettingsPage {
     private final Node problem;
 
     /** What was last shown: what a control's change is made from, and the shells a choice can name. */
-    private Prefs shown = new Prefs(Preferences.DEFAULT, List.of(), "");
+    private Prefs shown = new Prefs(Preferences.DEFAULT, List.of(), "", List.of());
 
     SettingsPage(Window window) {
         this.gui = window.gui();
@@ -83,6 +85,13 @@ final class SettingsPage {
         shell.node().width(Length.rem(18f));
         gui.landmark(SHELL, shell.node());
         override = small("").visible(false);
+
+        // "" stands for None: no workspace at launch, one plain tab.
+        start = new Select<String>(gui, w -> w.isEmpty() ? "None" : w).name(START);
+        start.node().width(Length.rem(18f));
+        start.options(List.of(""));
+        start.show("");
+        gui.landmark(START, start.node());
 
         // A path can be longer than the row: cut in the middle, keeping the drive and the folder, and whole in a tooltip.
         dir = gui.text("").textColor(gui.theme().color(Role.INK)).wordWrap(false).width(Length.FILL)
@@ -104,6 +113,7 @@ final class SettingsPage {
                         row("Text size", size.node()),
                         row("Tab motion", motion.node()),
                         row("New tabs run", gui.column().gap(Length.dp(4)).children(shell.node(), override)),
+                        row("Open at launch", start.node()),
                         row("New tabs start in", gui.column().gap(Length.dp(6)).width(Length.FILL).children(dir,
                                 gui.row().gap(Length.dp(8)).children(choose.node(), home.node()))),
                         problem);
@@ -136,6 +146,12 @@ final class SettingsPage {
                 + ", which new tabs run instead.").visible(!p.override().isBlank());
         String where = now.dir().map(Object::toString).orElse("Your home folder");
         dir.text(where);
+        if (!p.workspaces().equals(shown.workspaces())) {
+            List<String> choices = new java.util.ArrayList<>(List.of(""));
+            choices.addAll(p.workspaces());
+            start.options(choices);
+        }
+        start.show(p.workspaces().contains(now.startWorkspace()) ? now.startWorkspace() : "");
         dirTip.attach(dir, where);
         home.node().visible(now.dir().isPresent());
         shown = p;
@@ -171,6 +187,10 @@ final class SettingsPage {
 
     String shellAddress() {
         return shell.address();
+    }
+
+    String startAddress() {
+        return start.address();
     }
 
     String chooseAddress() {

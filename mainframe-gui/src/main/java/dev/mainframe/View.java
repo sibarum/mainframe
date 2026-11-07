@@ -11,6 +11,7 @@ import dev.mainframe.core.Messages.Front;
 import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.NewTab;
+import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Resized;
@@ -22,6 +23,12 @@ import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.api.Subscribe;
 import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.gui.core.Gui;
+import dev.vexelray.gui.core.Node;
+import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
+import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.icons.Icon;
+import dev.vexelray.gui.widget.IconButton;
 import dev.vexelray.gui.core.input.ClaimScope;
 import dev.vexelray.gui.core.input.ClickEvent;
 import dev.vexelray.gui.core.input.Shortcut;
@@ -109,6 +116,18 @@ final class View {
     private final Map<String, Long> byAddress = new HashMap<>();
     /** What each header says, as last set: a node's words cannot be read back, and the rename field starts from them. */
     private final Map<Long, String> headers = new HashMap<>();
+
+    /**
+     * Each tab's notice: the band above its terminal (docs/workspaces.md), built with the tab and kept, shown while it
+     * has something to say; and which tab each band's × is.
+     */
+    private record Band(Node row, Node text, IconButton close) {
+    }
+
+    private final Map<Long, Band> bands = new HashMap<>();
+    private final Map<String, Long> byClose = new HashMap<>();
+    /** The tabs whose band is showing: what a node cannot be asked. */
+    private final java.util.Set<Long> noticing = new java.util.HashSet<>();
 
     /** The key map's commands that apply to the screen in front, moved to each as it comes to the front. */
     private final List<Action> terminal = new ArrayList<>();
@@ -211,7 +230,11 @@ final class View {
         byAddress.put(screen.address(), m.id());
         headers.put(m.id(), m.header());
         order.add(m.id());
-        tabs.add(m.header(), screen.node());
+        Band band = band(m.id());
+        bands.put(m.id(), band);
+        byClose.put(band.close().address(), m.id());
+        Node page = gui.column().width(Length.FILL).height(Length.FILL).children(band.row(), screen.node());
+        tabs.add(m.header(), page);
     }
 
     /** The frame put a tab in front: show it. What the bar says it selected is then heard as {@link #selected}. */
@@ -237,6 +260,11 @@ final class View {
         order.remove(at);
         byAddress.remove(screen.address());
         headers.remove(m.id());
+        Band band = bands.remove(m.id());
+        if (band != null) {
+            byClose.remove(band.close().address());
+        }
+        noticing.remove(m.id());
         tabs.remove(at);
         screen.close();
     }
@@ -254,6 +282,31 @@ final class View {
             ui.motion(next.motion());
         }
         prefs = next;
+    }
+
+    /** A tab's notice band: one line in the danger colour, and a × that puts it away. Hidden until it says something. */
+    private Band band(long id) {
+        Node text = gui.text("").textColor(gui.theme().color(Role.DANGER)).width(Length.grow(1f));
+        IconButton close = new IconButton(gui, Icon.CLOSE, "Dismiss").name("notice-close-" + id);
+        Node row = gui.row().gap(Length.dp(8)).alignItems(AlignItems.CENTER).width(Length.FILL)
+                .padding(Length.dp(4), Length.dp(10)).background(gui.theme().color(Role.PANEL))
+                .visible(false).children(text, close.node());
+        return new Band(row, text, close);
+    }
+
+    /** What the band above a tab's terminal says; blank puts it away. */
+    @Subscribe
+    public void notice(Notice m) {
+        Band band = bands.get(m.id());
+        if (band != null) {
+            band.text().text(m.text());
+            band.row().visible(!m.text().isBlank());
+            if (m.text().isBlank()) {
+                noticing.remove(m.id());
+            } else {
+                noticing.add(m.id());
+            }
+        }
     }
 
     @Subscribe
@@ -344,6 +397,12 @@ final class View {
     /** The + or the pill. */
     @Subscribe
     public void pressed(Button.Pressed m) {
+        Long dismissed = byClose.get(m.button());
+        if (dismissed != null) {
+            bands.get(dismissed).row().visible(false);
+            noticing.remove(dismissed);
+            return;
+        }
         if (m.button().equals(ui.plus().address())) {
             newTab();
         } else if (m.button().equals(ui.pill().address()) && keys.paused()) {
@@ -375,6 +434,17 @@ final class View {
     /** A tab's screen, or null: for a test reading the view on the GUI thread. */
     TerminalScreen screen(long id) {
         return screens.get(id);
+    }
+
+    /** Whether a tab's notice band is showing: for a test. */
+    boolean noticing(long id) {
+        return noticing.contains(id);
+    }
+
+    /** Which tab's band a × address dismisses: for a test. */
+    String noticeClose(long id) {
+        Band band = bands.get(id);
+        return band == null ? "" : band.close().address();
     }
 
     /** The tab being renamed, or {@code NO_TAB}: for a test. */

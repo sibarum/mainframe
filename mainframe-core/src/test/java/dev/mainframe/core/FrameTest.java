@@ -11,6 +11,10 @@ import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.OpenShell;
+import dev.mainframe.core.Messages.Notice;
+import dev.mainframe.core.Messages.Prepare;
+import dev.mainframe.core.Messages.Prepared;
+import dev.mainframe.core.Messages.TabSpec;
 import dev.mainframe.core.Messages.ChangePrefs;
 import dev.mainframe.core.Messages.Preferences;
 import dev.mainframe.core.Messages.Prefs;
@@ -74,7 +78,7 @@ class FrameTest {
         frame = new Frame(tick.inbox("frame"));
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, Header.TOPIC, OpenShell.TOPIC, Output.TOPIC,
-                Prefs.TOPIC, SavePrefs.TOPIC,
+                Prefs.TOPIC, SavePrefs.TOPIC, Prepare.TOPIC, Notice.TOPIC,
                 CloseTab.TOPIC, WindowCommand.TOPIC, CloseShell.TOPIC, Ask.TOPIC, CloseAnswer.TOPIC)) {
             listen(heard, t);
         }
@@ -93,6 +97,20 @@ class FrameTest {
     private <T> void tell(Topic<T> topic, T message) {
         bus.publish(topic, message);
         tick.run(System.nanoTime() + 60_000_000_000L);
+        if (preparing) {
+            prepareAsked();
+        }
+    }
+
+    /** Whether {@link #tell} answers every {@link Prepare} as the job would, with the line and folder unchanged. */
+    private boolean preparing = true;
+
+    /** Answer each {@link Prepare} the frame sent and nobody answered yet, as {@code PrepareShell} would with no scripts. */
+    private void prepareAsked() {
+        for (Prepare p : took(Prepare.class)) {
+            bus.publish(Prepared.TOPIC, new Prepared(p.id(), p.dir(), p.line(), ""));
+        }
+        tick.run(System.nanoTime() + 60_000_000_000L);
     }
 
     /** What was sent of one kind, in order, and forget those; the other kinds stay to be taken. */
@@ -107,14 +125,18 @@ class FrameTest {
             new ShellChoice("powershell", "Windows PowerShell", "powershell.exe -NoLogo"),
             new ShellChoice("cmd", "Command Prompt", "cmd.exe"));
 
+    private static List<TabSpec> specs(Path... dirs) {
+        return java.util.Arrays.stream(dirs).map(d -> new TabSpec(d, "", "")).toList();
+    }
+
     /** A launch naming {@code dirs} with a command line of its own, which every tab runs. */
     private void started(Path... dirs) {
-        tell(Startup.TOPIC, new Startup(List.of(dirs), "powershell.exe", Preferences.DEFAULT, SHELLS, HOME));
+        tell(Startup.TOPIC, new Startup(specs(dirs), "powershell.exe", Preferences.DEFAULT, SHELLS, HOME, "", List.of()));
     }
 
     /** A launch with no command line of its own, so the chosen shell runs, and these settings. */
     private void launched(Preferences prefs, Path... dirs) {
-        tell(Startup.TOPIC, new Startup(List.of(dirs), "", prefs, SHELLS, HOME));
+        tell(Startup.TOPIC, new Startup(specs(dirs), "", prefs, SHELLS, HOME, "", List.of()));
     }
 
     @Test
@@ -355,7 +377,7 @@ class FrameTest {
     void theSettingsAreSaidAtLaunchAndALaunchWithNoFolderStartsInTheChosenOne() {
         Preferences prefs = Preferences.DEFAULT.withFontPx(20).withDir(Optional.of(WEB));
         launched(prefs);
-        assertEquals(List.of(new Prefs(prefs, SHELLS, "")), took(Prefs.class));
+        assertEquals(List.of(new Prefs(prefs, SHELLS, "", List.of())), took(Prefs.class));
         assertEquals(List.of(new AddTab(1, "web")), took(AddTab.class));
         tell(Resized.TOPIC, new Resized(1, 80, 24));
         assertEquals(List.of(new OpenShell(1, "powershell.exe -NoLogo", WEB, 80, 24)), took(OpenShell.class),
@@ -372,7 +394,7 @@ class FrameTest {
     @Test
     void theLaunchCommandLineWinsOverTheChosenShellAndIsSaid() {
         tell(Startup.TOPIC, new Startup(List.of(), "pwsh -NoProfile", Preferences.DEFAULT.withShell("cmd"), SHELLS,
-                HOME));
+                HOME, "", List.of()));
         assertEquals("pwsh -NoProfile", took(Prefs.class).getFirst().override());
         tell(NewTab.TOPIC, new NewTab());
         tell(Resized.TOPIC, new Resized(2, 80, 24));
@@ -385,7 +407,7 @@ class FrameTest {
         took(Prefs.class);
         Preferences bigger = Preferences.DEFAULT.withFontPx(20);
         tell(ChangePrefs.TOPIC, new ChangePrefs(bigger));
-        assertEquals(List.of(new Prefs(bigger, SHELLS, "")), took(Prefs.class));
+        assertEquals(List.of(new Prefs(bigger, SHELLS, "", List.of())), took(Prefs.class));
         assertEquals(List.of(new SavePrefs(1, bigger)), took(SavePrefs.class));
 
         Preferences biggest = bigger.withFontPx(24);
@@ -418,5 +440,69 @@ class FrameTest {
         assertEquals(24, p.stepped(1).stepped(1).stepped(1).fontPx());
         assertEquals(14, p.withFontPx(14).stepped(-1).fontPx());
         assertEquals(18, p.withFontPx(24).stepped(0).fontPx());
+    }
+
+    // ------------------------------------------------------------------ M4.1: workspaces at launch
+
+    /** A launch of workspace {@code day} with two rows, the second named. */
+    private void day() {
+        tell(Startup.TOPIC, new Startup(List.of(new TabSpec(WORK, "", "api-1"), new TabSpec(WEB, "front", "web-2")),
+                "", Preferences.DEFAULT, SHELLS, HOME, "day", List.of("day", "night")));
+    }
+
+    @Test
+    void aWorkspacesTabsAreNamedAndPreparedWithItsScripts() {
+        preparing = false;
+        day();
+        assertEquals(List.of(new AddTab(1, "api"), new AddTab(2, "front")), took(AddTab.class));
+        assertEquals(List.of(new Prepare(1, "powershell.exe -NoLogo", WORK, "day", "api-1"),
+                new Prepare(2, "powershell.exe -NoLogo", WEB, "day", "web-2")), took(Prepare.class));
+        assertEquals(List.of("day", "night"), took(Prefs.class).getFirst().workspaces());
+    }
+
+    @Test
+    void aShellStartsOnceBothItsLineAndItsSizeAreInWhicheverIsLast() {
+        preparing = false;
+        day();
+        took(Prepare.class);
+        tell(Resized.TOPIC, new Resized(1, 100, 30));
+        assertTrue(took(OpenShell.class).isEmpty(), "sized but not prepared");
+        tell(Prepared.TOPIC, new Prepared(1, WORK, "powershell.exe -NoExit -Command x", ""));
+        assertEquals(List.of(new OpenShell(1, "powershell.exe -NoExit -Command x", WORK, 100, 30)),
+                took(OpenShell.class));
+
+        tell(Prepared.TOPIC, new Prepared(2, HOME, "powershell.exe -NoLogo", ""));
+        assertTrue(took(OpenShell.class).isEmpty(), "prepared but not sized");
+        tell(Resized.TOPIC, new Resized(2, 90, 25));
+        assertEquals(List.of(new OpenShell(2, "powershell.exe -NoLogo", HOME, 90, 25)), took(OpenShell.class),
+                "in the folder the job found: home, when the one asked for had gone");
+        tell(Resized.TOPIC, new Resized(2, 80, 20));
+        assertTrue(took(OpenShell.class).isEmpty(), "a later size is the shell's");
+    }
+
+    @Test
+    void scriptsThatDidNotRunAreSaidAboveTheTerminal() {
+        preparing = false;
+        day();
+        tell(Prepared.TOPIC, new Prepared(1, WORK, "cmd.exe", "This tab's environment scripts did not run: cmd."));
+        assertEquals(List.of(new Notice(1, "This tab's environment scripts did not run: cmd.")), took(Notice.class));
+        tell(Prepared.TOPIC, new Prepared(2, WEB, "powershell.exe", ""));
+        assertTrue(took(Notice.class).isEmpty());
+    }
+
+    @Test
+    void aNewTabInAWorkspaceWindowSourcesTheWorkspacesScriptOnly() {
+        preparing = false;
+        day();
+        took(Prepare.class);
+        tell(NewTab.TOPIC, new NewTab());
+        assertEquals(List.of(new Prepare(3, "powershell.exe -NoLogo", HOME, "day", "")), took(Prepare.class));
+    }
+
+    @Test
+    void aWindowWithNoWorkspaceSourcesNothing() {
+        preparing = false;
+        launched(Preferences.DEFAULT, WORK);
+        assertEquals("", took(Prepare.class).getFirst().workspace());
     }
 }

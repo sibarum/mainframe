@@ -4,7 +4,7 @@ A terminal window that wraps the native OS shell. It is a real terminal emulator
 runs unmodified inside a Windows pseudoconsole (ConPTY), and MainFrame draws what it writes and sends it your keys.
 
 This is MainFrame rebuilt on VexelRay 0.2, milestone by milestone ([docs/rebuild.md](docs/rebuild.md)). What is here
-now is tabs of shells (M2) and their settings (M3); workspaces come back in M4. 0.1's README, in
+now is tabs of shells (M2) and their settings (M3); workspaces (M4) are coming back slice by slice. 0.1's README, in
 `GitHub/mainframe`, says what the finished application does.
 
 ## Run it
@@ -79,6 +79,28 @@ given when launching MainFrame runs instead of the chosen shell, for that run on
 
 The key bindings are the app menu's (click the window's name in the title bar): **Key bindings…**.
 
+## Workspaces
+
+A workspace is a saved list of folders, opened with `mainframe --workspace=<name>`, or at every launch that names no
+folder or workspace when Settings' **Open at launch** says so: one tab per folder, in order, each named as the
+workspace names it (a blank name is the folder's). Each is a CSV file in `~/.mainframe/workspaces/<name>.csv`, as in
+0.1, which a 0.1 MainFrame and this one share:
+
+```
+name,path,env
+,C:\work\api,api-3f9c2a.ps1
+web,C:\work\web-frontend,web-8d01b7.ps1
+```
+
+Every tab of a workspace sources its environment scripts as its shell starts: the workspace's
+(`<name>.env.ps1`, or `.env.sh` for bash and zsh) and then its own (`<name>.env/<env>.ps1`), each with a region
+MainFrame rewrites that sets `MAINFRAME_WORKSPACE`, `MAINFRAME_TAB` and `MAINFRAME_TAB_FOLDER`. A `+` tab in a
+workspace window sources the workspace's only. A tab whose command line cannot source them (a command line given at
+launch, or a shell other than PowerShell, bash or zsh) starts without them and says so in a band above its terminal,
+which its × puts away. 0.1's README has the rest of how the scripts work, which is unchanged.
+
+Ctrl+O and the Workspaces page, where workspaces are made and edited, come back in M4's next slices.
+
 ## A native executable
 
 Two builds, made with GraalVM native-image (a GraalVM JDK as `JAVA_HOME`, and Visual Studio with the "Desktop
@@ -145,6 +167,8 @@ parts that never hold each other and talk only by messages (every message is a r
 | `Shell` | A tab's program on a pseudo-terminal: a `@Source` that reads what it writes and a `@Destination` that writes what is typed and its size, one per tab, keyed by its id. The framework holds each tab's connection. It sends no more than two `Output`s ahead of what the view says it has `Shown`, so a program writing faster than the screen waits on its terminal |
 | `ReadStartup`, `Folders` | A job: what the launch asked for, and the folders `--dir` and `--dirs` name |
 | `SaveSettings`, `PrefsStore` | A job that saves the settings, and the store's keys, 0.1's, in one place |
+| `PrepareShell` | A job: a tab's command line, with its workspace's environment scripts sourced |
+| `Workspace`, `WorkspaceStore`, `EnvScripts`, `InsertPath` | 0.1's, as they were: the CSV files, their folder, the scripts, what `--insert-path` may type |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
 
