@@ -31,6 +31,79 @@ reasons and the full method.
 
 ## Milestones
 
+## M4 · workspaces · 2026-11-07
+
+Eight findings (FN-14 to FN-21). Two are architectural. FN-15 decided how every test in this repository runs: a
+headless tree runs the real jobs on the real home. FN-14 decided where a window's keys are declared: in the main view,
+first. Three are widget gaps met in the Workspaces window (FN-16, FN-17, FN-20), one is an undo rule that bites a field
+shown for a moment (FN-18), and two are what automation and the terminal cannot say (FN-19, FN-21).
+
+### The shapes
+
+| | The promise | What happened | How it looked |
+| --- | --- | --- | --- |
+| FN-14 | A key is declared where it applies | Born application-wide, then moved | Every window's Esc declared by the main view, before the terminal's |
+| FN-15 | A view test drives the view | It drives the real frame and jobs, on the real home | The person's settings overwritten; a real MainFrame started |
+| FN-16 | Cards on a board, edited in place | No field in a card, no key on one | A rename field under the cards; Remove by menu only |
+| FN-17 | A list says what the person selected | It says what the code selected too | The view drops the echoes of its own selections |
+| FN-18 | One Ctrl+Z for everything in a window | A put-away field's typing stops it | Each field keeps its own history |
+| FN-19 | A live check drives the app | Not the folder picker | Add folder and Change folder seen only in `ViewTest` |
+| FN-20 | A field's text at any size | Larger text loses its descenders | The heading at 1.25rem |
+| FN-21 | A terminal says what its program did | Not that it waits for input | 0.1's 300 ms quiet guess, kept with `Timer` |
+
+### What would stop each
+
+1. A key-map action declared straight into its place (FN-14).
+2. A test tree on a home of its own by default, and a way to stand a job in for a test (FN-15).
+3. A card face with an editing state, and a deck action that reaches the focused card's item (FN-16).
+4. `Selected` saying whether the person made it, or no publish for a selection set in code (FN-17).
+5. `Gui.undo` stepping past an entry whose target is gone for good (FN-18).
+6. `ottermate pick <path>`, answering the next `PickFile` (FN-19).
+7. A text field whose line follows its text size (FN-20).
+8. Shell integration's prompt marks said as `TerminalScreen.PROMPTED` (FN-21).
+
+### My own mistakes
+
+- **I ran `ViewTest` against the person's own home.** Its tree saved a test's settings into the real
+  `~/.mainframe/settings.properties`, which a 0.1 MainFrame shares, and removed keys I cannot restore. It also started
+  a real MainFrame I was not permitted to stop. The person closed it. Nothing in a view test looked like disk work,
+  and that was the trap: the tree runs every job. The rule: before a test builds a tree, ask what its jobs write and
+  start, and give the test run a home of its own. The parent pom does that now, and `ViewTest` refuses to run without it.
+- **The Workspaces component named a new workspace before it had read the disk**, so Ctrl+O's *New workspace…* chose a
+  name already taken. Its unit test passed because the test's disk did not hold that name. The rule: a test of
+  "after X lands" puts on the disk what would make the wrong order visible.
+- **I trusted the list's selection as the person's.** The first live run showed the echo undoing a selection the
+  component had just made (FN-17). The rule: a widget's message after code changed that widget is suspect until the
+  widget's docs say otherwise.
+- **I put the card rename field's typing in the window's history without thinking about it**, and undo stopped at
+  it (FN-18). The rule: a field that comes and goes gets its own history.
+- **I left a stray helper method at the end of a new class.** It had no purpose, and I deleted it before the build. The
+  rule: read a new file through once before compiling it.
+- **Shell editing failed four ways:**
+  - A heredoc with an apostrophe ate a whole command.
+  - Python is not installed here.
+  - A `perl` substitution anchored with `^` matched nothing, because it lacked `/m`.
+  - A Windows path in a Java string lost its backslash (M1's rule, broken again).
+
+  The rule: new files and multi-line Java go in with the Write and Edit tools, and every scripted edit is checked by
+  a grep.
+- **`window open` straight after Ctrl+O failed**, because the dialog waits for a job. A script waits for a window
+  that a job opens.
+
+### What to keep exactly as it is
+
+- **One disk job in flight, and a save waiting as a name.** Renames, saves and deletes of one file can never pass
+  each other, several edits in a row are one write, and a rename that lands takes a waiting save with it. Thirteen
+  component tests and a ten-step live undo/redo agreed.
+- **The journal holding only numbers in the history** (Vexplore's `Journaled`). What a step did stays the component's,
+  so a delete's stash, learnt only when the job answers, is kept up to date at no cost to the window.
+- **`Turn` on every job request and reply.** One `Moved` step serves a rename, its undo and its redo, and a refused
+  undo says "Could not undo" without a branch of its own.
+- **A home of the run's own for every live check, and the files read after each step.** The CSV, the scripts and
+  `.deleted` on disk are what showed the undo was real, not only drawn.
+- **Proposing the page before building it.** All three of its questions were answered "as recommended", and the build
+  departed from it only where the widgets did (FN-16 to FN-20).
+
 ## M3 · settings · 2026-11-07
 
 One finding (FN-13), a missing knob: the framework's own key-bindings window is the one window a message cannot open.
