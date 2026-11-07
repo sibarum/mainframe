@@ -136,4 +136,27 @@ public final class InsertPath {
         name.codePoints().forEach(cp -> out.appendCodePoint(cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) ? 0xfffd : cp));
         return out.append('”').toString();
     }
+
+    /**
+     * What {@code --insert-path=spec} types into a tab that starts in {@code dir} and runs a shell of {@code dialect}
+     * (null when MainFrame cannot tell which): the file is looked at, and on Windows its short name may be asked for.
+     * Whatever stops it is the notice the tab shows. Reads the disk, so a job's (0.1's {@code Startup.insertion}).
+     */
+    static Outcome check(String spec, java.nio.file.Path dir, Dialect dialect) {
+        java.nio.file.Path file;
+        try {
+            file = java.nio.file.Path.of(spec);
+        } catch (java.nio.file.InvalidPathException e) {
+            return Outcome.refused("--insert-path is not a path, so nothing was typed.");
+        }
+        if (!file.isAbsolute() || !file.normalize().equals(file) || !java.nio.file.Files.isRegularFile(file)
+                || file.getFileName() == null) {
+            return Outcome.refused("--insert-path does not name a file by its full path, so nothing was typed.");
+        }
+        if (dir == null || !dir.equals(file.getParent())) {
+            return Outcome.refused("--insert-path names a file outside this tab's folder, so nothing was typed.");
+        }
+        return decide(dialect, file.getFileName().toString(),
+                () -> dev.sibarum.suite.tty.PtyPlatform.current().shortName(file));
+    }
 }

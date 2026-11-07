@@ -152,16 +152,23 @@ public final class Messages {
      * Settings), the command line given at launch (blank for none: the chosen shell runs), the settings, the shells
      * there are to choose from, the home folder (where a new tab starts when none is chosen), the workspace this window
      * was opened as (blank for none: {@code --workspace}, else the one Settings opens at launch), and every
-     * workspace's name.
+     * workspace's name; and what {@code --insert-path} types on the first tab's input line (blank: nothing), or the
+     * notice why it types nothing (blank: none).
      */
     public record Startup(List<TabSpec> tabs, String line, Preferences prefs, List<ShellChoice> shells, Path home,
-                          String workspace, List<String> names) {
+                          String workspace, List<String> names, String insert, String insertNotice) {
         public static final Topic<Startup> TOPIC = Topic.edge(Startup.class);
 
         public Startup {
             tabs = List.copyOf(tabs);
             names = List.copyOf(names);
             shells = List.copyOf(shells);
+        }
+
+        /** A launch with no {@code --insert-path}. */
+        public Startup(List<TabSpec> tabs, String line, Preferences prefs, List<ShellChoice> shells, Path home,
+                       String workspace, List<String> names) {
+            this(tabs, line, prefs, shells, home, workspace, names, "", "");
         }
     }
 
@@ -523,5 +530,35 @@ public final class Messages {
     /** Clear what deleting put aside more than a month ago ({@code PruneDeleted}): once a run. */
     public record Prune() {
         public static final Topic<Prune> TOPIC = Topic.edge(Prune.class);
+    }
+
+    // ------------------------------------------------------------------ slice 4: environment scripts, --insert-path
+
+    /**
+     * Type {@code text} on tab {@code id}'s input line once its shell has drawn its prompt, and only if nothing was typed
+     * there first: what {@code --insert-path} names, quoted for the shell.
+     */
+    public record TypeInto(long id, String text) {
+        public static final Topic<TypeInto> TOPIC = Topic.edge(TypeInto.class);
+    }
+
+    /** <i>Edit environment…</i> on a tab's header: its own script ({@code tab}), or its workspace's. */
+    public record EditEnv(long id, boolean tab) {
+        public static final Topic<EditEnv> TOPIC = Topic.edge(EditEnv.class);
+    }
+
+    /**
+     * Make an environment script if it is not there, bring its region up to date, and open it in VexelRay IDE: the
+     * workspace's ({@code env} blank) or a row's, found by its key. {@code title} and {@code path} are the row's as the
+     * asker knows them, for a row no longer in the file; {@code dialect} is the shell's, empty for the platform's.
+     */
+    public record EditScript(String workspace, String env, String title, String path,
+                             Optional<EnvScripts.Dialect> dialect) {
+        public static final Topic<EditScript> TOPIC = Topic.edge(EditScript.class);
+    }
+
+    /** {@link EditScript}'s reply: blank when the script is open in the IDE, else what a dialog says and why. */
+    public record ScriptOpened(String title, String problem) {
+        public static final Topic<ScriptOpened> TOPIC = Topic.edge(ScriptOpened.class);
     }
 }

@@ -123,7 +123,8 @@ class ViewTest {
         shell.bus().subscribe(Touched.TOPIC, heard::add);
         shell.bus().subscribe(OpenAsked.TOPIC, heard::add);
         for (var t : List.of(Select.TOPIC, NewWorkspace.TOPIC, RenameWorkspace.TOPIC, DeleteWorkspace.TOPIC, AddRow.TOPIC,
-                MoveRow.TOPIC, RenameRow.TOPIC, Undo.TOPIC, EditWorkspaces.TOPIC)) {
+                MoveRow.TOPIC, RenameRow.TOPIC, Undo.TOPIC, EditWorkspaces.TOPIC, dev.mainframe.core.Messages.EditEnv.TOPIC,
+                dev.mainframe.core.Messages.EditScript.TOPIC)) {
             subscribe(t);
         }
         cuts = Cuts.watch(shell.gui());
@@ -552,5 +553,52 @@ class ViewTest {
         eventually("edit night", () -> heard.contains(new EditWorkspaces("night", false)));
         shell.bus().publish(ListView.ACTIVATED, new ListView.Activated(list, OpenPage.Row.NEW));
         eventually("a new one", () -> heard.contains(new EditWorkspaces("", true)));
+    }
+
+    // ------------------------------------------------------------------ slice 4
+
+    @Test
+    void insertPathIsTypedOnceTheProgramHasWrittenAndGoneQuiet() throws Exception {
+        tab(1);
+        shell.bus().publish(dev.mainframe.core.Messages.TypeInto.TOPIC,
+                new dev.mainframe.core.Messages.TypeInto(1, "'notes.txt'"));
+        VexelApplication.frame(shell);
+        assertFalse(heard.contains(new Typed(1, " 'notes.txt'")), "nothing before the program has written");
+        shell.bus().publish(Output.TOPIC, new Output(1, "PS work> "));
+        eventually("typed after the prompt", () -> heard.contains(new Typed(1, " 'notes.txt'")));
+    }
+
+    @Test
+    void insertPathTypesNothingWhenThePersonTypedFirst() throws Exception {
+        TerminalScreen screen = tab(2);
+        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "l", true));
+        eventually("the key", () -> heard.contains(new Typed(2, "l")));
+        shell.bus().publish(dev.mainframe.core.Messages.TypeInto.TOPIC,
+                new dev.mainframe.core.Messages.TypeInto(2, "'notes.txt'"));
+        shell.bus().publish(Output.TOPIC, new Output(2, "PS work> "));
+        long until = System.nanoTime() + 3 * View.PROMPT_QUIET.toNanos();
+        while (System.nanoTime() < until) {
+            VexelApplication.frame(shell);
+            Thread.sleep(10);
+        }
+        assertFalse(heard.contains(new Typed(2, " 'notes.txt'")));
+    }
+
+    @Test
+    void aHeadersMenuEditsTheTabsEnvironmentOrItsWorkspaces() throws Exception {
+        tab(1);
+        String bar = wiring.ui().tabs().address();
+        shell.bus().publish(Tabs.CHOSEN, new Tabs.Chosen(bar, View.ENV_TAB.id(), 0));
+        eventually("the tab's", () -> heard.contains(new dev.mainframe.core.Messages.EditEnv(1, true)));
+        shell.bus().publish(Tabs.CHOSEN, new Tabs.Chosen(bar, View.ENV_WORKSPACE.id(), 0));
+        eventually("the workspace's", () -> heard.contains(new dev.mainframe.core.Messages.EditEnv(1, false)));
+    }
+
+    @Test
+    void theWorkspacesWindowsButtonEditsTheWorkspacesScript() throws Exception {
+        showNight();
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.workspaces().envAddress()));
+        eventually("night's script", () -> heard.contains(
+                new dev.mainframe.core.Messages.EditScript("night", "", "", "", java.util.Optional.empty())));
     }
 }

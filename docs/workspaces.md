@@ -184,3 +184,32 @@ with `--workspace=day` and the first window closing with its spare tab. Where it
 - **A warning on every tab's start**, *a message for no open connection — Resized*: the screen is sized before its
   shell is prepared, and `Shell` hears that first size as a destination with no connection yet. It changes nothing;
   sending the first size only in `OpenShell` would quiet it, and is left for when the shape is next touched.
+
+## Slice 4, as built
+
+Built 2026-11-07 and seen live on a home of its own, launched as `--workspace=live --insert-path=<home>\work\notes.txt`
+with `-Dmainframe.launch=off`: the first tab's prompt drawn, then `'notes.txt'` typed after it with the cursor taken
+home, so typing `cat` and Enter printed the file; *Edit environment…* on the tab's header making
+`live.env\work-aaaaaa.ps1` with its region, and the dialog saying where it is; the Workspaces window's *Edit
+environment…* making `live.env.ps1`. Tests: 5 in `FrameTest`, 3 in `EditAndInsertTest` (the script maker and the
+insert check on a temporary folder), 4 in `ViewTest`.
+
+Where it differs from the sketch:
+
+- **The insert is checked by `ReadStartup`**, not a `CheckInsert` job of its own: it is the same moment and the same
+  disk, and the tab's folder and shell are known there. `Startup` gains `insert` and `insertNotice`; a refusal joins
+  the first tab's scripts notice in its band, once its shell is prepared.
+- **"The first prompt is drawn" is 0.1's rule**: the program has written, then been quiet for 300 ms. The view keeps
+  it with the framework's `Timer`, a beat after each output while there is something to type, counted only if no
+  output came since; text typed first by the person cancels it. `TerminalScreen` has no "waiting for input" to say
+  (FN-21).
+- **One job, `OpenScript`, makes the script and opens it**: 0.1's `MakeScript` and `OpenInIde` had nothing between
+  them. It is in `-gui`, since finding VexelRay IDE is the framework shell's `Apps`. The rules of finding a row by its
+  key are `EnvScripts.edit`, public, with `EnvScripts.Gone` for what a dialog says.
+- **The Workspaces window asks for scripts too** (`EditScript` from its view, the card's menu and the button below the
+  cards), with the platform's dialect, since the window does not know a shell.
+- **Both header lines are on every tab**: `Tabs` takes one menu for all headers, so a tab of no workspace, or a `+` tab
+  asking for a row's script, is told why there is none rather than not offered the line.
+- **A run that may start no program** (`-Dmainframe.launch=off`, every test) makes the script and says where it is
+  instead of starting the IDE. **Not seen live: VexelRay IDE actually opening the script**, since that starts a
+  program that outlives the run; `Vex` is 0.1's, unchanged.

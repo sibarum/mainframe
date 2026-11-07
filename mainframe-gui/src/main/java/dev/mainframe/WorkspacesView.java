@@ -1,6 +1,7 @@
 package dev.mainframe;
 
 import dev.mainframe.core.Messages.AddRow;
+import dev.mainframe.core.Messages.EditScript;
 import dev.mainframe.core.Messages.DeleteWorkspace;
 import dev.mainframe.core.Messages.MoveRow;
 import dev.mainframe.core.Messages.NameWanted;
@@ -68,6 +69,7 @@ final class WorkspacesView {
     private final Sender<OpenWorkspace> open;
     private final Sender<PickFile> pick;
     private final Sender<WorkspacesPage.CardAsk> asks;
+    private final Sender<EditScript> scripts;
 
     /** What the component last said. */
     private Showing showing = new Showing(List.of(), "", "", "", "");
@@ -80,7 +82,8 @@ final class WorkspacesView {
                    Sender<RenameWorkspace> rename, Sender<DeleteWorkspace> delete, Sender<AddRow> add,
                    Sender<RemoveRow> remove, Sender<MoveRow> move, Sender<RenameRow> retitle,
                    Sender<RepointRow> repoint, Sender<Undo> undo, Sender<Redo> redo, Sender<OpenWorkspace> open,
-                   Sender<PickFile> pick, Sender<WorkspacesPage.CardAsk> asks) {
+                   Sender<PickFile> pick, Sender<WorkspacesPage.CardAsk> asks, Sender<EditScript> scripts) {
+        this.scripts = scripts;
         this.page = page;
         this.select = select;
         this.make = make;
@@ -108,7 +111,7 @@ final class WorkspacesView {
     public void showing(Showing m) {
         showing = m;
         String echo = page.show(m.all(), m.selected(), m.launch(), m.problem(), m.said(), !m.problem().isBlank(),
-                remove, asks);
+                remove, asks, scripts);
         if (echo != null) {
             echoes.add(echo);
         }
@@ -168,6 +171,8 @@ final class WorkspacesView {
             make.send(new NewWorkspace());
         } else if (m.button().equals(page.addAddress()) && !showing.selected().isBlank()) {
             pick.send(PickFile.folder(ADD_PICK, ""));
+        } else if (m.button().equals(page.envAddress()) && !showing.selected().isBlank()) {
+            scripts.send(new EditScript(showing.selected(), "", "", "", Optional.empty()));
         }
     }
 
@@ -203,7 +208,7 @@ final class WorkspacesView {
             move.send(new MoveRow(w.get().name(), from, to));
         } else {
             page.show(showing.all(), showing.selected(), showing.launch(), showing.problem(), showing.said(),
-                    !showing.problem().isBlank(), remove, asks);   // back where it was: the deck shows the list again
+                    !showing.problem().isBlank(), remove, asks, scripts);   // back where it was: the deck shows the list again
         }
     }
 

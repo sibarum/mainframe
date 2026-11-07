@@ -90,7 +90,7 @@ class FrameTest {
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, Header.TOPIC, OpenShell.TOPIC, Output.TOPIC,
                 Prefs.TOPIC, SavePrefs.TOPIC, Prepare.TOPIC, Notice.TOPIC, WorkspacesWanted.TOPIC, Tiles.TOPIC,
-                Load.TOPIC, LaunchWorkspace.TOPIC,
+                Load.TOPIC, LaunchWorkspace.TOPIC, Messages.TypeInto.TOPIC, Messages.EditScript.TOPIC,
                 CloseTab.TOPIC, WindowCommand.TOPIC, CloseShell.TOPIC, Ask.TOPIC, CloseAnswer.TOPIC)) {
             listen(heard, t);
         }
@@ -619,5 +619,76 @@ class FrameTest {
         tell(Loaded.TOPIC, new Loaded("night", java.util.Optional.empty()));
         assertEquals("No workspace called night", took(Ask.class).getFirst().title());
         assertTrue(took(AddTab.class).isEmpty());
+    }
+
+    // ------------------------------------------------------------------ slice 4
+
+    @Test
+    void insertPathIsTypedIntoTheFirstTab() {
+        preparing = false;
+        tell(Startup.TOPIC, new Startup(specs(WORK, WEB), "", Preferences.DEFAULT, SHELLS, HOME, "", List.of(),
+                "'notes.txt'", ""));
+        assertEquals(List.of(new Messages.TypeInto(1, "'notes.txt'")), took(Messages.TypeInto.class));
+    }
+
+    @Test
+    void insertPathsRefusalIsSaidInTheFirstTabBesideItsScripts() {
+        preparing = false;
+        tell(Startup.TOPIC, new Startup(specs(WORK), "", Preferences.DEFAULT, SHELLS, HOME, "", List.of(), "",
+                "--insert-path names a file outside this tab's folder, so nothing was typed."));
+        assertTrue(took(Messages.TypeInto.class).isEmpty());
+        tell(Prepared.TOPIC, new Prepared(1, WORK, "pwsh", "Its scripts did not run."));
+        assertEquals(List.of(new Notice(1, "Its scripts did not run. --insert-path names a file outside this tab's "
+                + "folder, so nothing was typed.")), took(Notice.class));
+    }
+
+    @Test
+    void editEnvironmentAsksForTheRowsScriptOrTheWorkspacesWithTheTabsShell() {
+        day();
+        tell(Messages.EditEnv.TOPIC, new Messages.EditEnv(2, true));
+        tell(Messages.EditEnv.TOPIC, new Messages.EditEnv(2, false));
+        List<Messages.EditScript> asked = took(Messages.EditScript.class);
+        assertEquals(2, asked.size());
+        assertEquals("web-2", asked.get(0).env());
+        assertEquals("front", asked.get(0).title());
+        assertEquals("", asked.get(1).env());
+        assertEquals("day", asked.get(1).workspace());
+        assertEquals(Optional.of(EnvScripts.Dialect.POWERSHELL), asked.get(0).dialect());
+    }
+
+    @Test
+    void aPlusTabHasNoScriptOfItsOwn() {
+        day();
+        tell(NewTab.TOPIC, new NewTab());
+        sent.clear();
+        tell(Messages.EditEnv.TOPIC, new Messages.EditEnv(3, true));
+        assertTrue(took(Messages.EditScript.class).isEmpty());
+        assertEquals("This tab has no script of its own", took(Ask.class).getFirst().title());
+    }
+
+    @Test
+    void aPlainWindowHasNoEnvironment() {
+        launched(Preferences.DEFAULT, WORK);
+        tell(Messages.EditEnv.TOPIC, new Messages.EditEnv(1, false));
+        assertTrue(took(Messages.EditScript.class).isEmpty());
+        assertEquals("No environment to edit", took(Ask.class).getFirst().title());
+    }
+
+    @Test
+    void aScriptThatDidNotOpenIsSaid() {
+        tell(Messages.ScriptOpened.TOPIC, new Messages.ScriptOpened("", ""));
+        assertTrue(took(Ask.class).isEmpty());
+        tell(Messages.ScriptOpened.TOPIC, new Messages.ScriptOpened("VexelRay IDE is not installed", "The script is x."));
+        assertEquals("VexelRay IDE is not installed", took(Ask.class).getFirst().title());
+    }
+
+    @Test
+    void theWorkspacesWindowsNamesReachSettings() {
+        launched(Preferences.DEFAULT, WORK);
+        sent.clear();
+        tell(Messages.WorkspaceNames.TOPIC, new Messages.WorkspaceNames(List.of("day", "evening")));
+        assertEquals(List.of("day", "evening"), took(Prefs.class).getLast().workspaces());
+        tell(Messages.WorkspaceNames.TOPIC, new Messages.WorkspaceNames(List.of("day", "evening")));
+        assertTrue(took(Prefs.class).isEmpty(), "said only when it is news");
     }
 }

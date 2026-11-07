@@ -269,3 +269,14 @@ The Workspaces window's name is a heading that is a field: a `TextField` with `t
 were cut at the baseline ("day" read "dav"), with the field's default height or one of 2.75rem. At 1.25rem they are
 whole. Done: 1.25rem. What the framework could do: size the field's line from its text size, or clip at the node
 rather than at the line.
+
+## FN-21 · A terminal cannot say its program is waiting for input 🔬
+
+`--insert-path` types a file's name on the first tab's input line once its prompt is drawn, and only then (M4.4).
+`TerminalScreen` says what the program wrote, its title and its size, but not that the program is now waiting for
+input, so "the prompt is drawn" is 0.1's guess: it has written, then been quiet for 300 ms. On 0.2 that guess needs a
+clock, which a step may not read, so the view keeps it with the framework's `Timer` (a beat after each output, counted
+only if none came since). It worked live; a slow prompt that pauses mid-draw, or a shell writing a banner in two
+bursts more than 300 ms apart, would get the text early. What vex-suite-common could do: shell integration's marks
+(OSC 133's "prompt start"/"command start", which PowerShell, bash and zsh can be set to send) parsed by `Terminal`
+and said as `TerminalScreen.PROMPTED`, with the quiet guess only where no mark ever comes.

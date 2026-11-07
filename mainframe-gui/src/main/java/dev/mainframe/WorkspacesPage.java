@@ -1,5 +1,6 @@
 package dev.mainframe;
 
+import dev.mainframe.core.Messages.EditScript;
 import dev.mainframe.core.Messages.RemoveRow;
 import dev.mainframe.core.Workspace;
 import dev.vexelray.framework.shell.Window;
@@ -148,7 +149,7 @@ final class WorkspacesPage {
 
         add = new Button(gui, "Add folder…").name(ADD);
         gui.landmark(ADD, add.node());
-        env = new Button(gui, "Edit environment…").name(ENV).enabled(false);   // M4.4 builds it; here it is placed
+        env = new Button(gui, "Edit environment…").name(ENV);   // the workspace's own script
         gui.landmark(ENV, env.node());
         Node buttons = gui.row().gap(Length.dp(8)).width(Length.FILL).children(add.node(),
                 gui.box().width(Length.grow(1f)), env.node());
@@ -193,7 +194,8 @@ final class WorkspacesPage {
      * back, or null when the list already had it selected.
      */
     String show(List<Workspace> all, String selected, String launch, String problemText, String saidText,
-              boolean typingName, Sender<RemoveRow> remove, Sender<CardAsk> asks) {
+              boolean typingName, Sender<RemoveRow> remove, Sender<CardAsk> asks,
+                Sender<EditScript> scripts) {
         List<Row> rows = all.stream().map(w -> new Row(w.name(), w.name().equals(launch))).toList();
         list.items(rows);
         String echo = null;
@@ -236,7 +238,8 @@ final class WorkspacesPage {
             Menu menu = Menu.builder()
                     .item("Rename tab", asks, new CardAsk(keys.get(i), false))
                     .item("Change folder…", asks, new CardAsk(keys.get(i), true))
-                    .item("Edit environment…", false, asks, new CardAsk(keys.get(i), false))
+                    .item("Edit environment…", scripts,
+                            new EditScript(w.name(), e.env(), e.title(), e.path(), java.util.Optional.empty()))
                     .separator()
                     .item("Remove", remove, new RemoveRow(w.name(), i))
                     .build();
@@ -297,6 +300,10 @@ final class WorkspacesPage {
 
     String retitleAddress() {
         return retitle.address();
+    }
+
+    String envAddress() {
+        return env.address();
     }
 
     String addAddress() {

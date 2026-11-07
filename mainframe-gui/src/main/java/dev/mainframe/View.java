@@ -13,6 +13,8 @@ import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.NewTab;
 import dev.mainframe.core.Messages.OpenAsked;
 import dev.mainframe.core.Messages.EditWorkspaces;
+import dev.mainframe.core.Messages.EditEnv;
+import dev.mainframe.core.Messages.TypeInto;
 import dev.mainframe.core.Messages.Touched;
 import dev.mainframe.core.Messages.Notice;
 import dev.mainframe.core.Messages.Output;
@@ -92,6 +94,19 @@ final class View {
     /** A header's own menu: the tab's, beside the bar's built-in ones. */
     static final MenuAction RENAME = MenuAction.of("rename", "Rename…");
     static final MenuAction CLOSE = MenuAction.of("close-tab", "Close");
+    static final MenuAction ENV_TAB = MenuAction.of("env-tab", "Edit environment…");
+    static final MenuAction ENV_WORKSPACE = MenuAction.of("env-workspace", "Edit workspace environment…");
+
+    /** How long a tab's program is quiet after writing before its prompt counts as drawn (0.1's 300 ms). */
+    static final java.time.Duration PROMPT_QUIET = java.time.Duration.ofMillis(300);
+
+    /**
+     * A tab's program has been quiet since its output number {@code seq}: the timer's, which the view sets after each
+     * output while there is something to type into the tab, and which counts only if no output came since.
+     */
+    record Quiet(long id, long seq) {
+        static final sibarum.atchung.Topic<Quiet> TOPIC = sibarum.atchung.Topic.edge(Quiet.class);
+    }
 
     private final Gui gui;
     private final Keymap keys;
@@ -110,6 +125,8 @@ final class View {
     private final Sender<WindowCommand> windows;
     private final Sender<OpenAsked> openAsked;
     private final Sender<EditWorkspaces> editWorkspaces;
+    private final Sender<EditEnv> editEnv;
+    private final dev.vexelray.framework.core.Timer timer;
     private final Sender<Touched> touched;
     /** The tabs something was typed into, so each is said {@link Touched} once. */
     private final java.util.Set<Long> touchedTabs = new java.util.HashSet<>();
@@ -121,6 +138,12 @@ final class View {
     /** The tabs' screens, in the bar's order, and which tab each screen's address is. */
     private final List<Long> order = new ArrayList<>();
     private final Map<Long, TerminalScreen> screens = new HashMap<>();
+    /** What {@code --insert-path} is to type into a tab, by its id, until it is typed or the person types first. */
+    private final Map<Long, String> inserts = new HashMap<>();
+    /** How many outputs each such tab has had, so a quiet beat from before the last one counts for nothing. */
+    private final Map<Long, Long> outputs = new HashMap<>();
+    /** The quiet beat each such tab is waiting on. */
+    private final Map<Long, dev.vexelray.framework.core.Timer.Scheduled> waits = new HashMap<>();
     private final Map<String, Long> byAddress = new HashMap<>();
     /** What each header says, as last set: a node's words cannot be read back, and the rename field starts from them. */
     private final Map<Long, String> headers = new HashMap<>();
@@ -154,7 +177,10 @@ final class View {
             Sender<CloseAsked> closeAsked, Sender<Rename> rename, Sender<ChangePrefs> changePrefs,
             Sender<WindowCommand> windows, Sender<OpenAsked> openAsked, Sender<Touched> touched,
             OpenPage open, Sender<OpenPage.Key> openKeys, WorkspacesPage workspaces,
-            Sender<WorkspacesPage.Key> workspacesKeys, Sender<EditWorkspaces> editWorkspaces, Sender<Intent> intents) {
+            Sender<WorkspacesPage.Key> workspacesKeys, Sender<EditWorkspaces> editWorkspaces, Sender<EditEnv> editEnv,
+            dev.vexelray.framework.core.Timer timer, Sender<Intent> intents) {
+        this.editEnv = editEnv;
+        this.timer = timer;
         this.editWorkspaces = editWorkspaces;
         this.gui = gui;
         this.keys = keys;
@@ -176,7 +202,7 @@ final class View {
         this.intents = intents;
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
-        tabs.action(RENAME).action(CLOSE);
+        tabs.action(RENAME).action(ENV_TAB).action(ENV_WORKSPACE).action(CLOSE);
         commands(keys, open, openKeys, workspaces, workspacesKeys);
         ui.menu(false, intents, windows, openAsked, editWorkspaces);
         // A double-click on a header renames its tab. The bar says nothing of one, so the tree's clicks are read,
@@ -357,6 +383,11 @@ final class View {
         if (screen != null) {
             screen.feed(m.text());
         }
+        if (inserts.containsKey(m.id())) {
+            long seq = outputs.merge(m.id(), 1L, Long::sum);
+            java.util.Optional.ofNullable(waits.remove(m.id())).ifPresent(dev.vexelray.framework.core.Timer.Scheduled::cancel);
+            waits.put(m.id(), timer.after(PROMPT_QUIET, Quiet.TOPIC, new Quiet(m.id(), seq)));
+        }
         shown.send(new Shown(m.id()));
     }
 
@@ -375,6 +406,7 @@ final class View {
             typed.send(new Typed(id, m.text()));
             if (m.typed() && touchedTabs.add(id)) {
                 touched.send(new Touched(id));
+                inserts.remove(id);   // the person typed first: text arriving in the middle of theirs would be nobody's line
             }
             if (m.typed() && (m.text().indexOf('\r') >= 0 || m.text().indexOf('\n') >= 0)) {
                 submitted.send(new Submitted(id));
@@ -396,6 +428,38 @@ final class View {
         if (id != null) {
             retitled.send(new Retitled(id, m.title()));
         }
+    }
+
+    // ------------------------------------------------------------------ --insert-path
+
+    /**
+     * Text to type on a tab's input line once its program has drawn its prompt: once it has written and then been quiet
+     * for {@link #PROMPT_QUIET} (0.1's rule), and only if the person has typed nothing there first.
+     */
+    @Subscribe
+    public void typeInto(TypeInto m) {
+        if (!touchedTabs.contains(m.id()) && !InsertText.unsafe(m.text())) {
+            inserts.put(m.id(), m.text());
+        }
+    }
+
+    /**
+     * A tab's program has been quiet since an output: if none came since, its prompt is drawn, so the text goes on its
+     * input line after a space, as a paste when the shell asked for bracketed paste, with the cursor taken home so what
+     * the person types next is the command it is an argument of. Never a line end: running it is the person's Enter.
+     */
+    @Subscribe
+    public void quiet(Quiet m) {
+        TerminalScreen screen = screens.get(m.id());
+        String text = inserts.get(m.id());
+        if (text == null || screen == null || outputs.getOrDefault(m.id(), 0L) != m.seq()) {
+            return;
+        }
+        inserts.remove(m.id());
+        outputs.remove(m.id());
+        waits.remove(m.id());
+        typed.send(new Typed(m.id(), InsertText.typed(text, screen.terminal().bracketedPaste())));
+        typed.send(new Typed(m.id(), screen.cursorKey('H', 1)));
     }
 
     // ------------------------------------------------------------------ what the bar says
@@ -422,6 +486,8 @@ final class View {
             startRename(id);
         } else if (m.action().equals(CLOSE.id())) {
             closeAsked.send(new CloseAsked(id, true));
+        } else if (m.action().equals(ENV_TAB.id()) || m.action().equals(ENV_WORKSPACE.id())) {
+            editEnv.send(new EditEnv(id, m.action().equals(ENV_TAB.id())));
         }
     }
 

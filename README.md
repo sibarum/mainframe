@@ -97,7 +97,15 @@ Every tab of a workspace sources its environment scripts as its shell starts: th
 MainFrame rewrites that sets `MAINFRAME_WORKSPACE`, `MAINFRAME_TAB` and `MAINFRAME_TAB_FOLDER`. A `+` tab in a
 workspace window sources the workspace's only. A tab whose command line cannot source them (a command line given at
 launch, or a shell other than PowerShell, bash or zsh) starts without them and says so in a band above its terminal,
-which its × puts away. 0.1's README has the rest of how the scripts work, which is unchanged.
+which its × puts away. *Edit environment…* on a tab's header opens its own script in VexelRay IDE, and *Edit workspace
+environment…* the workspace's, each made with its region if it is not there yet; so do the Workspaces window's card
+menu and its *Edit environment…* button. Without VexelRay IDE installed, a dialog says where the script is. 0.1's README has the rest of how the scripts work, which is unchanged.
+
+`mainframe --insert-path=<file>` types the file's name, quoted for the shell, on the first tab's input line once its
+prompt is drawn (it has written, then been quiet for 300 ms), with the cursor taken home so you type the command in
+front of it; never an Enter, and nothing at all if you type first. The file must be in the folder the first tab starts
+in, and the shell one MainFrame can quote for (PowerShell or Command Prompt); otherwise the tab says why it typed
+nothing.
 
 **Ctrl+O** (or *Open…* in the Terminal menu) lists the workspaces after an *Open folder…* row: Enter, or a
 double-click, opens one in a new MainFrame window, and Ctrl+Enter, or the row's menu, opens its tabs in this one.
@@ -184,6 +192,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `ListWorkspaces`, `LoadWorkspace`, `LaunchWindow`, `SelfLaunch` | Jobs for Ctrl+O: the workspaces, one of them, and another MainFrame on one |
 | `Workspaces` | The Workspaces window's controller, on the logic lane beside the frame: which workspaces there are, every change to them, one disk job at a time, and the journal its undo walks |
 | `GatherWorkspaces`, `WriteWorkspace`, `MakeWorkspace`, `MoveWorkspace`, `StashWorkspace`, `RestoreWorkspace`, `PruneDeleted` | Its jobs: read them all, save one, make, rename, put aside, bring back, and clear what was put aside a month ago |
+| `EnvScripts.edit` | What *Edit environment…* opens: the workspace's script, or a row's found by its key, made if need be |
 | `Workspace`, `WorkspaceStore`, `EnvScripts`, `InsertPath` | 0.1's, as they were: the CSV files, their folder, the scripts, what `--insert-path` may type |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
@@ -198,6 +207,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `SettingsPage`, `SettingsView` | The settings window, declared by name in `Recipes`, and its own `@View` |
 | `OpenPage`, `OpenView` | The Open dialog (Ctrl+O), declared by name in `Recipes`, and its own `@View` |
 | `WorkspacesPage`, `WorkspacesView`, `Journaled` | The Workspaces window, declared by name in `Recipes`; its own `@View`; and the history entry that asks `Workspaces` to undo a step |
+| `OpenScript`, `Vex`, `InsertText` | A job that makes a script and opens it in VexelRay IDE (found by the suite's install record); and what `--insert-path` sends the shell |
 | `Intent`, `Look`, `Type`, `Motion`, `Landmarks` | The key map's commands, the colours, the faces and sizes, the tempo, and the names a script may use |
 
 ## The stack

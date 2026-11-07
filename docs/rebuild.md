@@ -133,7 +133,7 @@ last tab, Ctrl+W), with a test for each.
 they start in, the workspace to open at launch), changes applied at once and kept in `~/.mainframe/`; the keyboard
 button's key map editor.
 
-**M4. Workspaces.** *Slices 1, 2 and 4 sketched in [workspaces.md](workspaces.md) (ruled 2026-11-07); slices 1 and 2 built and seen 2026-11-07; slice 3 designed in [workspaces-page.md](workspaces-page.md) (ruled 2026-11-07), built and seen 2026-11-07.* In four slices:
+**M4. Workspaces.** *Slices 1, 2 and 4 sketched in [workspaces.md](workspaces.md) (ruled 2026-11-07); slices 1 and 2 built and seen 2026-11-07; slice 3 designed in [workspaces-page.md](workspaces-page.md) (ruled 2026-11-07); slices 3 and 4 built and seen 2026-11-07.* In four slices:
 
 1. The workspace to open at launch, in Settings (moved from M3, ruled 2026-11-06). `--workspace`, the core and its tests, the environment scripts sourced as 0.1 did (PowerShell's `-NoExit -Command`,
    bash's and zsh's startup files), and the notice when they did not run.
@@ -144,7 +144,7 @@ button's key map editor.
    delete a workspace, add, remove, rename and reorder its folders, and undo every change. The parts to hand: `Board`'s
    drag (`gui.core.drop`), and a `History` whose changes send messages, as Vexplore's M3 does (which also answers 0.1
    FN-6).
-4. *Edit environment…* through `OpenInIde`, from the tab, the card and the workspace; and `--insert-path`, typed
+4. *Built and seen 2026-11-07 (workspaces.md, "Slice 4, as built").* *Edit environment…* through `OpenInIde`, from the tab, the card and the workspace; and `--insert-path`, typed
    once the first prompt is drawn and only if nothing was typed first.
 
 **M5. Shipping.** Both native profiles (release and debug), with the pseudoconsole's downcalls in the

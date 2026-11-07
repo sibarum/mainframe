@@ -9,8 +9,9 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 ## Next
 
 - [ ] Rebuild MainFrame on 0.2, milestone by milestone, as [rebuild.md](rebuild.md) proposes. M4 (workspaces) is
-      under way: slices 1 to 3 are built; slice 4 (Edit environment… and `--insert-path`) and M4's retrospective are
-      next.
+      built (slices 1 to 4); its retrospective is next, then M5.
+- [ ] A Workspaces card whose tab has no name of its own is meant to show the folder's name dimmed; seen live
+      2026-11-07 it is drawn as bright as a named one.
 - [ ] Replace the palette anchors in `Look.java` with the design's, measured in Oklab. See the note in that file
       about which authored colours the construction can reproduce and which have to be declared.
 

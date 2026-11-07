@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -79,7 +80,7 @@ public final class EnvScripts {
          * What the platform's own shell reads, the one the pty's OS module offers first: PowerShell on Windows, sh
          * elsewhere. A platform whose shell is sh runs a terminal's command line through {@code /bin/sh}, too.
          */
-        static Dialect platform() {
+        public static Dialect platform() {
             return Platform.DIALECT;
         }
     }
@@ -160,6 +161,49 @@ public final class EnvScripts {
                 "# tab's own script, so a tab can override what is set here. Your lines go below the region;",
                 "# MainFrame rewrites only the region."));
         return f;
+    }
+
+    /**
+     * The script <i>Edit environment…</i> opens, made if it is not there and brought up to date if it is: workspace
+     * {@code name}'s when {@code env} is blank, else its row's whose key is {@code env}, found again by the key so a tab
+     * renamed or moved since it opened still finds its own (0.1's {@code MakeScript}). A row no longer in the file is
+     * made from {@code title} and {@code path} when {@code path} is given, as the Workspaces window knows its rows.
+     *
+     * @throws Gone when there is no such workspace, or no such row, with what a dialog says
+     */
+    public static Path edit(WorkspaceStore store, String name, String env, String title, String path, Dialect dialect)
+            throws IOException {
+        if (env.isBlank()) {
+            if (!store.exists(name)) {
+                throw new Gone("No workspace called " + name, "It was renamed or deleted since this was opened.");
+            }
+            return workspaceScript(store, name, dialect);
+        }
+        Workspace w = store.load(name).orElseThrow(
+                () -> new Gone("No workspace called " + name, "It was renamed or deleted since this was opened."));
+        Optional<Workspace.Entry> row = w.entries().stream().filter(e -> e.env().equalsIgnoreCase(env)).findFirst();
+        if (row.isPresent()) {
+            return tabScript(store, name, row.get(), dialect);
+        }
+        if (!path.isBlank()) {
+            return tabScript(store, name, new Workspace.Entry(title, path).withEnv(env), dialect);
+        }
+        throw new Gone(title + " is no longer in " + name,
+                "Its folder was removed from the workspace since this tab opened, so it has no script to edit.");
+    }
+
+    /** Why there is no script to edit: a dialog's title, and its message as {@link #getMessage()}. */
+    public static final class Gone extends IOException {
+        private final String title;
+
+        Gone(String title, String message) {
+            super(message);
+            this.title = title;
+        }
+
+        public String title() {
+            return title;
+        }
     }
 
     /** The script of {@code entry}, a tab of workspace {@code name}, in {@code dialect}; made if need be, and brought up to date. */

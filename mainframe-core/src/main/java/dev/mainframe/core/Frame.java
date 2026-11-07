@@ -6,6 +6,10 @@ import dev.mainframe.core.Messages.Load;
 import dev.mainframe.core.Messages.Tiles;
 import dev.mainframe.core.Messages.WorkspacesWanted;
 import dev.mainframe.core.Messages.Touched;
+import dev.mainframe.core.Messages.TypeInto;
+import dev.mainframe.core.Messages.EditEnv;
+import dev.mainframe.core.Messages.EditScript;
+import dev.mainframe.core.Messages.ScriptOpened;
 import dev.mainframe.core.Messages.WorkspaceNames;
 import dev.mainframe.core.Messages.OpenFolder;
 import dev.mainframe.core.Messages.Launched;
@@ -104,10 +108,11 @@ import java.util.Optional;
 @Hears({WindowOpened.class, Startup.class, Resized.class, Retitled.class, ShellEnded.class, Fronted.class,
         Submitted.class, NewTab.class, Rename.class, CloseAsked.class, CloseRequested.class, Answer.class,
         ChangePrefs.class, PrefsSaved.class, Prepared.class, OpenAsked.class, Listed.class, OpenWorkspace.class,
-        Loaded.class, Launched.class, OpenFolder.class, Touched.class, WorkspaceNames.class})
+        Loaded.class, Launched.class, OpenFolder.class, Touched.class, WorkspaceNames.class,
+        EditEnv.class, ScriptOpened.class})
 @Publishes({StartupWanted.class, AddTab.class, Front.class, Header.class, OpenShell.class, Output.class, CloseTab.class,
         CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class, Prefs.class, SavePrefs.class, Prepare.class,
-        Notice.class, WorkspacesWanted.class, Tiles.class, Load.class, LaunchWorkspace.class})
+        Notice.class, WorkspacesWanted.class, Tiles.class, Load.class, LaunchWorkspace.class, TypeInto.class, EditScript.class})
 public final class Frame {
 
     /** How many of each message the frame's inbox holds. A resize is the busiest, and is a state topic. */
@@ -216,13 +221,15 @@ public final class Frame {
      * @param prepared  whether its {@link Prepared} has come, so {@code line} and {@code dir} are final
      * @param cols      its screen's first width in cells, or 0 until it is laid out
      * @param rows      its screen's first height in cells, or 0 until it is laid out
+     * @param notice    what the band above its terminal is to say once its shell is prepared, beside why its
+     *                  scripts did not run: {@code --insert-path}'s refusal; blank for nothing
      */
     @Withers
     record Tab(long id, Path dir, String line, boolean opened, String title, String name, boolean submitted,
-               String env, boolean prepared, int cols, int rows) implements FrameTabWithers {
+               String env, boolean prepared, int cols, int rows, String notice) implements FrameTabWithers {
 
         static Tab of(long id, Path dir, String line, String name, String env) {
-            return new Tab(id, dir, line, false, "", name.strip(), false, env, false, 0, 0);
+            return new Tab(id, dir, line, false, "", name.strip(), false, env, false, 0, 0, "");
         }
 
         Tab titled(String title) {
@@ -326,6 +333,8 @@ public final class Frame {
         Step<State, Launched> launched = b.step("launched", Frame::launched);
         Step<State, OpenFolder> openFolder = b.step("openFolder", Frame::openFolder);
         Step<State, Touched> touched = b.step("touched", Frame::touched);
+        Step<State, EditEnv> editEnv = b.step("editEnv", Frame::editEnv);
+        Step<State, ScriptOpened> scriptOpened = b.step("scriptOpened", Frame::scriptOpened);
         Step<State, WorkspaceNames> named = b.step("workspacesNamed", Frame::workspacesNamed);
         Step<State, Retitled> retitled = b.step("retitled", Frame::retitled);
         Step<State, ShellEnded> ended = b.step("ended", Frame::ended);
@@ -354,6 +363,8 @@ public final class Frame {
                 .on(Launched.TOPIC, launched)
                 .on(OpenFolder.TOPIC, openFolder)
                 .on(Touched.TOPIC, touched)
+                .on(EditEnv.TOPIC, editEnv)
+                .on(ScriptOpened.TOPIC, scriptOpened)
                 .on(WorkspaceNames.TOPIC, named)
                 .on(Retitled.TOPIC, retitled)
                 .on(ShellEnded.TOPIC, ended)
@@ -413,6 +424,16 @@ public final class Frame {
                 first = next.ids();
             }
         }
+        // --insert-path types into the first tab once its prompt is drawn, or says in it why it types nothing.
+        if (!startup.insert().isBlank()) {
+            out.send(TypeInto.TOPIC, new TypeInto(first, startup.insert()));
+        }
+        if (!startup.insertNotice().isBlank()) {
+            Optional<Tab> t = next.tab(first);
+            if (t.isPresent()) {
+                next = next.with(t.get().withNotice(startup.insertNotice()));
+            }
+        }
         // A launch that named nothing opened one plain tab: spare until something is typed into it.
         next = next.withSpare(startup.tabs().isEmpty() ? first : Messages.NO_TAB);
         return front(next, first, out);
@@ -469,8 +490,10 @@ public final class Frame {
         if (tab.isEmpty() || tab.get().prepared()) {
             return s;
         }
-        if (!p.refused().isBlank()) {
-            out.send(Notice.TOPIC, new Notice(p.id(), p.refused()));
+        String notice = String.join(" ", java.util.stream.Stream.of(p.refused(), tab.get().notice())
+                .filter(n -> !n.isBlank()).toList());
+        if (!notice.isBlank()) {
+            out.send(Notice.TOPIC, new Notice(p.id(), notice));
         }
         return start(s, tab.get().withLine(p.line()).withDir(p.dir()).withPrepared(true), out);
     }
@@ -593,6 +616,41 @@ public final class Frame {
     private static State openFolder(State s, OpenFolder o, Out out) {
         State next = add(s, o.dir(), "", "", "", out);
         return opened(next, next.ids(), out);
+    }
+
+    /**
+     * <i>Edit environment…</i> on a tab's header: its row's script, or its workspace's, made if need be and opened in
+     * VexelRay IDE. A tab of no workspace, or a + tab asking for a row's script it has not got, is told why not.
+     */
+    private static State editEnv(State s, EditEnv e, Out out) {
+        Optional<Tab> tab = s.tab(e.id());
+        if (tab.isEmpty()) {
+            return s;
+        }
+        Tab t = tab.get();
+        if (s.workspace().isBlank()) {
+            out.send(Ask.TOPIC, Ask.info(TELL, "No environment to edit",
+                    "This window is not a workspace's, so its tabs source no environment script. Open a workspace with "
+                            + "Ctrl+O, or make one in the Workspaces window."));
+            return s;
+        }
+        if (e.tab() && t.env().isBlank()) {
+            out.send(Ask.TOPIC, Ask.info(TELL, "This tab has no script of its own",
+                    "A tab added with + sources " + s.workspace() + "'s script only. Edit workspace environment… opens that."));
+            return s;
+        }
+        String title = t.header();
+        out.send(EditScript.TOPIC, new EditScript(s.workspace(), e.tab() ? t.env() : "", title, t.dir().toString(),
+                Optional.of(EnvScripts.dialect(t.line()))));
+        return s;
+    }
+
+    /** The script did not open: said, with where it is when it was made. */
+    private static State scriptOpened(State s, ScriptOpened o, Out out) {
+        if (!o.problem().isBlank()) {
+            out.send(Ask.TOPIC, Ask.info(TELL, o.title(), o.problem()));
+        }
+        return s;
     }
 
     /** Something was typed into the spare tab: it is the person's now. */
