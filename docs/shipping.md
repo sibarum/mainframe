@@ -57,3 +57,33 @@ was measured on 2026-11-07.
 2. **The kept check against the native debug executable by default**, with the JVM as an option?
 3. **The Linux run on your VM** (I write the `.sh` runner blind), or deferred past M5?
 4. **`installer.json` at `0.2.0-SNAPSHOT`** and nothing published?
+
+## Ruled
+
+2026-11-07, as recommended: the downcalls stay in MainFrame's metadata for now; the kept check runs the native debug
+executable by default; the Linux run is the author's, on the VM, with a `.sh` runner written here; `installer.json` at
+`0.2.0-SNAPSHOT`, nothing published.
+
+## As built
+
+2026-11-07, as ruled.
+
+- **Native.** Both builds run, the debug one under the kept check and the release one by hand (a shell, typed
+  commands, `exit` closing it). The pseudoconsole's eleven downcall signatures are in MainFrame's metadata (FN-22).
+- **The kept check** is `checks/main-path.txt`, run by `checks/main-path.cmd` (`jvm` for the JVM) or
+  `checks/main-path.sh` (any command after it). Both runners passed against the native debug build. Beyond the
+  proposal:
+  - Tabs are photographed rather than awaited, and the runner reads the workspace files afterwards, since a tab's
+    header cannot be awaited or found (FN-23).
+  - Each window a job opens is waited for with `stream gpu for 1500`, since a script cannot wait for a window (FN-24).
+  - The Open dialog's rows are reached by arrow keys, two down for `day`. One down is *Open folder…*, whose Ctrl+Enter
+    asks for the folder picker, which an early run did.
+- **`installer.json`** is at `0.2.0-SNAPSHOT`; its paths are what the builds make. Nothing was published.
+- **Linux**: `main-path.sh` picks `target-linux/mainframe` on Linux. It has not been run there: that is the author's,
+  on the VM (`mvn -Pnative-linux package -DskipTests`, then `checks/main-path.sh`), and it is in TODO.
+- **The README** is rewritten for 0.2:
+  - what MainFrame is now, and the kept check;
+  - the workspace sections split into scripts, `--insert-path`, opening and editing;
+  - the native metadata's one borrowed part;
+  - the stack's widgets and terminal;
+  - the loggers that exist, and what the three documents hold now.

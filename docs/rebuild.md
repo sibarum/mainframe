@@ -147,7 +147,7 @@ button's key map editor.
 4. *Built and seen 2026-11-07 (workspaces.md, "Slice 4, as built").* *Edit environment…* through `OpenInIde`, from the tab, the card and the workspace; and `--insert-path`, typed
    once the first prompt is drawn and only if nothing was typed first.
 
-**M5. Shipping.** *Sketched in [shipping.md](shipping.md), for the author.* Both native profiles (release and debug), with the pseudoconsole's downcalls in the
+**M5. Shipping.** *Built 2026-11-07 from [shipping.md](shipping.md) (ruled 2026-11-07), but for the Linux run, which is the author's.* Both native profiles (release and debug), with the pseudoconsole's downcalls in the
 reachability metadata; a scripted `ottermate` run through the main path kept in the repository (0.1's TODO); the
 installer entry; a run on Linux through `exec:exec`. Then the README rewritten for 0.2, and the milestone's
 retrospective.

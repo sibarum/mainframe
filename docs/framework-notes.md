@@ -294,3 +294,24 @@ Done: the eleven distinct signatures are in MainFrame's own metadata, with a not
 stack could do: `vex-suite-common-pty-windows` carrying them, as the Linux module does, so every application with a
 terminal gets them; and a test in that module that builds a native image of a tiny program opening a pseudoconsole,
 since only a native run can miss them.
+
+## FN-23 · A script cannot wait for a tab, or find one 🔬
+
+The kept check of the main path (M5, `checks/main-path.txt`) opens a tab, renames it, and opens a workspace's two tabs.
+`await <landmark> <text>` reads a landmark's name, and the tab bar's (`tabs`) is blank: its headers are not part of
+it. `find <text>` did not match a header named `check-home` that `tree` showed, and it answers `ok (nothing
+matches …)` when nothing does, so it cannot stand in as an assertion either. Done: those steps are photographed, not
+awaited; the check asserts what the Workspaces and Settings windows name, and the runner reads the workspace files
+afterwards. What the framework could do: the tab bar named by its headers (as a box is named by its texts), or each
+header a landmark of its own; and `find` answering `err` when nothing matches, or an `expect` that does.
+
+## FN-24 · A script cannot wait for a window to open 🔬
+
+Ctrl+O's dialog opens when a job has listed the workspaces, so `window open` straight after the key answers `no
+window 'open'`, and two `settle`s do not cover the job. The guide says a target may name its window (`await
+open/open.list`) and act there from any window; the running application refused it: *'settings/settings.dir' is in
+window 'settings', and this driver is window 'main'*. That was with the stack as installed on 2026-11-07, whose
+startup warns that its pieces were built against different commits, so the guide and the server may simply disagree
+by version. Done: `stream gpu for 1500` before each `window` that a job opens, as a bounded wait, which is a
+workaround and reads as one. What the framework could do: `await window <name>`, bounded like `await`; and the
+cross-window target the guide describes.

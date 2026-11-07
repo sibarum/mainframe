@@ -3,9 +3,11 @@
 A terminal window that wraps the native OS shell. It is a real terminal emulator, not a shell of its own: PowerShell
 runs unmodified inside a Windows pseudoconsole (ConPTY), and MainFrame draws what it writes and sends it your keys.
 
-This is MainFrame rebuilt on VexelRay 0.2, milestone by milestone ([docs/rebuild.md](docs/rebuild.md)). What is here
-now is tabs of shells (M2) and their settings (M3); workspaces (M4) are coming back slice by slice. 0.1's README, in
-`GitHub/mainframe`, says what the finished application does.
+This is MainFrame 0.2: everything 0.1 did, rebuilt on VexelRay 0.2 ([docs/rebuild.md](docs/rebuild.md) has how, milestone by
+milestone). Tabs of shells, their settings, and workspaces: saved sets of folders with environment scripts, opened at
+launch or with Ctrl+O, and edited in a window of their own with undo for every change. Two things were redesigned
+rather than ported: the Workspaces window ([docs/workspaces-page.md](docs/workspaces-page.md)) and the switch that hands
+every key to the shell ([docs/passthrough.md](docs/passthrough.md)).
 
 ## Run it
 
@@ -28,6 +30,22 @@ mvn test                                               # the frame, the shell on
 
 When the shell exits, its tab closes, and with the last tab the window. A command line that will not start keeps its
 tab open and says why in it.
+
+### Checking the main path
+
+`checks/main-path.cmd` (or `checks/main-path.sh` from Git Bash or on Linux) drives the main path with `ottermate`, on
+a home of the run's own under `mainframe-gui/target/check-home`, never your `~/.mainframe`. It launches MainFrame and
+then:
+- opens a tab and renames it;
+- opens Settings and changes the text size;
+- opens a workspace's tabs with Ctrl+O;
+- makes and names a workspace in the Workspaces window, undoes both, and redoes both;
+- checks the workspace files on disk.
+
+The exit status is the verdict, and the screenshots land in `mainframe-gui/target/check`. It runs the native debug
+build by default (build that first, below); `checks\main-path.cmd jvm` or `checks/main-path.sh mvn exec:exec -pl
+mainframe-gui` runs it on the JVM. What a shell prints is not checked, since a script cannot read a terminal's text
+yet (docs/framework-notes.md, FN-5).
 
 ## Keys
 
@@ -92,20 +110,36 @@ name,path,env
 web,C:\work\web-frontend,web-8d01b7.ps1
 ```
 
-Every tab of a workspace sources its environment scripts as its shell starts: the workspace's
-(`<name>.env.ps1`, or `.env.sh` for bash and zsh) and then its own (`<name>.env/<env>.ps1`), each with a region
-MainFrame rewrites that sets `MAINFRAME_WORKSPACE`, `MAINFRAME_TAB` and `MAINFRAME_TAB_FOLDER`. A `+` tab in a
-workspace window sources the workspace's only. A tab whose command line cannot source them (a command line given at
-launch, or a shell other than PowerShell, bash or zsh) starts without them and says so in a band above its terminal,
-which its × puts away. *Edit environment…* on a tab's header opens its own script in VexelRay IDE, and *Edit workspace
-environment…* the workspace's, each made with its region if it is not there yet; so do the Workspaces window's card
-menu and its *Edit environment…* button. Without VexelRay IDE installed, a dialog says where the script is. 0.1's README has the rest of how the scripts work, which is unchanged.
+### Environment scripts
+
+Every tab of a workspace sources its environment scripts as its shell starts:
+- **the workspace's**, `<name>.env.ps1` (or `.env.sh` for bash and zsh);
+- **then its own**, `<name>.env/<env>.ps1`, found by the row's `env` key, so it stays the tab's through renaming,
+  reordering and a new folder.
+
+Each script has a region MainFrame rewrites, which sets `MAINFRAME_WORKSPACE`, `MAINFRAME_TAB` and
+`MAINFRAME_TAB_FOLDER`; your lines go below it. A `+` tab in a workspace window sources the workspace's script only.
+
+A tab whose command line cannot source them starts without them and says so in a band above its terminal, which its ×
+puts away. That is a command line given at launch, or a shell other than PowerShell, bash or zsh.
+
+**Edit environment…** opens a script in VexelRay IDE, made with its region if it is not there yet:
+- *Edit environment…* on a tab's header opens the tab's own script;
+- *Edit workspace environment…* opens the workspace's;
+- the Workspaces window has both, on a card's menu and on the button below the cards.
+
+Without VexelRay IDE installed, a dialog says where the script is.
+
+### Typing a file's name into the first tab
 
 `mainframe --insert-path=<file>` types the file's name, quoted for the shell, on the first tab's input line once its
-prompt is drawn (it has written, then been quiet for 300 ms), with the cursor taken home so you type the command in
-front of it; never an Enter, and nothing at all if you type first. The file must be in the folder the first tab starts
-in, and the shell one MainFrame can quote for (PowerShell or Command Prompt); otherwise the tab says why it typed
-nothing.
+prompt is drawn: the shell has written, then been quiet for 300 ms. The cursor goes to the start of the line, so you
+type the command in front of the name. It never presses Enter, and types nothing at all if you type first.
+
+The file must be in the folder the first tab starts in, and the shell must be one MainFrame can quote for (PowerShell
+or Command Prompt). Otherwise the tab says why it typed nothing.
+
+### Opening a workspace
 
 **Ctrl+O** (or *Open…* in the Terminal menu) lists the workspaces after an *Open folder…* row: Enter, or a
 double-click, opens one in a new MainFrame window, and Ctrl+Enter, or the row's menu, opens its tabs in this one.
@@ -113,14 +147,20 @@ With no workspace saved, Ctrl+O goes straight to the folder picker. If the windo
 started with, and nothing has been typed into it, what Ctrl+O opens takes its place; when that is a new window, this
 one closes with it.
 
-**Workspaces…** in the Terminal menu, *Edit…* on a workspace's row in Ctrl+O, or Ctrl+O's *New workspace…* row opens
-the **Workspaces** window: the workspaces down the left (*launch* beside the one Settings opens at launch) and the one
-selected on the right, its name a heading you click (or Ctrl+Shift+R) to rename, and its folders as cards. Drag a card,
-or Alt+Up and Alt+Down, to reorder; its ⋯ menu, or a right-click, renames its tab, gives it another folder or removes
-it; *Add folder…* adds one at the end. A row's menu opens, renames or deletes a workspace, and Delete deletes the
-selected one without asking. Everything is saved as it is done, and Ctrl+Z and Ctrl+Y undo and redo every change,
-deleting a workspace included (it waits in `workspaces/.deleted` with its scripts for 30 days). The line at the
-bottom says what the last change was.
+### Editing workspaces
+
+The **Workspaces** window opens from *Workspaces…* in the Terminal menu, from *Edit…* on a workspace's row in Ctrl+O,
+or from Ctrl+O's *New workspace…* row.
+
+- **On the left**, the workspaces, with *launch* beside the one Settings opens at launch. A row's menu opens, renames
+  or deletes a workspace, and Delete deletes the selected one without asking.
+- **On the right**, the one selected. Its name is a heading you click (or Ctrl+Shift+R) to rename.
+- **Its folders are cards.** Drag one, or use Alt+Up and Alt+Down, to reorder. A card's ⋯ menu, or a right-click,
+  renames its tab, gives it another folder or removes it. *Add folder…* adds one at the end.
+
+Everything is saved as it is done. Ctrl+Z and Ctrl+Y undo and redo every change, deleting a workspace included: a
+deleted workspace waits in `workspaces/.deleted` with its scripts for 30 days. The line at the bottom says what the last
+change was.
 
 ## A native executable
 
@@ -148,7 +188,8 @@ anywhere else the icon step stops and says to use the script.
 
 This program's own native-image metadata is `mainframe-gui/src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
 and it is short because almost nothing is this program's: the libraries register their own, and the processor
-registers the icon. If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run it
+registers the icon. One part is there only until its library carries it: the Windows pseudoconsole's kernel32
+downcalls, without which a native MainFrame stops as its first tab opens (docs/framework-notes.md, FN-22). If a native run fails on something the JVM run did not (a `Missing...RegistrationError`), run it
 on a JVM under `-agentlib:native-image-agent=config-output-dir=...`, do the thing that failed, and add
 only the entries that name this program.
 
@@ -219,7 +260,8 @@ happened at least once. If the build cannot resolve them, that is why.
 | --- | --- |
 | `vexelray-framework-api`, `vexelray-gui-core` | all `-core` builds against: the framework's annotations, and the values (a span, a colour, the settings store) and the bus that are safe from any thread |
 | `vexelray-framework-shell`, `-automation`, `-processor` | the application edge, the driving socket, and the processor that checks both modules and writes the wiring |
-| `vexelray-gui-widget` | the widgets: `Tabs`, `TreeView`, `TextField`, `SplitPane`, `StatusBar`, `Cues` |
+| `vexelray-gui-widget` | the widgets: `Tabs`, `ListView`, `Board` and its decks, `TextField`, `Segment`, `Select`, `Button` |
+| `vex-suite-common-tty`, `-pty-windows`, `-pty-linux` | the terminal: `TerminalScreen`, the emulator it draws, and the pseudo-terminal per platform |
 | `vexelray-gui-krono` | the clock: every transition and cue |
 | `vexelray-gui-automation` | driving the running app the way a person does — a debugging instrument |
 | `tactroller-atchung` | keyboard and pointer input onto an atchung bus (brings `atchung-core`) |
@@ -273,8 +315,9 @@ ottermate --size 36emx20em shot smallest.png --launch ...                # the m
 ```
 
 The landmarks in `Landmarks.java` are the names a script uses: `await terminal` waits for the tab in front to exist,
-and `click tabs` reaches the bar. A terminal's text is not readable by `await` yet (docs/framework-notes.md, FN-5), so a
-script cannot wait for a prompt. `ottermate help` lists every verb.
+and `click tabs` reaches the bar. A terminal's text and a tab's header are not readable by `await` yet
+(docs/framework-notes.md, FN-5 and FN-23), so a
+script cannot wait for a prompt or for a tab. `ottermate help` lists every verb.
 
 ## Logging
 
@@ -287,19 +330,20 @@ The framework configures logging for you, before anything else runs, and the def
 | driven by `ottermate` or `-Dautomation` | debug | `…/mainframe.log`, **trace**, with a probe trace beside it |
 | a native image | warnings | `~/.mainframe/logs/mainframe.log`, info |
 
-Write to it with a logger, not `System.out` — the jobs do, as `mainframe.files`:
+Write to it with a logger, not `System.out`. The parts do, by area: `mainframe.workspaces`, `mainframe.env`,
+`mainframe.settings`, `mainframe.shell`, `mainframe.startup`, `mainframe.vex`:
 
 ```java
-private static final Log LOG = Log.of("mainframe.files");   // sibarum.probe.Log
+private static final Log LOG = Log.of("mainframe.workspaces");   // sibarum.probe.Log
 LOG.warn("could not save {}", path, exception);               // the exception goes last; its stack reaches the file
 ```
 
-`--log=debug` (or `off`) changes the level for one launch, and `-Dlog.level.mainframe.files=trace` raises one
+`--log=debug` (or `off`) changes the level for one launch, and `-Dlog.level.mainframe.workspaces=trace` raises one
 logger. Levels, settings and the rules for what belongs at which level are in `atchung/docs/logging.md`.
 
 ## The three documents
 
-`docs/framework-notes.md` and `docs/TODO.md` start nearly empty and are meant to be filled in as you go. See the note
-at the top of the first one — it is the more important of the two. `docs/retrospective.md` is filled in at the end of
-each milestone: the pass over the notes that looks for what they have in common, and the one the framework reads
-first.
+`docs/framework-notes.md` is every gap in the stack this rebuild met, written down as each workaround was written
+(FN-1 to FN-22 for 0.2), each with what the framework could do about it; the framework's own TODO carries them.
+`docs/retrospective.md` is the pass over them at the end of each milestone, M0 to M5, and the one the framework reads
+first. `docs/TODO.md` is what is known about this application and not done.

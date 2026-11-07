@@ -1,0 +1,74 @@
+# MainFrame's main path, as ottermate drives it (docs/shipping.md). Run by main-path.sh or main-path.cmd, which make a
+# home of the run's own holding a workspace, day, with two folders, and put the screenshots' folder in for @SHOTS@.
+#
+# Each step waits on what it changed where MainFrame says it in a name a script can read: a window's landmark. A tab's
+# header and a terminal's text are not such names (FN-5, FN-23), so the tabs are photographed rather than awaited, and
+# the runner reads the workspaces' files afterwards.
+
+# A launch that names nothing: one tab in the home folder.
+await tabs
+settle
+shot @SHOTS@/1-launch.png
+
+# A second tab, renamed.
+key CTRL+T
+settle
+key CTRL+SHIFT+R
+await rename
+type logs
+key ENTER
+settle
+shot @SHOTS@/2-renamed.png
+
+# Settings: new tabs start in the home folder, and a chord changes the text size.
+key CTRL+COMMA
+settle
+window settings
+await settings.dir Your home folder
+window main
+key CTRL+EQUAL
+settle
+window settings
+settle
+shot @SHOTS@/3-settings.png
+
+# Ctrl+O: day's two tabs in this window.
+window main
+key CTRL+O
+stream gpu for 1500
+window open
+await open.list
+settle
+shot @SHOTS@/4-open.png
+key DOWN
+key DOWN
+key CTRL+ENTER
+window main
+settle
+shot @SHOTS@/5-day-here.png
+
+# The Workspaces window: a workspace made from Ctrl+O's last row, named, then undone and done again.
+key CTRL+O
+stream gpu for 1500
+window open
+await open.list
+settle
+key END
+key ENTER
+stream gpu for 1500
+window workspaces
+await workspaces.said New workspace made.
+type evening
+key ENTER
+await workspaces.said renamed to evening.
+click workspaces.said
+key CTRL+Z
+await workspaces.said Undone: New workspace renamed to evening.
+key CTRL+Z
+await workspaces.said Undone: New workspace made.
+key CTRL+Y
+await workspaces.said Redone: New workspace made.
+key CTRL+Y
+await workspaces.said Redone: New workspace renamed to evening.
+await workspaces.name evening
+shot @SHOTS@/6-workspaces.png
