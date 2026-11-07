@@ -4,6 +4,7 @@ import sibarum.atchung.Topic;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Every message MainFrame's parts send each other: what each one says, and the topic it travels on.
@@ -147,14 +148,90 @@ public final class Messages {
     }
 
     /**
-     * What the launch asked for: the folders to open a tab in (none for one tab where MainFrame started), and the
-     * command line each runs.
+     * What the launch asked for, and what Settings holds: the folders to open a tab in (none for one tab in the folder
+     * chosen in Settings), the command line given at launch (blank for none: the chosen shell runs), the settings,
+     * the shells there are to choose from, and the home folder, where a new tab starts when none is chosen.
      */
-    public record Startup(List<Path> dirs, String line) {
+    public record Startup(List<Path> dirs, String line, Preferences prefs, List<ShellChoice> shells, Path home) {
         public static final Topic<Startup> TOPIC = Topic.edge(Startup.class);
 
         public Startup {
             dirs = List.copyOf(dirs);
+            shells = List.copyOf(shells);
         }
+    }
+
+    // ------------------------------------------------------------------ settings (docs/settings.md)
+
+    /**
+     * What Settings holds: the terminals' text size, how the tab bar changes tabs, the shell a new tab runs (a
+     * {@link ShellChoice}'s id), and the folder a new tab starts in, empty for the home folder.
+     */
+    public record Preferences(int fontPx, TabMotion motion, String shell, Optional<Path> dir) {
+
+        /** The text sizes on offer, in px: what the window's segment shows and Ctrl+= and Ctrl+- walk. */
+        public static final List<Integer> SIZES = List.of(14, 16, 18, 20, 24);
+
+        /** What a first run has. */
+        public static final Preferences DEFAULT = new Preferences(18, TabMotion.SLIDE, "", Optional.empty());
+
+        public Preferences withFontPx(int px) {
+            return new Preferences(px, motion, shell, dir);
+        }
+
+        public Preferences withMotion(TabMotion m) {
+            return new Preferences(fontPx, m, shell, dir);
+        }
+
+        public Preferences withShell(String id) {
+            return new Preferences(fontPx, motion, id, dir);
+        }
+
+        public Preferences withDir(Optional<Path> d) {
+            return new Preferences(fontPx, motion, shell, d);
+        }
+
+        /** The next size up ({@code 1}) or down ({@code -1}) of {@link #SIZES}, or the first run's ({@code 0}). */
+        public Preferences stepped(int direction) {
+            if (direction == 0) {
+                return withFontPx(DEFAULT.fontPx());
+            }
+            int at = 0;
+            while (at < SIZES.size() - 1 && SIZES.get(at) < fontPx) {
+                at++;
+            }
+            return withFontPx(SIZES.get(Math.max(0, Math.min(SIZES.size() - 1, at + direction))));
+        }
+    }
+
+    /** One shell a new tab may run: {@code id} is what Settings keeps, {@code line} what is run. */
+    public record ShellChoice(String id, String label, String line) {
+    }
+
+    /**
+     * What is set now, what the shell could be, and the launch's command line when it overrides the shell for this
+     * run (blank for none). The last one said counts.
+     */
+    public record Prefs(Preferences prefs, List<ShellChoice> shells, String override) {
+        public static final Topic<Prefs> TOPIC = Topic.state(Prefs.class);
+
+        public Prefs {
+            shells = List.copyOf(shells);
+        }
+    }
+
+    /** The person changed a setting: in the settings window, by a chord, or by picking a folder. */
+    public record ChangePrefs(Preferences prefs) {
+        public static final Topic<ChangePrefs> TOPIC = Topic.edge(ChangePrefs.class);
+    }
+
+    /** Write every setting and save. {@code seq} numbers the saves; the frame has one in flight at a time. */
+    public record SavePrefs(long seq, Preferences prefs) {
+        public static final Topic<SavePrefs> TOPIC = Topic.edge(SavePrefs.class);
+    }
+
+    /** {@link SavePrefs}'s reply: blank when it was saved, else why not, as a person would be told it. */
+    public record PrefsSaved(long seq, String problem) {
+        public static final Topic<PrefsSaved> TOPIC = Topic.edge(PrefsSaved.class);
     }
 }

@@ -1,6 +1,14 @@
 package dev.mainframe;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.ChangePrefs;
+import dev.mainframe.core.Messages.Preferences;
+import dev.mainframe.core.Messages.Prefs;
+import dev.mainframe.core.Messages.ShellChoice;
+import dev.mainframe.core.TabMotion;
+import dev.vexelray.framework.core.PickFile;
+import dev.vexelray.framework.core.Picked;
+import dev.vexelray.gui.widget.Segment;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.Fronted;
 import dev.mainframe.core.Messages.NewTab;
@@ -61,6 +69,8 @@ class ViewTest {
      * take this watch out. If the framework cannot do it, that is a framework note (docs/framework-notes.md).
      */
     private Cuts cuts;
+    /** The same, on the settings window's tree. */
+    private Cuts settingsCuts;
 
     @BeforeEach
     void build() {
@@ -75,13 +85,18 @@ class ViewTest {
         shell.bus().subscribe(NewTab.TOPIC, heard::add);
         shell.bus().subscribe(CloseAsked.TOPIC, heard::add);
         shell.bus().subscribe(Rename.TOPIC, heard::add);
+        shell.bus().subscribe(ChangePrefs.TOPIC, heard::add);
+        shell.bus().subscribe(PickFile.TOPIC, heard::add);
         cuts = Cuts.watch(shell.gui());
+        settingsCuts = Cuts.watch(wiring.settings().gui());
     }
 
     @AfterEach
     void dispose() {
-        List<Cuts.Cut> found = cuts.found();
+        List<Cuts.Cut> found = new java.util.ArrayList<>(cuts.found());
+        found.addAll(settingsCuts.found());
         cuts.close();
+        settingsCuts.close();
         shell.disposer().close();
         assertEquals(List.of(), found, "changed on screen in one frame; keep the node and change it (see cuts)");
     }
@@ -180,14 +195,16 @@ class ViewTest {
 
     @Test
     void theTabCommandsTellTheFrameAboutTheTabInFront() throws Exception {
-        tab(1);
-        tab(2);
+        // Ids the frame in the tree will not give out; and the new tab last, since the frame in the tree answers it
+        // with a tab of its own, which comes to the front.
+        tab(101);
+        tab(102);
+        intent(Intent.Command.CLOSE_TAB);
+        eventually("closing the front tab, asking", () -> heard.contains(new CloseAsked(102, true)));
+        intent(Intent.Command.CLOSE_NOW);
+        eventually("closing it without asking", () -> heard.contains(new CloseAsked(102, false)));
         intent(Intent.Command.NEW_TAB);
         eventually("a new tab asked for", () -> heard.contains(new NewTab()));
-        intent(Intent.Command.CLOSE_TAB);
-        eventually("closing the front tab, asking", () -> heard.contains(new CloseAsked(2, true)));
-        intent(Intent.Command.CLOSE_NOW);
-        eventually("closing it without asking", () -> heard.contains(new CloseAsked(2, false)));
     }
 
     @Test
@@ -253,6 +270,68 @@ class ViewTest {
         eventually("the key map paused", () -> shell.keymap().paused());
         shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.ui().pill().address()));
         eventually("the key map resumed", () -> !shell.keymap().paused());
+    }
+
+    // ------------------------------------------------------------------ M3
+
+    private static final List<ShellChoice> SHELLS = List.of(
+            new ShellChoice("powershell", "Windows PowerShell", "powershell.exe"),
+            new ShellChoice("cmd", "Command Prompt", "cmd.exe"));
+
+    /** Play the frame saying what is set. */
+    private void said(Preferences prefs) {
+        shell.bus().publish(Prefs.TOPIC, new Prefs(prefs, SHELLS, ""));
+    }
+
+    @Test
+    void aSizeChordAsksTheFrameForTheNextSizeFromWhatItLastSaid() throws Exception {
+        tab(1);
+        said(Preferences.DEFAULT.withFontPx(24).withMotion(TabMotion.NONE));
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        intent(Intent.Command.SMALLER);
+        eventually("the next size down from 24",
+                () -> heard.contains(new ChangePrefs(Preferences.DEFAULT.withFontPx(20).withMotion(TabMotion.NONE))));
+    }
+
+    /** Whether some change the view sent holds {@code test}. */
+    private boolean changed(java.util.function.Predicate<Preferences> test) {
+        return heard.stream().anyMatch(m -> m instanceof ChangePrefs c && test.test(c.prefs()));
+    }
+
+    @Test
+    void theSettingsWindowsControlsChangeWhatIsSet() throws Exception {
+        Preferences now = Preferences.DEFAULT.withDir(java.util.Optional.of(java.nio.file.Path.of("C:/work")));
+        said(now);
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        SettingsPage page = wiring.settings();
+        shell.bus().publish(Segment.CHANGED, new Segment.Changed(page.sizeAddress(), 14));
+        // The frame in the tree answers each change with its own settings (it heard no Startup), so each check is of
+        // the one setting its control changed.
+        eventually("the size", () -> changed(p -> p.fontPx() == 14));
+        shell.bus().publish(Segment.CHANGED, new Segment.Changed(page.motionAddress(), TabMotion.FADE));
+        eventually("the motion", () -> changed(p -> p.motion() == TabMotion.FADE));
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(page.homeAddress()));
+        eventually("home", () -> changed(p -> p.dir().isEmpty()));
+    }
+
+    @Test
+    void chooseAsksThePickerAndTheFolderPickedIsWhereTabsStart() throws Exception {
+        said(Preferences.DEFAULT);
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.settings().chooseAddress()));
+        eventually("the picker asked", () -> heard.contains(PickFile.folder(SettingsView.PICK, "")));
+        shell.bus().publish(Picked.TOPIC, Picked.cancelled(SettingsView.PICK));
+        java.nio.file.Path work = java.nio.file.Path.of("C:/work").toAbsolutePath();
+        shell.bus().publish(Picked.TOPIC, new Picked(SettingsView.PICK, work.toString()));
+        eventually("the folder", () -> heard.contains(new ChangePrefs(Preferences.DEFAULT.withDir(
+                java.util.Optional.of(work)))));
+        assertEquals(1, heard.stream().filter(m -> m instanceof ChangePrefs).count(), "a cancel changes nothing");
     }
 
     /**

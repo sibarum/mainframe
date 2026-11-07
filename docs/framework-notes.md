@@ -175,3 +175,14 @@ The Terminal menu's lines send what the key map's chords send, and a menu bar sh
 person learns it there. `Menu.Builder.item` takes a label, an icon and a message; nothing for a shortcut. 0.1 had no
 menus, so this was not missed then. **For the framework:** an item that names the key-map action it stands for, its
 chord read from the key map as the person has it, so a rebinding shows in the menu.
+
+## FN-13 · The framework's key-bindings window cannot be opened by a `WindowCommand` 🔬
+
+M3 meant to put *Key bindings…* in the Terminal menu beside *Settings…*, since an application's menu is where a
+person looks for its commands. A menu line sends a message, and a window is opened by `WindowCommand.show(key)`.
+But `Windows.command` finds only the windows declared through `Windows.named`, and `KeymapWindow` registers itself
+through `GuiApp.window`, so `show("keymap")` is logged as "no window has that key" and ignored. The line was left
+out; the app menu's *Key bindings…*, which the framework adds itself, works.
+
+**For the framework:** declare the key-bindings window through `Windows` like any other, so a `WindowCommand` (from a
+menu, a chord, a script) can open it by its key.

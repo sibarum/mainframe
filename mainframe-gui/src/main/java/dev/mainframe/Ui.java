@@ -1,5 +1,7 @@
 package dev.mainframe;
 
+import dev.mainframe.core.TabMotion;
+import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.input.Menu;
@@ -15,6 +17,10 @@ import dev.vexelray.gui.widget.TextField;
 import dev.vexelray.gui.widget.TitleBar;
 import dev.vexelray.gui.widget.Tooltip;
 import sibarum.atchung.Sender;
+
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * The window: the framework's title bar, with the application's Terminal menu after its lockup, over the tab bar,
@@ -46,6 +52,7 @@ final class Ui {
     private final IconButton plus;
     private final Button pill;
     private final TextField rename;
+    private final Map<TabMotion, Consumer<Tabs>> motions = new EnumMap<>(TabMotion.class);
     private final Node renaming;
 
     Ui(Gui gui, Motion motion, TitleBar titleBar) {
@@ -53,6 +60,9 @@ final class Ui {
         // Always shown, even with one tab: the + and the passthrough pill stand at its end (docs/shape.md, ruled).
         tabs = new Tabs(gui).name("tabs").closable(false).slide(motion.change);
         tabs.node().width(Length.FILL).height(Length.grow(1f));
+        motions.put(TabMotion.SLIDE, t -> t.slide(motion.change));
+        motions.put(TabMotion.FADE, t -> t.crossfade(motion.change));
+        motions.put(TabMotion.NONE, t -> t.slide(null));
         gui.landmark(Landmarks.TABS, tabs.node());
 
         plus = new IconButton(gui, Icon.PLUS, "New tab").name(Landmarks.NEW_TAB);
@@ -100,6 +110,11 @@ final class Ui {
         return rename;
     }
 
+    /** How the bar changes tabs from now on, as Settings says. */
+    void motion(TabMotion m) {
+        motions.get(m).accept(tabs);
+    }
+
     /** Show the passthrough pill, or not. */
     void passthrough(boolean on) {
         pill.node().visible(on);
@@ -117,7 +132,7 @@ final class Ui {
      * The Terminal menu, declared again: its lines send what the key map's chords send, and its last says which way
      * the passthrough switch would flip.
      */
-    void menu(boolean passthrough, Sender<Intent> intents) {
+    void menu(boolean passthrough, Sender<Intent> intents, Sender<WindowCommand> windows) {
         Menu menu = Menu.builder()
                 .item("New tab", intents, new Intent(Intent.Command.NEW_TAB))
                 .item("Close tab", intents, new Intent(Intent.Command.CLOSE_TAB))
@@ -129,6 +144,8 @@ final class Ui {
                 .item("Larger text", intents, new Intent(Intent.Command.LARGER))
                 .item("Smaller text", intents, new Intent(Intent.Command.SMALLER))
                 .item("Normal text size", intents, new Intent(Intent.Command.NORMAL))
+                .separator()
+                .item(Icon.SETTINGS, "Settings…", windows, WindowCommand.show(SettingsPage.KEY))
                 .separator()
                 .item(Icon.KEYBOARD, passthrough ? "Give MainFrame its keys back" : "Every key to the shell",
                         intents, new Intent(Intent.Command.PASSTHROUGH))

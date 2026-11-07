@@ -129,13 +129,13 @@ chain (`CloseRequested` and `CloseAnswer`, the question held for the person), wh
 could not easily have: ask when any open tab was ever submitted to, by every way out (×, Alt+F4, the taskbar, the
 last tab, Ctrl+W), with a test for each.
 
-**M3. Settings.** *Sketched in [settings.md](settings.md), for the author.* The settings window's General tab (font size, tab motion, the shell new tabs start, the folder
+**M3. Settings.** *Built 2026-11-07 from [settings.md](settings.md) (ruled 2026-11-06) and seen live; retrospective in [retrospective.md](retrospective.md). The workspace to open at launch moved to M4.1.* The settings window's General tab (font size, tab motion, the shell new tabs start, the folder
 they start in, the workspace to open at launch), changes applied at once and kept in `~/.mainframe/`; the keyboard
 button's key map editor.
 
 **M4. Workspaces.** In four slices:
 
-1. `--workspace`, the core and its tests, the environment scripts sourced as 0.1 did (PowerShell's `-NoExit -Command`,
+1. The workspace to open at launch, in Settings (moved from M3, ruled 2026-11-06). `--workspace`, the core and its tests, the environment scripts sourced as 0.1 did (PowerShell's `-NoExit -Command`,
    bash's and zsh's startup files), and the notice when they did not run.
 2. Ctrl+O: the tiles after *Open folder…*, Enter for a new window, Ctrl+Enter for this one, the spare tab replaced,
    the folder picker straight away with no workspaces saved.

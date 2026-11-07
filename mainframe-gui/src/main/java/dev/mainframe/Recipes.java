@@ -6,6 +6,8 @@ import dev.vexelray.framework.shell.Appearance;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.widget.TitleBar;
+import dev.vexelray.framework.shell.NamedWindow;
+import dev.vexelray.framework.shell.Windows;
 
 /**
  * What this module builds — one recipe per part — and nothing about when.
@@ -60,4 +62,13 @@ final class Recipes {
         return new Ui(gui, new Motion(gui), titleBar);
     }
 
+    /**
+     * The settings window: declared by name, a satellite of the main one, with its own {@code Gui} and title bar,
+     * built when the main one is and opened by {@code WindowCommand.show(SettingsPage.KEY)} (docs/settings.md).
+     */
+    @Provides
+    SettingsPage settings(Windows windows) {
+        return new SettingsPage(windows.named(
+                NamedWindow.of(SettingsPage.KEY, "Settings", SettingsPage.W, SettingsPage.H).satellite()));
+    }
 }

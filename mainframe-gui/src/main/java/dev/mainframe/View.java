@@ -2,6 +2,9 @@ package dev.mainframe;
 
 import dev.mainframe.Intent.Command;
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.ChangePrefs;
+import dev.mainframe.core.Messages.Preferences;
+import dev.mainframe.core.Messages.Prefs;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
@@ -17,6 +20,7 @@ import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.input.ClaimScope;
 import dev.vexelray.gui.core.input.ClickEvent;
@@ -92,6 +96,8 @@ final class View {
     private final Sender<NewTab> newTab;
     private final Sender<CloseAsked> closeAsked;
     private final Sender<Rename> rename;
+    private final Sender<ChangePrefs> changePrefs;
+    private final Sender<WindowCommand> windows;
     private final Sender<Intent> intents;
 
     /** The mono face's layout, one for every tab: it is only read. */
@@ -107,15 +113,19 @@ final class View {
     /** The key map's commands that apply to the screen in front, moved to each as it comes to the front. */
     private final List<Action> terminal = new ArrayList<>();
 
-    /** Where on {@link Type#TERMINAL_PX} the terminals' type is. */
-    private int size = Type.TERMINAL_NORMAL;
+    /**
+     * The settings as the frame last said them ({@link Prefs}): the terminals' type size, in the picture's pixels (a
+     * terminal is a grid of cells, so its type is the person's to size, not the window's zoom), and the tab motion.
+     */
+    private Preferences prefs = Preferences.DEFAULT;
 
     /** The tab whose new name is being typed, or {@link dev.mainframe.core.Messages#NO_TAB}. */
     private long renamingTab = dev.mainframe.core.Messages.NO_TAB;
 
     View(Gui gui, Keymap keys, Ui ui, Sender<Resized> resized, Sender<Typed> typed, Sender<Retitled> retitled,
             Sender<Shown> shown, Sender<Submitted> submitted, Sender<Fronted> fronted, Sender<NewTab> newTab,
-            Sender<CloseAsked> closeAsked, Sender<Rename> rename, Sender<Intent> intents) {
+            Sender<CloseAsked> closeAsked, Sender<Rename> rename, Sender<ChangePrefs> changePrefs,
+            Sender<WindowCommand> windows, Sender<Intent> intents) {
         this.gui = gui;
         this.keys = keys;
         this.ui = ui;
@@ -129,12 +139,14 @@ final class View {
         this.newTab = newTab;
         this.closeAsked = closeAsked;
         this.rename = rename;
+        this.changePrefs = changePrefs;
+        this.windows = windows;
         this.intents = intents;
         this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
                 .face(Type.MONO)).glyphLayout();
         tabs.action(RENAME).action(CLOSE);
         commands(keys);
-        ui.menu(false, intents);
+        ui.menu(false, intents, windows);
         // A double-click on a header renames its tab. The bar says nothing of one, so the tree's clicks are read,
         // in a mailbox of the widgets' tick like every other the view has (FN-11).
         gui.mailbox(gui.clicks(), this::clicked, 64);
@@ -176,6 +188,8 @@ final class View {
         command(keys, "tab.next", "Next tab", Command.NEXT_TAB, Shortcut.of(Key.TAB, Modifier.CONTROL));
         command(keys, "tab.previous", "Previous tab", Command.PREVIOUS_TAB,
                 Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT));
+        keys.action("app.settings", "Settings", Shortcut.of(Key.COMMA, Modifier.CONTROL))
+                .sends(windows, WindowCommand.show(SettingsPage.KEY));
     }
 
     private Action command(Keymap keys, String id, String label, Command command, Shortcut... chords) {
@@ -191,7 +205,7 @@ final class View {
 
     @Subscribe
     public void addTab(AddTab m) {
-        TerminalScreen screen = new TerminalScreen(gui, glyphs, Type.MONO, Type.TERMINAL_PX[size])
+        TerminalScreen screen = new TerminalScreen(gui, glyphs, Type.MONO, prefs.fontPx())
                 .name("terminal-" + m.id()).pseudoconsole();
         screens.put(m.id(), screen);
         byAddress.put(screen.address(), m.id());
@@ -225,6 +239,21 @@ final class View {
         headers.remove(m.id());
         tabs.remove(at);
         screen.close();
+    }
+
+    /** The settings, as the frame says them: every screen's type size, and how the bar changes tabs. */
+    @Subscribe
+    public void prefs(Prefs m) {
+        Preferences next = m.prefs();
+        if (next.fontPx() != prefs.fontPx()) {
+            for (TerminalScreen s : screens.values()) {
+                s.fontPx(next.fontPx());
+            }
+        }
+        if (next.motion() != prefs.motion()) {
+            ui.motion(next.motion());
+        }
+        prefs = next;
     }
 
     @Subscribe
@@ -410,17 +439,12 @@ final class View {
         }
     }
 
-    /** A step up ({@code 1}) or down ({@code -1}) the ladder, or back to where it starts ({@code 0}). */
+    /**
+     * A step up ({@code 1}) or down ({@code -1}) the sizes, or back to the first run's ({@code 0}): asked of the frame,
+     * which saves it, and shown when it says so ({@link #prefs}), as a change in the settings window is.
+     */
     void fontSize(int direction) {
-        int next = direction == 0 ? Type.TERMINAL_NORMAL
-                : Math.max(0, Math.min(Type.TERMINAL_PX.length - 1, size + direction));
-        if (next == size) {
-            return;
-        }
-        size = next;
-        for (TerminalScreen s : screens.values()) {
-            s.fontPx(Type.TERMINAL_PX[size]);
-        }
+        changePrefs.send(new ChangePrefs(prefs.stepped(direction)));
     }
 
     void newTab() {
@@ -484,7 +508,7 @@ final class View {
         boolean on = !keys.paused();
         keys.paused(on);
         ui.passthrough(on);
-        ui.menu(on, intents);
+        ui.menu(on, intents, windows);
         TerminalScreen s = front();
         if (s != null) {
             gui.focus(s.node());

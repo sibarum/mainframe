@@ -1,6 +1,7 @@
 package dev.mainframe.core;
 
 import dev.mainframe.core.Messages.AddTab;
+import dev.mainframe.core.Messages.ChangePrefs;
 import dev.mainframe.core.Messages.CloseAsked;
 import dev.mainframe.core.Messages.CloseShell;
 import dev.mainframe.core.Messages.CloseTab;
@@ -10,6 +11,11 @@ import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.NewTab;
 import dev.mainframe.core.Messages.OpenShell;
 import dev.mainframe.core.Messages.Output;
+import dev.mainframe.core.Messages.Preferences;
+import dev.mainframe.core.Messages.Prefs;
+import dev.mainframe.core.Messages.PrefsSaved;
+import dev.mainframe.core.Messages.SavePrefs;
+import dev.mainframe.core.Messages.ShellChoice;
 import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Resized;
 import dev.mainframe.core.Messages.Retitled;
@@ -53,8 +59,10 @@ import java.util.Optional;
  *
  * <h2>A tab's life</h2>
  *
- * <p>The window opens: ask what the launch wanted ({@link StartupWanted}), and add a tab per folder it names
- * ({@link AddTab}); {@link NewTab} adds one more. The view lays each tab's screen out and says its size
+ * <p>The window opens: ask what the launch wanted ({@link StartupWanted}), and add a tab per folder it names, or one
+ * in the folder chosen in Settings ({@link AddTab}); {@link NewTab} adds one more there. The settings are the
+ * frame's too, since it decides with two of them: a change ({@link ChangePrefs}) is said to the views ({@link Prefs})
+ * and saved ({@link SavePrefs}) (docs/settings.md). The view lays each tab's screen out and says its size
  * ({@link Resized}); on the first, the frame starts the tab's shell at that size ({@link OpenShell}), so the program
  * never starts at a guessed size. When the program ends ({@link ShellEnded}) the tab closes ({@link CloseTab}), and
  * with the last tab, the window. A program that would not start keeps its tab open, saying why in it, so a mistyped
@@ -78,9 +86,10 @@ import java.util.Optional;
  */
 @Component
 @Hears({WindowOpened.class, Startup.class, Resized.class, Retitled.class, ShellEnded.class, Fronted.class,
-        Submitted.class, NewTab.class, Rename.class, CloseAsked.class, CloseRequested.class, Answer.class})
+        Submitted.class, NewTab.class, Rename.class, CloseAsked.class, CloseRequested.class, Answer.class,
+        ChangePrefs.class, PrefsSaved.class})
 @Publishes({StartupWanted.class, AddTab.class, Front.class, Header.class, OpenShell.class, Output.class, CloseTab.class,
-        CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class})
+        CloseShell.class, WindowCommand.class, Ask.class, CloseAnswer.class, Prefs.class, SavePrefs.class})
 public final class Frame {
 
     /** How many of each message the frame's inbox holds. A resize is the busiest, and is a state topic. */
@@ -98,17 +107,46 @@ public final class Frame {
      * @param front    the tab shown, or {@link Messages#NO_TAB}
      * @param ids      the last tab id given out; ids are never reused, so a late message about a closed tab finds none
      * @param closings each close waiting on the person, by its run's id
+     * @param prefs    what Settings holds
+     * @param shells   the shells there are to choose from
+     * @param override the launch's command line, which runs instead of the chosen shell this run; blank for none
+     * @param home     where a new tab starts when no folder is chosen
+     * @param saves    the last {@link SavePrefs} number given out
+     * @param saving   a save is in flight: jobs are in no order, so the next waits for its answer
+     * @param unsaved  a change was made while it was, and is saved when it answers
      */
     @Withers
-    record State(List<Tab> tabs, long front, long ids, Map<Long, Closing> closings) implements FrameStateWithers {
+    record State(List<Tab> tabs, long front, long ids, Map<Long, Closing> closings, Preferences prefs,
+                 List<ShellChoice> shells, String override, Path home, long saves, boolean saving,
+                 boolean unsaved) implements FrameStateWithers {
 
         State {
             tabs = List.copyOf(tabs);
             closings = Map.copyOf(closings);
+            shells = List.copyOf(shells);
         }
 
         static State initial() {
-            return new State(List.of(), Messages.NO_TAB, 0, Map.of());
+            return new State(List.of(), Messages.NO_TAB, 0, Map.of(), Preferences.DEFAULT, List.of(), "",
+                    Path.of("."), 0, false, false);
+        }
+
+        /** What a new tab runs: the launch's command line, else the chosen shell, else this platform's first. */
+        String line() {
+            if (!override.isBlank()) {
+                return override;
+            }
+            return shells.stream().filter(c -> c.id().equals(prefs.shell())).findFirst()
+                    .or(() -> shells.stream().findFirst()).map(ShellChoice::line).orElse("");
+        }
+
+        /** Where a new tab starts: the folder chosen in Settings, else home. */
+        Path dir() {
+            return prefs.dir().orElse(home);
+        }
+
+        Prefs said() {
+            return new Prefs(prefs, shells, override);
         }
 
         Optional<Tab> tab(long id) {
@@ -260,6 +298,8 @@ public final class Frame {
         Step<State, NewTab> newTab = b.step("newTab", Frame::newTab);
         Step<State, Rename> renamed = b.step("renamed", Frame::renamed);
         Step<State, Answer> answered = b.step("answered", Frame::answered);
+        Step<State, ChangePrefs> changed = b.step("changed", Frame::changed);
+        Step<State, PrefsSaved> saved = b.step("saved", Frame::saved);
 
         Step<State, CloseAsked> closeAsked = b.step("closeAsked", Frame::closeAsked);
         Step<State, CloseRequested> quitAsked = b.step("quitAsked", Frame::quitAsked);
@@ -276,7 +316,9 @@ public final class Frame {
                 .on(Submitted.TOPIC, submitted)
                 .on(NewTab.TOPIC, newTab)
                 .on(Rename.TOPIC, renamed)
-                .on(Answer.TOPIC, answered);
+                .on(Answer.TOPIC, answered)
+                .on(ChangePrefs.TOPIC, changed)
+                .on(PrefsSaved.TOPIC, saved);
         ledger = b.build(inbox, "frame", CAPACITY);
 
         closing(Chain.start("close tab", ledger, closeAsked).on(CloseAsked.TOPIC), ask, finish, stop);
@@ -310,27 +352,50 @@ public final class Frame {
         return s;
     }
 
-    /** A tab per folder the launch named, the first in front. */
+    /**
+     * The settings, said to the views; then a tab per folder the launch named, or one in the folder chosen in Settings,
+     * the first in front.
+     */
     private static State started(State s, Startup startup, Out out) {
-        State next = s;
+        State next = s.withPrefs(startup.prefs()).withShells(startup.shells()).withOverride(startup.line())
+                .withHome(startup.home());
+        out.send(Prefs.TOPIC, next.said());
+        List<Path> dirs = startup.dirs().isEmpty() ? List.of(next.dir()) : startup.dirs();
         long first = Messages.NO_TAB;
-        for (Path dir : startup.dirs()) {
-            next = add(next, dir, startup.line(), out);
+        for (Path dir : dirs) {
+            next = add(next, dir, next.line(), out);
             if (first == Messages.NO_TAB) {
                 first = next.ids();
             }
         }
-        return first == Messages.NO_TAB ? next : front(next, first, out);
+        return front(next, first, out);
     }
 
-    /** One more tab, where the one in front is and running what it runs, put in front. */
+    /** One more tab, in the folder chosen in Settings and running the shell chosen there, put in front. */
     private static State newTab(State s, NewTab m, Out out) {
-        Optional<Tab> like = s.tab(s.front()).or(() -> s.tabs().stream().findFirst());
-        if (like.isEmpty()) {
+        State next = add(s, s.dir(), s.line(), out);
+        return front(next, next.ids(), out);
+    }
+
+    /** The person changed a setting: everyone shows it, and it is saved. Tabs already open keep what they run. */
+    private static State changed(State s, ChangePrefs c, Out out) {
+        if (c.prefs().equals(s.prefs())) {
             return s;
         }
-        State next = add(s, like.get().dir(), like.get().line(), out);
-        return front(next, next.ids(), out);
+        State next = s.withPrefs(c.prefs());
+        out.send(Prefs.TOPIC, next.said());
+        return next.saving() ? next.withUnsaved(true) : save(next, out);
+    }
+
+    /** A save answered: if the settings changed meanwhile, save them again, else nothing is in flight. */
+    private static State saved(State s, PrefsSaved p, Out out) {
+        return s.unsaved() ? save(s.withUnsaved(false), out) : s.withSaving(false);
+    }
+
+    private static State save(State s, Out out) {
+        State next = s.withSaves(s.saves() + 1).withSaving(true);
+        out.send(SavePrefs.TOPIC, new SavePrefs(next.saves(), next.prefs()));
+        return next;
     }
 
     /** A tab's screen is laid out: on the first size, start its program at it. Later sizes are the shell's. */

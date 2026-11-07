@@ -4,7 +4,7 @@ A terminal window that wraps the native OS shell. It is a real terminal emulator
 runs unmodified inside a Windows pseudoconsole (ConPTY), and MainFrame draws what it writes and sends it your keys.
 
 This is MainFrame rebuilt on VexelRay 0.2, milestone by milestone ([docs/rebuild.md](docs/rebuild.md)). What is here
-now is tabs of shells (M2); settings and workspaces come back in M3 and M4. 0.1's README, in
+now is tabs of shells (M2) and their settings (M3); workspaces come back in M4. 0.1's README, in
 `GitHub/mainframe`, says what the finished application does.
 
 ## Run it
@@ -60,13 +60,24 @@ A right-click copies the selection, or pastes when nothing is selected.
 ## Tabs
 
 `--dir=<folder>` (again for more) and `--dirs=<file>` (a folder per line, relative to the file) open a tab per
-folder; with neither, one tab where MainFrame was started. The + at the bar's end, or Ctrl+Shift+T, opens one more
-where the front one is. A tab's header is the name you gave it (Ctrl+Shift+R, a double-click, or its header's
+folder; with neither, one tab in the folder chosen in Settings (your home folder unless you chose another). The + at
+the bar's end, or Ctrl+Shift+T, opens one more there. A tab's header is the name you gave it (Ctrl+Shift+R, a double-click, or its header's
 right-click menu; a blank name hands it back), else the title its program gives itself, else its folder's name.
 
 A tab whose shell exits closes, and the last one closes the window. Closing a tab you have pressed Enter in asks
 first, since something may still be running in it; so does closing the window with such a tab, by any way out.
 Ctrl+Shift+W closes without asking.
+
+## Settings
+
+**Settings…** in the Terminal menu, or Ctrl+,, opens the settings window; a second time brings it to the front. It
+has the text size (14 to 24 px, which Ctrl+= and Ctrl+- walk too), the tab motion (slide, fade or none), the shell
+new tabs run (this platform's: Windows PowerShell, PowerShell 7 when it is on the PATH, Command Prompt), and the folder
+they start in (your home folder unless another is chosen). A change applies at once and is saved in the framework's
+store, `~/.mainframe/settings.properties`, under 0.1's keys, so a 0.1 MainFrame's choices carry over. A command line
+given when launching MainFrame runs instead of the chosen shell, for that run only, and the window says so.
+
+The key bindings are the app menu's (click the window's name in the title bar): **Key bindings…**.
 
 ## A native executable
 
@@ -133,6 +144,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `Frame` | The controller, on the logic lane: which tabs there are, what each runs, and when its shell starts (on its screen's first size, so a program never starts at a guessed size), and when closing asks first |
 | `Shell` | A tab's program on a pseudo-terminal: a `@Source` that reads what it writes and a `@Destination` that writes what is typed and its size, one per tab, keyed by its id. The framework holds each tab's connection. It sends no more than two `Output`s ahead of what the view says it has `Shown`, so a program writing faster than the screen waits on its terminal |
 | `ReadStartup`, `Folders` | A job: what the launch asked for, and the folders `--dir` and `--dirs` name |
+| `SaveSettings`, `PrefsStore` | A job that saves the settings, and the store's keys, 0.1's, in one place |
 | `Command` | MainFrame's own command line, taken out before the framework reads the rest |
 | `Messages`, `Core` | Every message, and the list of this module's parts the processor builds |
 
@@ -143,6 +155,7 @@ parts that never hold each other and talk only by messages (every message is a r
 | `MainFrame`, `MainFrameApp` | The entry point, which splits the command line, and the declaration the wiring is generated from |
 | `View` | A `@View` on the GUI thread: a `TerminalScreen` (vex-suite-common-tty) per tab, what the program wrote fed to it, and what it sends forwarded to the tab's shell with the tab's id |
 | `Ui`, `Recipes` | The title bar over the tab bar, built once; and the parts |
+| `SettingsPage`, `SettingsView` | The settings window, declared by name in `Recipes`, and its own `@View` |
 | `Intent`, `Look`, `Type`, `Motion`, `Landmarks` | The key map's commands, the colours, the faces and sizes, the tempo, and the names a script may use |
 
 ## The stack

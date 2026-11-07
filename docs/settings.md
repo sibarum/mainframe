@@ -116,3 +116,27 @@ failed save.
    shell has `cd`'d to, so "where the front one is" is often not where the person is.
 2. **Keep 0.1's keys** (`font.px`, `tabs.motion`, `shell.id`, `tabs.dir`) so a 0.1 user's file carries over?
 3. **The workspace to open at launch moves to M4.1**, with workspaces?
+
+## Ruled
+
+All three accepted as recommended by the author 2026-11-06 ("Accept, build M3"): a new tab starts in the folder
+chosen in Settings, 0.1's keys are kept, and the workspace to open at launch moves to M4.1.
+
+## As built
+
+Built 2026-11-06 to 07 and seen live on a home of its own (`-Dapp.jvmArgs=-Duser.home=...`, so the real
+`~/.mainframe` was never touched): a 0.1-style file read as it was (16 px, Fade), Ctrl+, opening the window, a size
+clicked there and Ctrl+- in the main window both saved and both shown in the other, Command Prompt chosen and the
+next tab running `cmd`, a folder in the file and a relaunch opening its tab there with everything as left, *Use my
+home folder* removing the key, and *None* for the motion. Where it departs from the sketch:
+
+- **One save in flight, not a sequence the job checks.** The processor refuses a `@Job` with a field that changes
+  ("two requests may run at once on the job lane"), so the frame keeps the order: it sends a `SavePrefs`, holds any
+  change made before the answer, and sends the latest when `PrefsSaved` comes. The job is stateless.
+- **`Startup` carries the home folder**, since a step may not ask where home is.
+- **No *Key bindings…* in the Terminal menu.** A `WindowCommand` reaches only windows declared through `Windows`,
+  and the framework's key-bindings window is not one (FN-13). It stays in the app menu, where it works.
+- **A long folder is cut in the middle** (`Ellipsis.MIDDLE`), whole in a tooltip: the first live run's path pushed
+  the buttons out of the window.
+- **The folder picker was not driven live.** It is the operating system's dialog, which a background run cannot
+  reach; `ViewTest` holds the request and the answer, and the chosen folder was checked through the file.

@@ -11,6 +11,12 @@ import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.OpenShell;
+import dev.mainframe.core.Messages.ChangePrefs;
+import dev.mainframe.core.Messages.Preferences;
+import dev.mainframe.core.Messages.Prefs;
+import dev.mainframe.core.Messages.PrefsSaved;
+import dev.mainframe.core.Messages.SavePrefs;
+import dev.mainframe.core.Messages.ShellChoice;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
 import dev.mainframe.core.Messages.Retitled;
@@ -36,6 +42,7 @@ import sibarum.atchung.Topic;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -67,6 +74,7 @@ class FrameTest {
         frame = new Frame(tick.inbox("frame"));
         Inbox heard = tick.inbox("heard");
         for (Topic<?> t : List.of(StartupWanted.TOPIC, AddTab.TOPIC, Front.TOPIC, Header.TOPIC, OpenShell.TOPIC, Output.TOPIC,
+                Prefs.TOPIC, SavePrefs.TOPIC,
                 CloseTab.TOPIC, WindowCommand.TOPIC, CloseShell.TOPIC, Ask.TOPIC, CloseAnswer.TOPIC)) {
             listen(heard, t);
         }
@@ -94,8 +102,19 @@ class FrameTest {
         return out;
     }
 
+    private static final Path HOME = Path.of("C:/Users/me");
+    private static final List<ShellChoice> SHELLS = List.of(
+            new ShellChoice("powershell", "Windows PowerShell", "powershell.exe -NoLogo"),
+            new ShellChoice("cmd", "Command Prompt", "cmd.exe"));
+
+    /** A launch naming {@code dirs} with a command line of its own, which every tab runs. */
     private void started(Path... dirs) {
-        tell(Startup.TOPIC, new Startup(List.of(dirs), "powershell.exe"));
+        tell(Startup.TOPIC, new Startup(List.of(dirs), "powershell.exe", Preferences.DEFAULT, SHELLS, HOME));
+    }
+
+    /** A launch with no command line of its own, so the chosen shell runs, and these settings. */
+    private void launched(Preferences prefs, Path... dirs) {
+        tell(Startup.TOPIC, new Startup(List.of(dirs), "", prefs, SHELLS, HOME));
     }
 
     @Test
@@ -200,16 +219,14 @@ class FrameTest {
     // ------------------------------------------------------------------ M2: tabs
 
     @Test
-    void aNewTabIsWhereTheFrontOneIsAndComesToTheFront() {
-        started(WORK, WEB);
-        tell(Fronted.TOPIC, new Fronted(2));
-        took(Front.class);
+    void aNewTabIsInTheChosenFolderRunningTheChosenShellAndComesToTheFront() {
+        launched(Preferences.DEFAULT.withShell("cmd").withDir(Optional.of(WEB)), WORK);
         sent.clear();
         tell(NewTab.TOPIC, new NewTab());
-        assertEquals(List.of(new AddTab(3, "web")), took(AddTab.class));
-        assertEquals(List.of(new Front(3)), took(Front.class));
-        tell(Resized.TOPIC, new Resized(3, 80, 24));
-        assertEquals(List.of(new OpenShell(3, "powershell.exe", WEB, 80, 24)), took(OpenShell.class));
+        assertEquals(List.of(new AddTab(2, "web")), took(AddTab.class));
+        assertEquals(List.of(new Front(2)), took(Front.class));
+        tell(Resized.TOPIC, new Resized(2, 80, 24));
+        assertEquals(List.of(new OpenShell(2, "cmd.exe", WEB, 80, 24)), took(OpenShell.class));
     }
 
     @Test
@@ -330,5 +347,76 @@ class FrameTest {
         assertEquals(List.of(WindowCommand.close(CloseRequested.MAIN)), took(WindowCommand.class));
         tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 5));
         assertEquals(List.of(new CloseAnswer(5, true)), took(CloseAnswer.class));
+    }
+
+    // ------------------------------------------------------------------ M3: settings
+
+    @Test
+    void theSettingsAreSaidAtLaunchAndALaunchWithNoFolderStartsInTheChosenOne() {
+        Preferences prefs = Preferences.DEFAULT.withFontPx(20).withDir(Optional.of(WEB));
+        launched(prefs);
+        assertEquals(List.of(new Prefs(prefs, SHELLS, "")), took(Prefs.class));
+        assertEquals(List.of(new AddTab(1, "web")), took(AddTab.class));
+        tell(Resized.TOPIC, new Resized(1, 80, 24));
+        assertEquals(List.of(new OpenShell(1, "powershell.exe -NoLogo", WEB, 80, 24)), took(OpenShell.class),
+                "no shell chosen: the platform's first");
+    }
+
+    @Test
+    void withNoFolderChosenATabStartsAtHome() {
+        launched(Preferences.DEFAULT);
+        tell(Resized.TOPIC, new Resized(1, 80, 24));
+        assertEquals(HOME, took(OpenShell.class).getFirst().dir());
+    }
+
+    @Test
+    void theLaunchCommandLineWinsOverTheChosenShellAndIsSaid() {
+        tell(Startup.TOPIC, new Startup(List.of(), "pwsh -NoProfile", Preferences.DEFAULT.withShell("cmd"), SHELLS,
+                HOME));
+        assertEquals("pwsh -NoProfile", took(Prefs.class).getFirst().override());
+        tell(NewTab.TOPIC, new NewTab());
+        tell(Resized.TOPIC, new Resized(2, 80, 24));
+        assertEquals("pwsh -NoProfile", took(OpenShell.class).getFirst().line());
+    }
+
+    @Test
+    void aChangeIsSaidAndSavedAndOneWhileSavingWaitsForTheAnswer() {
+        launched(Preferences.DEFAULT);
+        took(Prefs.class);
+        Preferences bigger = Preferences.DEFAULT.withFontPx(20);
+        tell(ChangePrefs.TOPIC, new ChangePrefs(bigger));
+        assertEquals(List.of(new Prefs(bigger, SHELLS, "")), took(Prefs.class));
+        assertEquals(List.of(new SavePrefs(1, bigger)), took(SavePrefs.class));
+
+        Preferences biggest = bigger.withFontPx(24);
+        Preferences faded = biggest.withMotion(TabMotion.FADE);
+        tell(ChangePrefs.TOPIC, new ChangePrefs(biggest));
+        tell(ChangePrefs.TOPIC, new ChangePrefs(faded));
+        assertEquals(2, took(Prefs.class).size(), "every change is shown at once");
+        assertTrue(took(SavePrefs.class).isEmpty(), "but none saved while one is in flight");
+
+        tell(PrefsSaved.TOPIC, new PrefsSaved(1, ""));
+        assertEquals(List.of(new SavePrefs(2, faded)), took(SavePrefs.class), "then the latest, once");
+        tell(PrefsSaved.TOPIC, new PrefsSaved(2, ""));
+        assertTrue(took(SavePrefs.class).isEmpty());
+        assertTrue(!frame.state().saving());
+    }
+
+    @Test
+    void aChangeToWhatIsAlreadySetSavesNothing() {
+        launched(Preferences.DEFAULT);
+        took(Prefs.class);
+        tell(ChangePrefs.TOPIC, new ChangePrefs(Preferences.DEFAULT));
+        assertTrue(took(Prefs.class).isEmpty());
+        assertTrue(took(SavePrefs.class).isEmpty());
+    }
+
+    @Test
+    void theSizesStepAlongTheFiveAndStopAtTheEnds() {
+        Preferences p = Preferences.DEFAULT;
+        assertEquals(20, p.stepped(1).fontPx());
+        assertEquals(24, p.stepped(1).stepped(1).stepped(1).fontPx());
+        assertEquals(14, p.withFontPx(14).stepped(-1).fontPx());
+        assertEquals(18, p.withFontPx(24).stepped(0).fontPx());
     }
 }

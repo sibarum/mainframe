@@ -31,6 +31,47 @@ reasons and the full method.
 
 ## Milestones
 
+## M3 · settings · 2026-11-07
+
+One finding (FN-13), a missing knob: the framework's own key-bindings window is the one window a message cannot open.
+The milestone's other surprise was the processor refusing a job with changing state, which was the framework working
+as meant, and it moved the save order into the frame where it belonged.
+
+### The shapes
+
+| | The promise | What happened | How it looked |
+| --- | --- | --- | --- |
+| FN-13 | A window is opened by its key | Not the framework's key-bindings window | *Key bindings…* left out of the Terminal menu |
+
+### What would stop each
+
+1. The key-bindings window declared through `Windows`, so a `WindowCommand` opens it (FN-13).
+
+### My own mistakes
+
+- **I sketched a job that dropped older saves by remembering the newest.** The processor refused it at compile time,
+  with the fix in its message. The rule: anything that must happen in order belongs to the component that sends the
+  requests, never to a job.
+- **A scripted edit to `Recipes` silently matched nothing** because the file's line endings had changed when git
+  committed it, and the build's error ("nothing provides SettingsPage") was the first sign. Afterwards I checked
+  every scripted edit had landed and found one more that had not. The rule: after a scripted edit to a committed
+  file, grep for the result before building on it; better, use the Edit tool.
+- **The first live run's settings window broke on a long path.** The tests never put one in. The rule: a field
+  showing a path is tested live with a long one.
+- **Twice a run died on a stack class missing**, because another session was installing `vexelray-gui-core` and
+  `-widget` as I ran. M0's rule held: compare the jar's time with the crash before touching code; rebuild against
+  what is installed, then relaunch.
+- **I nearly ran the live check against the real `~/.mainframe`,** which a 0.1 MainFrame also reads. A home of the
+  run's own (`-Duser.home` through `app.jvmArgs`) kept it untouched, and let the run start from a 0.1-style file.
+
+### What to keep exactly as it is
+
+- **The frame holding the settings.** A click in the window and a chord in the main one are one message and one
+  save, and the window and the terminals both follow what the frame says, so neither can disagree with the file.
+- **0.1's keys.** A 0.1-style file was read as it was, which no migration code would have made as certain.
+- **A home of the run's own for a live check**, and a relaunch as part of it: it is what showed the settings come
+  back.
+
 ## M2 · tabs · 2026-11-05
 
 Three findings (FN-10 to FN-12), none architectural: each is a widget without a place an application needs, and
