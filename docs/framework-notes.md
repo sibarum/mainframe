@@ -315,3 +315,16 @@ startup warns that its pieces were built against different commits, so the guide
 by version. Done: `stream gpu for 1500` before each `window` that a job opens, as a bounded wait, which is a
 workaround and reads as one. What the framework could do: `await window <name>`, bounded like `await`; and the
 cross-window target the guide describes.
+
+## FN-25 · Nothing says how to try the installer locally 🔬
+
+Building and running MainFrame's installer on this computer, without publishing, took reading three repositories:
+`installer.json` names no tool; the `installer-core` CLI jar is what reads it (`vexelray-installer`'s README); a local
+install needs `--base-url` and `--asset-base-url` at `127.0.0.1`, the assets copied to `releases/<tag>/` and
+`serve.ps1` serving the folder (`vexelray-dist/deploy.ps1 -Local`, which builds the whole suite from the GitHub
+checkouts, not one app from here); and a snapshot already installed under the same version needs `-Force`. A comment
+in `installer.json` would have pointed the way, but the config is read with `FAIL_ON_UNKNOWN_PROPERTIES`, so a
+`"comment"` key fails generation, and the template makes no `installer.json` at all (`getting-started.md` says to carry
+it over). Done: those steps by hand, into the scratchpad, on port 8417. What the framework could do: `installer-core`
+taking a `"comment"` key and the template writing an `installer.json` with one; or one command, `--local`, that
+generates, stages and serves an app's installer for a try on this computer.
