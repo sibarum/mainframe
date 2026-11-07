@@ -280,3 +280,17 @@ only if none came since). It worked live; a slow prompt that pauses mid-draw, or
 bursts more than 300 ms apart, would get the text early. What vex-suite-common could do: shell integration's marks
 (OSC 133's "prompt start"/"command start", which PowerShell, bash and zsh can be set to send) parsed by `Terminal`
 and said as `TerminalScreen.PROMPTED`, with the quiet guess only where no mark ever comes.
+
+## FN-22 · The Windows pseudoconsole carries no native-image metadata 🔬
+
+A native MainFrame stopped as its first tab opened: `MissingForeignRegistrationError` for `CreatePipe`'s downcall,
+raised in `Shell`'s `open`, which halted the application (a failure `open` did not declare, FN-3). The JVM run needs no
+registration, so nothing before M5 could see it. `vex-suite-common-pty-linux` ships its own `reachability-metadata.json`
+with its downcalls; `vex-suite-common-pty-windows` ships none, for `ConPty`'s fifteen kernel32 calls and
+`GetShortPathNameW`. The error's suggested entry was blank, and the tracing agent records every downcall in the process
+with no name, the window system's included, so the signatures were read from `ConPty`'s `FunctionDescriptor`s.
+
+Done: the eleven distinct signatures are in MainFrame's own metadata, with a note saying whose they are. What the
+stack could do: `vex-suite-common-pty-windows` carrying them, as the Linux module does, so every application with a
+terminal gets them; and a test in that module that builds a native image of a tiny program opening a pseudoconsole,
+since only a native run can miss them.

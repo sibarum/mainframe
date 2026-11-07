@@ -4,7 +4,10 @@
     "locale and time-zone data a native run of the calculator was seen to read. Everything else registers",
     "itself: the libraries carry their own (Win32, tactroller, DXGI, the shaders, the font atlas), and the processor writes the icon's.",
     "Add to it when a native run of this program fails on something the JVM run did not: run it on a JVM",
-    "under -agentlib:native-image-agent and keep only the entries naming this program."
+    "under -agentlib:native-image-agent and keep only the entries naming this program.",
+    "The foreign downcalls are the pseudoconsole's kernel32 calls (vex-suite-common-pty-windows' ConPty, and",
+    "GetShortPathNameW for --insert-path), one per signature. They belong in that module's own metadata, as the",
+    "Linux module's are (docs/framework-notes.md, FN-22); here until it has them."
   ],
   "reflection": [
     {
@@ -68,5 +71,20 @@
     {
       "glob": "META-INF/services/java.time.zone.ZoneRulesProvider"
     }
-  ]
+  ],
+  "foreign": {
+    "downcalls": [
+      { "returnType": "jint", "parameterTypes": ["void*", "void*", "void*", "jint"] },
+      { "returnType": "jint", "parameterTypes": ["jint", "void*", "void*", "jint", "void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "jint"] },
+      { "returnType": "void", "parameterTypes": ["void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "jint", "jint", "void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "jint", "jlong", "void*", "jlong", "void*", "void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "void*", "void*", "void*", "jint", "jint", "void*", "void*", "void*", "void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "void*", "jint", "void*", "void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "void*"] },
+      { "returnType": "jint", "parameterTypes": ["void*", "void*", "jint"] }
+    ]
+  }
 }
