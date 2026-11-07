@@ -31,6 +31,52 @@ reasons and the full method.
 
 ## Milestones
 
+## M5 · shipping · 2026-11-07
+
+Three findings (FN-22 to FN-24). One stopped the shipped program: the Windows pseudoconsole carries no native-image
+metadata, so a native MainFrame halted as its first tab opened (FN-22). Only a native run could see it, and M5 is the
+first native run of 0.2. The other two are what a kept script cannot say about a terminal application: when a tab is
+there, and when a window has opened.
+
+### The shapes
+
+| | The promise | What happened | How it looked |
+| --- | --- | --- | --- |
+| FN-22 | A library registers its own native metadata | The Windows pty does not; the Linux one does | The first tab of a native run halted the app; eleven signatures in MainFrame's metadata |
+| FN-23 | A script waits on what the app says | Not on a tab: the bar is unnamed, `find` misses headers and never fails | Tabs photographed, files read by the runner |
+| FN-24 | A script drives every window | It cannot wait for one to open, and the cross-window target was refused | `stream gpu for 1500` as a bounded wait |
+
+### What would stop each
+
+1. `vex-suite-common-pty-windows` shipping its downcalls, with a native-image test that opens a pseudoconsole (FN-22).
+2. The tab bar named by its headers, and `find` able to fail (FN-23).
+3. `await window <name>`, and the cross-window target the guide describes (FN-24).
+
+### My own mistakes
+
+- **My first probe of the kept check wrote a screenshot to `C:\0-start.png`.** A backslash conversion inside a nested
+  `$(…)` in the runner lost its backslash, so the shots' folder came out empty and the path became the drive's root.
+  Deleting the file myself was refused as a dangerous removal, rightly, and it is still there for the person to delete.
+  The rule: a script that builds a path from parts checks the path is non-empty and under the target before writing
+  to it; and string surgery on Windows paths uses parameter expansion, not sed inside sed.
+- **The first passing run of the check proved nothing about Ctrl+O.** One `DOWN` landed on *Open folder…*, Ctrl+Enter
+  asked for the folder picker, and the script still exited 0, because nothing it awaited depended on the tabs. Only the
+  screenshot showed it. The rule: read every shot of a check's first green run, and give a step that cannot be awaited
+  a consequence the runner can check.
+- **I had found in M4 that the folder picker cannot be driven, and still wrote a key sequence that could open it.**
+  The rule: a script steps through a list by name or by a count checked against a shot, never by a guess.
+- **The 0.1 README's claim that metadata "is short because the libraries register their own"** was carried over and
+  was not true for the pty. The rule: a claim about what the stack does is checked by the first native run, not
+  copied.
+
+### What to keep exactly as it is
+
+- **The first native run before any sketch.** Building and running both executables before proposing M5 turned the
+  plan's "the downcalls in the metadata" into eleven known signatures and a finding, not a guess.
+- **Reading the signatures from the source** when the tracing agent's output could not say whose a downcall was.
+- **A check whose verdict is an exit status and whose home is its own**, with the runner reading the files the steps
+  should have left. It is the one thing in this repository that drives the shipped executable end to end.
+
 ## M4 · workspaces · 2026-11-07
 
 Eight findings (FN-14 to FN-21). Two are architectural. FN-15 decided how every test in this repository runs: a
