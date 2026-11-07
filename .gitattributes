@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Scripts keep the line ends their shell reads, whatever the checkout does with the rest.
+*.sh text eol=lf
+*.cmd text eol=crlf
