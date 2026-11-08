@@ -16,22 +16,23 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MAINFRAME as the title bar's logo: a dot-matrix face whose every pixel keeps only the green third of an RGB-stripe
- * phosphor, the brand sheet's wordmark ("MainFrame Wordmark", 2026-11-07) in its 5-row face for small sizes. The
- * sheet's SVGs cannot be read at run time, so the face is written out below, an {@code M} or an {@code F} to a lit
- * cell, and drawn here as the sheet constructs it:
+ * phosphor, the brand sheet's wordmark ("MainFrame Wordmark", 2026-11-07) in its "5-row square" version. The sheet's
+ * SVGs cannot be read at run time, so the face is written out below, an {@code M} or an {@code F} to a lit cell, and
+ * drawn here as the sheet constructs it:
  *
  * <ul>
  *   <li><b>Grid.</b> Five rows; M five cells wide, I three, the rest four; one empty column between letters; a cell is
  *       1.5 times taller than wide. Two rows fewer than the sheet's 5x7 face, so at the bar's 15 dp each bar is 40%
  *       thicker with wider gaps, rather than hatching.</li>
  *   <li><b>Stripe.</b> Only the green third of a cell lights, so a row of lit cells is one bar, read as a scanline.</li>
- *   <li><b>Taper.</b> A bar swells from a fine point over 0.42 of a cell, and overshoots each end cell by 0.08.</li>
- *   <li><b>Bloom.</b> Two blurs under the bars, of 0.35 and 1.0 cell, as the sheet's filter has them.</li>
+ *   <li><b>Ends.</b> Square, flush with the cells' edges (the sheet's square version, not its tapered one).</li>
+ *   <li><b>Bloom.</b> Two blurs under the bars, of 0.35 and 1.0 cell, as the sheet's filter has them: only under the
+ *       pointer. At rest the bars are bare, the crisper of the two at this size (chosen 2026-11-07).</li>
  * </ul>
  *
  * <p>In the sheet's own units, a cell one wide, so the geometry below is its numbers. MAIN and FRAME are two greens,
  * light ones on a dark theme and dark ones on a light theme. Under the pointer the bar hands over the accent, and the
- * whole word lights in it, as the framework's text wordmark does.
+ * whole word lights in it, glowing, as the framework's text wordmark lights.
  */
 final class Wordmark {
 
@@ -47,14 +48,10 @@ final class Wordmark {
     static final float VIEW_W = 48.20f;
     static final float VIEW_H = 10.70f;
 
-    /** Where cell (0, 0)'s bar starts (its left tip) and sits (its centre line), and the rows' pitch. */
-    private static final float LEFT = 1.52f;
-    private static final float TOP = 2.35f;
+    /** Where cell (0, 0)'s bar starts (its left edge) and sits (its centre line), the rows' pitch, a bar's half height. */
+    static final float LEFT = 1.6f;
+    static final float TOP = 2.35f;
     private static final float PITCH = 1.5f;
-
-    /** A bar's length beyond its cells (tip to tip, a run of n cells is n + 0.16), its taper, and its half height. */
-    private static final float SPAN = 1.16f;
-    private static final float TAPER = 0.42f;
     private static final float HALF = 0.25f;
 
     /** Texels to a cell: the raster is the sheet drawn this much larger, and mipped down to the bar's size. */
@@ -71,29 +68,11 @@ final class Wordmark {
     static final Color LIGHT_MAIN = Color.rgb(0x123d1d);
     static final Color LIGHT_FRAME = Color.rgb(0x1f8a40);
 
-    /** The bloom's two blurs, in cells, and how strongly each is laid under the bars: the sheet's, per ground. */
+    /** The bloom's two blurs, in cells, and how strongly each is laid under the bars: the sheet's dark-ground filter. */
     private static final float NEAR = 0.35f;
     private static final float FAR = 1.0f;
-
-    /** Points along the taper's curve, from the tip to full height: the sheet's cubic, sampled once. */
-    private static final float[] TAPER_D;
-    private static final float[] TAPER_H;
-
-    static {
-        int n = 64;
-        TAPER_D = new float[n + 1];
-        TAPER_H = new float[n + 1];
-        // (0,0) (0.147,0.138) (0.231,0.25) (0.42,0.25): distance along the bar, half height
-        for (int i = 0; i <= n; i++) {
-            float t = i / (float) n;
-            float u = 1f - t;
-            float b1 = 3f * u * u * t;
-            float b2 = 3f * u * t * t;
-            float b3 = t * t * t;
-            TAPER_D[i] = b1 * 0.147f + b2 * 0.231f + b3 * TAPER;
-            TAPER_H[i] = b1 * 0.138f + b2 * HALF + b3 * HALF;
-        }
-    }
+    private static final float NEAR_GLOW = 1f;
+    private static final float FAR_GLOW = 0.75f;
 
     private Wordmark() {
     }
@@ -151,13 +130,17 @@ final class Wordmark {
                 while (end + 1 < row.length() && row.charAt(end + 1) == k) {
                     end++;
                 }
-                bar(lit, LEFT + c, LEFT + end + SPAN, TOP + PITCH * r, k == 'M' ? main : frame);
+                bar(lit, LEFT + c, LEFT + end + 1, TOP + PITCH * r, k == 'M' ? main : frame);
                 c = end + 1;
             }
         }
         float[] glow = new float[n * 4];
-        under(glow, blur(lit, FAR * TEXELS), far);
-        under(glow, blur(lit, NEAR * TEXELS), near);
+        if (far > 0f) {
+            under(glow, blur(lit, FAR * TEXELS), far);
+        }
+        if (near > 0f) {
+            under(glow, blur(lit, NEAR * TEXELS), near);
+        }
         under(glow, lit, 1f);
         byte[] rgba = new byte[n * 4];
         for (int i = 0; i < n; i++) {
@@ -173,15 +156,20 @@ final class Wordmark {
         return MipChain.of(rgba, W, H);
     }
 
-    /** The word in the sheet's two greens for a dark or a light ground. */
+    /** The word at rest in the sheet's two greens for a dark or a light ground, bare: no bloom. */
     static Feed feed(boolean dark) {
         return Feed.still(W, H, true, pixels(dark));
     }
 
-    /** The word's raster for a dark or a light ground, as a mip chain, its full size first. */
+    /** The word's raster at rest for a dark or a light ground, as a mip chain, its full size first. */
     static byte[][] pixels(boolean dark) {
-        return CHAINS.computeIfAbsent(dark ? new Look(DARK_MAIN, DARK_FRAME, 1f, 0.75f)
-                : new Look(LIGHT_MAIN, LIGHT_FRAME, 0.55f, 0.35f), Wordmark::chain);
+        return CHAINS.computeIfAbsent(dark ? new Look(DARK_MAIN, DARK_FRAME, 0f, 0f)
+                : new Look(LIGHT_MAIN, LIGHT_FRAME, 0f, 0f), Wordmark::chain);
+    }
+
+    /** The word's raster lit in {@code c}, under the pointer: the whole word in it, with the sheet's bloom. */
+    static byte[][] pixels(Color c) {
+        return CHAINS.computeIfAbsent(new Look(c, c, NEAR_GLOW, FAR_GLOW), Wordmark::chain);
     }
 
     /** A box showing the word, {@link #HEIGHT_DP} high and as wide as the view box makes it. */
@@ -215,9 +203,9 @@ final class Wordmark {
         };
     }
 
-    /** The whole word lit in {@code c}, with the dark ground's bloom. */
+    /** The whole word lit in {@code c}, glowing. */
     private static Feed lit(Map<Color, Feed> lit, Color c) {
-        return lit.computeIfAbsent(c, k -> feed(k, k, 1f, 0.75f));
+        return lit.computeIfAbsent(c, k -> Feed.still(W, H, true, pixels(k)));
     }
 
     /** The word at rest for the theme now drawing, kept under the theme's ink so a later theme makes its own. */
@@ -227,8 +215,8 @@ final class Wordmark {
     }
 
     /**
-     * Light one bar, tip {@code x0} to tip {@code x1} on centre line {@code y}, in {@code color}, into the premultiplied
-     * {@code lit}: each texel covered as far as sixteen samples in it fall inside the tapered shape.
+     * Light one bar, edge {@code x0} to edge {@code x1} on centre line {@code y}, in {@code color}, into the
+     * premultiplied {@code lit}: each texel covered as far as sixteen samples in it fall inside the bar.
      */
     private static void bar(float[] lit, float x0, float x1, float y, Color color) {
         int tx0 = Math.max(0, (int) Math.floor(x0 * TEXELS));
@@ -242,7 +230,7 @@ final class Wordmark {
                     float py = (ty + (sy + 0.5f) / 4f) / TEXELS;
                     for (int sx = 0; sx < 4; sx++) {
                         float px = (tx + (sx + 0.5f) / 4f) / TEXELS;
-                        if (px > x0 && px < x1 && Math.abs(py - y) < half(Math.min(px - x0, x1 - px))) {
+                        if (px > x0 && px < x1 && Math.abs(py - y) < HALF) {
                             in++;
                         }
                     }
@@ -259,20 +247,6 @@ final class Wordmark {
                 lit[i + 3] += a * (1f - lit[i + 3]);
             }
         }
-    }
-
-    /** The bar's half height {@code d} cells in from its nearer tip: the taper's curve, then full height. */
-    private static float half(float d) {
-        if (d >= TAPER) {
-            return HALF;
-        }
-        for (int i = 1; i < TAPER_D.length; i++) {
-            if (TAPER_D[i] >= d) {
-                float t = (d - TAPER_D[i - 1]) / (TAPER_D[i] - TAPER_D[i - 1]);
-                return TAPER_H[i - 1] + t * (TAPER_H[i] - TAPER_H[i - 1]);
-            }
-        }
-        return HALF;
     }
 
     /** {@code src}, premultiplied, blurred by a gaussian of {@code sigma} texels, across and then down. */

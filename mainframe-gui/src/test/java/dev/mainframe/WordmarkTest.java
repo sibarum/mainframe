@@ -49,20 +49,29 @@ class WordmarkTest {
     }
 
     @Test
-    void aBarsMiddleIsItsLettersGreenAndTheGroundBetweenRowsIsOnlyBloom() {
+    void atRestABarIsItsLettersGreenAndTheGroundBetweenRowsIsBare() {
         byte[] px = Wordmark.pixels(true)[0];
-        // M's first bar, cell (0, 0): its centre is at x 2.1, y 2.35 in the sheet's cells
-        int[] m = texel(px, 2.1f, 2.35f);
+        // M's first bar, cell (0, 0): its middle is half a cell in from the left edge, on the first row's centre line
+        int[] m = texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP);
         assertEquals(255, m[3], "a bar's middle is fully lit");
         near(Wordmark.DARK_MAIN, m);
-        // F's top bar, columns 20 to 23: its middle is at x 1.52 + 22
-        int[] f = texel(px, 1.52f + 22f, 2.35f);
+        // F's top bar, columns 20 to 23
+        int[] f = texel(px, Wordmark.LEFT + 22f, Wordmark.TOP);
         near(Wordmark.DARK_FRAME, f);
-        // between M's top row and the next, at the left of the empty middle of the first M
-        int[] gap = texel(px, 3.1f, 3.1f);
-        assertTrue(gap[3] < 255, "between scanlines only the bloom: " + gap[3]);
+        // between M's top row and the next: no bloom at rest
+        assertEquals(0, texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP + 0.75f)[3], "between scanlines, bare ground");
         // the far corner of the view box has nothing on it
         assertEquals(0, texel(px, Wordmark.VIEW_W - 0.2f, Wordmark.VIEW_H - 0.1f)[3]);
+    }
+
+    @Test
+    void underThePointerTheWholeWordIsLitInThePaintAndGlows() {
+        Color accent = Color.rgb(0x8877ee);
+        byte[] px = Wordmark.pixels(accent)[0];
+        near(accent, texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP));
+        near(accent, texel(px, Wordmark.LEFT + 22f, Wordmark.TOP));
+        int gap = texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP + 0.75f)[3];
+        assertTrue(gap > 0 && gap < 255, "between scanlines, the bloom: " + gap);
     }
 
     private static int[] texel(byte[] px, float x, float y) {
