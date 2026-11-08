@@ -7,21 +7,35 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The wordmark: MAINFRAME on a 5x7 grid, drawn as the brand sheet constructs it. */
+/** The wordmark: MAINFRAME on the sheet's 5-row grid, drawn as the brand sheet constructs it. */
 class WordmarkTest {
 
+    /** M A I N F R A M E: M five cells, I three, the rest four, each followed by an empty column. */
+    private static final int[] WIDTHS = {5, 4, 3, 4, 4, 4, 4, 5, 4};
+
     @Test
-    void theGridIsNineLettersOfFiveCellsWithAColumnBetween() {
-        assertEquals(9 * 6 - 1, Wordmark.columns());
-        for (int c = 5; c < Wordmark.columns(); c += 6) {
-            for (int r = 0; r < 7; r++) {
-                assertEquals('.', Wordmark.cell(r, c), "the column between letters, at " + c);
-            }
+    void theGridIsFiveRowsOfProportionalLettersWithAColumnBetween() {
+        int columns = 0;
+        for (int w : WIDTHS) {
+            columns += w + 1;
         }
-        for (int r = 0; r < 7; r++) {
+        assertEquals(columns - 1, Wordmark.columns());
+        int at = 0;
+        for (int letter = 0; letter < WIDTHS.length; letter++) {
+            at += WIDTHS[letter];
+            for (int r = 0; r < Wordmark.rows(); r++) {
+                if (at < Wordmark.columns()) {
+                    assertEquals('.', Wordmark.cell(r, at), "the column after letter " + letter);
+                }
+            }
+            at++;
+        }
+        assertEquals(5, Wordmark.rows());
+        int frame = WIDTHS[0] + WIDTHS[1] + WIDTHS[2] + WIDTHS[3] + 4;
+        for (int r = 0; r < Wordmark.rows(); r++) {
             for (int c = 0; c < Wordmark.columns(); c++) {
                 char k = Wordmark.cell(r, c);
-                assertTrue(k == '.' || k == (c < 4 * 6 ? 'M' : 'F'), "MAIN is M and FRAME is F, at " + r + "," + c);
+                assertTrue(k == '.' || k == (c < frame ? 'M' : 'F'), "MAIN is M and FRAME is F, at " + r + "," + c);
             }
         }
     }
@@ -41,14 +55,14 @@ class WordmarkTest {
         int[] m = texel(px, 2.1f, 2.35f);
         assertEquals(255, m[3], "a bar's middle is fully lit");
         near(Wordmark.DARK_MAIN, m);
-        // F's top bar, from column 24: its middle is at x 1.52 + 26 + 0.58
-        int[] f = texel(px, 1.52f + 26.58f, 2.35f);
+        // F's top bar, columns 20 to 23: its middle is at x 1.52 + 22
+        int[] f = texel(px, 1.52f + 22f, 2.35f);
         near(Wordmark.DARK_FRAME, f);
         // between M's top row and the next, at the left of the empty middle of the first M
         int[] gap = texel(px, 3.1f, 3.1f);
         assertTrue(gap[3] < 255, "between scanlines only the bloom: " + gap[3]);
         // the far corner of the view box has nothing on it
-        assertEquals(0, texel(px, 56f, 13.6f)[3]);
+        assertEquals(0, texel(px, Wordmark.VIEW_W - 0.2f, Wordmark.VIEW_H - 0.1f)[3]);
     }
 
     private static int[] texel(byte[] px, float x, float y) {

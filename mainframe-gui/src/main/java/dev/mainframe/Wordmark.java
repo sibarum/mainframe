@@ -15,13 +15,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * MAINFRAME as the title bar's logo: a 5x7 dot-matrix face whose every pixel keeps only the green third of an
- * RGB-stripe phosphor, the brand sheet's wordmark ("MainFrame Wordmark", 2026-11-07). The sheet's SVGs cannot be read
- * at run time, so the face is written out below, an {@code M} or an {@code F} to a lit cell, and drawn here as the
- * sheet constructs it:
+ * MAINFRAME as the title bar's logo: a dot-matrix face whose every pixel keeps only the green third of an RGB-stripe
+ * phosphor, the brand sheet's wordmark ("MainFrame Wordmark", 2026-11-07) in its 5-row face for small sizes. The
+ * sheet's SVGs cannot be read at run time, so the face is written out below, an {@code M} or an {@code F} to a lit
+ * cell, and drawn here as the sheet constructs it:
  *
  * <ul>
- *   <li><b>Grid.</b> 5x7 cells a letter, one empty column between letters; a cell is 1.5 times taller than wide.</li>
+ *   <li><b>Grid.</b> Five rows; M five cells wide, I three, the rest four; one empty column between letters; a cell is
+ *       1.5 times taller than wide. Two rows fewer than the sheet's 5x7 face, so at the bar's 15 dp each bar is 40%
+ *       thicker with wider gaps, rather than hatching.</li>
  *   <li><b>Stripe.</b> Only the green third of a cell lights, so a row of lit cells is one bar, read as a scanline.</li>
  *   <li><b>Taper.</b> A bar swells from a fine point over 0.42 of a cell, and overshoots each end cell by 0.08.</li>
  *   <li><b>Bloom.</b> Two blurs under the bars, of 0.35 and 1.0 cell, as the sheet's filter has them.</li>
@@ -34,18 +36,16 @@ import java.util.concurrent.ConcurrentHashMap;
 final class Wordmark {
 
     private static final String[] ROWS = {
-            "M...M..MMM..MMMMM.M...M.FFFFF.FFFF...FFF..F...F.FFFFF",
-            "MM.MM.M...M...M...MM..M.F.....F...F.F...F.FF.FF.F....",
-            "M.M.M.M...M...M...M.M.M.F.....F...F.F...F.F.F.F.F....",
-            "M.M.M.MMMMM...M...M..MM.FFFF..FFFF..FFFFF.F.F.F.FFFFF",
-            "M...M.M...M...M...M...M.F.....F.F...F...F.F...F.F....",
-            "M...M.M...M...M...M...M.F.....F..F..F...F.F...F.F....",
-            "M...M.M...M.MMMMM.M...M.F.....F...F.F...F.F...F.FFFFF",
+            "M...M..MM..MMM.M..M.FFFF.FFF...FF..F...F.FFFF",
+            "MM.MM.M..M..M..MM.M.F....F..F.F..F.FF.FF.F...",
+            "M.M.M.MMMM..M..M.MM.FFF..FFF..FFFF.F.F.F.FFF.",
+            "M...M.M..M..M..M..M.F....F.F..F..F.F...F.F...",
+            "M...M.M..M.MMM.M..M.F....F..F.F..F.F...F.FFFF",
     };
 
     /** The sheet's view box, in cells. */
-    static final float VIEW_W = 56.20f;
-    static final float VIEW_H = 13.70f;
+    static final float VIEW_W = 48.20f;
+    static final float VIEW_H = 10.70f;
 
     /** Where cell (0, 0)'s bar starts (its left tip) and sits (its centre line), and the rows' pitch. */
     private static final float LEFT = 1.52f;
@@ -101,6 +101,11 @@ final class Wordmark {
     /** The grid's width, in cells. */
     static int columns() {
         return ROWS[0].length();
+    }
+
+    /** The grid's height, in rows. */
+    static int rows() {
+        return ROWS.length;
     }
 
     /** The cell at row {@code r}, column {@code c}: {@code 'M'}, {@code 'F'} or {@code '.'} for unlit. */
