@@ -28,3 +28,8 @@ Keep an entry short enough that it does not need editing, and delete it when it 
   Linux `appId` is `dev.mainframe.mainframe`, so an installed desktop entry would not match the windows (FN-26). Set
   `vexelray.installer.config` to the root's `installer.json` and `vexelray.app.id` to match, or wait for the framework
   to find it; check the Windows taskbar grouping does not move when the id does.
+
+- **The workspace's name as the main bar's title**, blank for a window with none (the author, 2026-11-07), in a shade
+  that is plainly not a menu: waits on FN-27, since the title is drawn in the menus' shade and only the framework can
+  change that. `Frame.State.workspace` has it; it needs a message to the view (a `Messages` change, to propose), sent at
+  startup and when the workspace is renamed or deleted.
