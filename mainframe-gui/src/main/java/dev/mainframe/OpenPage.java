@@ -88,7 +88,6 @@ final class OpenPage {
                 .textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM));
         Node body = gui.column().gap(Length.rem(0.75f)).padding(Length.rem(1f)).width(Length.FILL)
                 .height(Length.grow(1f)).children(list.node(), hint);
-        window.titleBar().wordmark(Wordmark.bar(gui));
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.PAGE))
                 .children(window.titleBar().node(), body);

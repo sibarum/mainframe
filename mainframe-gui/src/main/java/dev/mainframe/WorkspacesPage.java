@@ -166,7 +166,6 @@ final class WorkspacesPage {
         Node body = gui.row().gap(Length.rem(1.25f)).padding(Length.rem(1.25f)).width(Length.FILL)
                 .height(Length.grow(1f)).children(left, right, empty);
         Node footer = gui.row().padding(Length.rem(0.5f), Length.rem(1.25f)).width(Length.FILL).children(said);
-        window.titleBar().wordmark(Wordmark.bar(gui));
         root = gui.root();
         root.direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.PAGE))
