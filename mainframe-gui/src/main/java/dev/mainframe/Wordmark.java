@@ -32,8 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  *
  * <p>In the sheet's own units, a cell one wide, so the geometry below is its numbers. MAIN and FRAME are two greens,
- * light ones on a dark theme and dark ones on a light theme. Under the pointer they glow; pressed, the whole word
- * lights in the accent, as the framework's text wordmark lights.
+ * light ones on a dark theme and dark ones on a light theme. Under the pointer they glow; once the app menu is open,
+ * the whole word lights in the accent, as the bar's menus light while theirs are open.
  */
 final class Wordmark {
 
@@ -174,7 +174,7 @@ final class Wordmark {
                 : new Look(LIGHT_MAIN, LIGHT_FRAME, 0.55f, 0.35f), Wordmark::chain);
     }
 
-    /** The word's raster lit in {@code c}, pressed: the whole word in it, with the sheet's bloom. */
+    /** The word's raster lit in {@code c}, its menu open: the whole word in it, with the sheet's bloom. */
     static byte[][] pixels(Color c) {
         return CHAINS.computeIfAbsent(new Look(c, c, NEAR_GLOW, FAR_GLOW), Wordmark::chain);
     }
@@ -187,19 +187,19 @@ final class Wordmark {
     }
 
     /**
-     * The wordmark for a title bar's lockup. At rest (the bar hands over its ink) the word wears the sheet's greens for
-     * the theme's ground, bare; under the pointer (the accent's hover shade) the same greens glow; pressed (any other
-     * paint) the whole word is lit in that paint, glowing. The bar says nothing of its menu being open, so the accent
-     * lasts only as long as the press (docs/framework-notes.md, FN-28). A raster per look, kept, as Rasterware's is (its
-     * FN-20: a raster cannot hold a paint, so the paint is resolved against the theme when the bar hands it over). The
-     * glow and the accent are made here with the rest, not under the pointer.
+     * The wordmark for a title bar's lockup, told what the pointer is doing to it and whether its app menu is open
+     * ({@link TitleBar.Wordmark#state}). At rest the word wears the sheet's greens for the theme's ground, bare; under
+     * the pointer, and pressed, the same greens glow; while the menu is open the whole word is lit in the accent,
+     * glowing, wherever the pointer has gone. A raster per look, kept, as Rasterware's is (its FN-20: a raster cannot
+     * hold a paint, so the paint is resolved against the theme when the bar hands it over). The glow and the accent are
+     * made here with the rest, not under the pointer.
      */
     static TitleBar.Wordmark bar(Gui gui) {
         Map<Color, Feed> lit = new ConcurrentHashMap<>();
         Map<Color, Feed> glow = new ConcurrentHashMap<>();
-        Paint hover = Paint.of(Role.ACCENT, InteractionState.HOVER);
         Node node = node(gui, rest(gui, lit));
         glow(gui, glow);
+        lit(lit, gui.theme().color(Role.ACCENT, InteractionState.HOVER));
         lit(lit, gui.theme().color(Role.ACCENT, InteractionState.PRESSED));
         return new TitleBar.Wordmark() {
             @Override
@@ -208,10 +208,18 @@ final class Wordmark {
             }
 
             @Override
+            public void state(InteractionState pointer, boolean open) {
+                node.image(open ? lit(lit, gui.theme().color(Role.ACCENT,
+                                pointer == InteractionState.PRESSED ? pointer : InteractionState.HOVER))
+                        : pointer == InteractionState.NORMAL ? rest(gui, lit)
+                        : glow(gui, glow));
+            }
+
+            /** Only for a bar that inks rather than saying its state: the theme's ink at rest, else lit in the paint. */
+            @Override
             public void ink(Paint ink) {
                 Color c = ink.in(gui.theme());
-                node.image(c.equals(gui.theme().color(Role.INK)) ? rest(gui, lit)
-                        : ink.equals(hover) ? glow(gui, glow) : lit(lit, c));
+                node.image(c.equals(gui.theme().color(Role.INK)) ? rest(gui, lit) : lit(lit, c));
             }
         };
     }

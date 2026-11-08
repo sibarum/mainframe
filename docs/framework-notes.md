@@ -365,3 +365,7 @@ ACCENT, HOVER))`) and glows its greens there, keeping the accent for the press, 
 button is down. What the framework could do: keep the lockup lit while its menu is open (its plate too, as a menu
 bar's open menu is) and say so to the wordmark, an `open` state or a separate call beside `ink`, so a logo can choose
 its own look for hover, press and open.
+
+**Fixed upstream the same day** (vexelray-gui `v0.2`): `ContextMenu` tells whoever opened it when it closes, the
+lockup and the bar's menus stay lit while theirs is open, and `Wordmark.state(pointer, open)` says both (its default
+inks as before, and the accent while open). MainFrame's wordmark now overrides `state`, so the workaround is gone.

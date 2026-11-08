@@ -74,7 +74,7 @@ class WordmarkTest {
     }
 
     @Test
-    void pressedTheWholeWordIsLitInThePaintAndGlows() {
+    void openTheWholeWordIsLitInThePaintAndGlows() {
         Color accent = Color.rgb(0x8877ee);
         byte[] px = Wordmark.pixels(accent)[0];
         near(accent, texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP));
