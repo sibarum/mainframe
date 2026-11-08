@@ -23,3 +23,8 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 - [ ] Automation coverage: `--automation=0` (or `-Dautomation=0`) opens a driving socket on a free port and prints it, and the landmarks in `Landmarks.java` are
       already the names a script would use. One scripted run through the main path is worth more than several
       unit tests of the view.
+
+- **The Linux app id does not match the installer's.** The bill is `dev.mainframe.mainframe-gui`; `installer.json`'s
+  Linux `appId` is `dev.mainframe.mainframe`, so an installed desktop entry would not match the windows (FN-26). Set
+  `vexelray.installer.config` to the root's `installer.json` and `vexelray.app.id` to match, or wait for the framework
+  to find it; check the Windows taskbar grouping does not move when the id does.

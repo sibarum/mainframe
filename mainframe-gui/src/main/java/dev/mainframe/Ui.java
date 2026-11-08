@@ -87,6 +87,11 @@ final class Ui {
                 .floatAt(Length.rem(10_000f), Length.ZERO);
         Node body = gui.box().width(Length.FILL).height(Length.grow(1f)).children(tabs.node(), end);
 
+        // The brand sheet's wordmark in the lockup, rather than the name in the bar's type (Wordmark).
+        TitleBar.Wordmark wordmark = Wordmark.bar(gui);
+        titleBar.wordmark(wordmark);
+        gui.landmark(Landmarks.WORDMARK, wordmark.node());
+
         titleBar.menu(TERMINAL_MENU, "Terminal", Menu.NONE);
 
         gui.root().direction(Direction.COLUMN)

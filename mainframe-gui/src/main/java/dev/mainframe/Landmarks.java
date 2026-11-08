@@ -29,6 +29,9 @@ final class Landmarks {
     /** The field a tab's new name is typed into, there only while one is. */
     static final String RENAME = "rename";
 
+    /** The main window's wordmark, in the title bar's lockup. */
+    static final String WORDMARK = "wordmark";
+
     private Landmarks() {
     }
 }

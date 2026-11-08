@@ -12,7 +12,7 @@
 
     <artifactId>mainframe-gui</artifactId>
 
-    <name>mainframe-gui</name>
+    <name>MainFrame</name>
     <description>
         The view, and the framework integration: the window, the widgets, the entry point and its generated wiring.
     </description>

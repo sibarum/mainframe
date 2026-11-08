@@ -117,6 +117,7 @@ final class SettingsPage {
                         row("New tabs start in", gui.column().gap(Length.dp(6)).width(Length.FILL).children(dir,
                                 gui.row().gap(Length.dp(8)).children(choose.node(), home.node()))),
                         problem);
+        window.titleBar().wordmark(Wordmark.bar(gui));
         gui.root().direction(Direction.COLUMN)
                 .background(gui.theme().color(Role.PAGE))
                 .children(window.titleBar().node(), body);

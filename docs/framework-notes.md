@@ -328,3 +328,17 @@ in `installer.json` would have pointed the way, but the config is read with `FAI
 it over). Done: those steps by hand, into the scratchpad, on port 8417. What the framework could do: `installer-core`
 taking a `"comment"` key and the template writing an `installer.json` with one; or one command, `--local`, that
 generates, stages and serves an app's installer for a try on this computer.
+
+## FN-26 · The build bill never finds an application's own installer.json 🔬
+
+The title bar said `mainframe-gui`, in every window and the framework's dialogs. The framework names a bar
+`About.name`: the bill's name, which `vexelray-build`'s `identify` takes from `installer.json`, else the pom's
+`<name>`. It looks for `installer.json` beside the module's pom (`vexelray.installer.config`), and a generated
+application keeps it at the repository's root, beside the parent pom, so the bill never reads it: the name falls to
+the gui module's `<name>`, and the app id stays `<groupId>.<artifactId>` (`dev.mainframe.mainframe-gui`), not the
+`appId` the installer's Linux desktop entry declares (`dev.mainframe.mainframe`), so on Linux the dock would not match
+the windows to their icon, and the check that says so never runs. Vexplore's bar says `vexplore-gui` for the same
+reason; Rasterware's says its name because its pom says `<name>Rasterware</name>`. Done: the gui module's `<name>` is
+`MainFrame`, as Rasterware's is, which fixes the bar and leaves the app id as it was. What the framework could do:
+look for `installer.json` up to the repository's root, or have the template set `vexelray.installer.config` to the
+root's; then a mismatched app id fails the build, as it is meant to.
