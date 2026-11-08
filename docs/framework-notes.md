@@ -342,3 +342,14 @@ reason; Rasterware's says its name because its pom says `<name>Rasterware</name>
 `MainFrame`, as Rasterware's is, which fixes the bar and leaves the app id as it was. What the framework could do:
 look for `installer.json` up to the repository's root, or have the template set `vexelray.installer.config` to the
 root's; then a mismatched app id fails the build, as it is meant to.
+
+## FN-27 · A bar's title is drawn in the menus' shade, and an app cannot change it 🔬
+
+The main bar read *MAINFRAME · Terminal · MainFrame*: the title the framework gives every bar (`@VexelApp`'s
+`title`) sits right after the application's menus, in the same `Role.DIM` and the same size as their labels, so it
+reads as one more menu. The author clicked it, and nothing happened. `TitleBar` keeps its title node private and
+takes only `title(String)`, so an application can say what the title is but not how it looks. Done: the main bar's
+title is blank (`titleBar.title("")`); the OS's window title is still the app's. What is wanted next is the open
+workspace's name there, in a shade that is plainly not a menu, which MainFrame cannot draw. What the framework could
+do: set the title apart from the menus by default (a fainter role, or a divider between them), or let an application
+style it.

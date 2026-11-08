@@ -91,6 +91,9 @@ final class Ui {
         TitleBar.Wordmark wordmark = Wordmark.bar(gui);
         titleBar.wordmark(wordmark);
         gui.landmark(Landmarks.WORDMARK, wordmark.node());
+        // No title after the menus: the wordmark already says whose window it is, and the title, in the menus' shade,
+        // read as a menu that did nothing when clicked (FN-27). The OS's window title stays the app's.
+        titleBar.title("");
 
         titleBar.menu(TERMINAL_MENU, "Terminal", Menu.NONE);
 
