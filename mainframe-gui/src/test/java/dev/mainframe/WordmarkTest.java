@@ -65,7 +65,16 @@ class WordmarkTest {
     }
 
     @Test
-    void underThePointerTheWholeWordIsLitInThePaintAndGlows() {
+    void underThePointerTheGreensGlow() {
+        byte[] px = Wordmark.glowing(true)[0];
+        near(Wordmark.DARK_MAIN, texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP));
+        near(Wordmark.DARK_FRAME, texel(px, Wordmark.LEFT + 22f, Wordmark.TOP));
+        int gap = texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP + 0.75f)[3];
+        assertTrue(gap > 0 && gap < 255, "between scanlines, the bloom: " + gap);
+    }
+
+    @Test
+    void pressedTheWholeWordIsLitInThePaintAndGlows() {
         Color accent = Color.rgb(0x8877ee);
         byte[] px = Wordmark.pixels(accent)[0];
         near(accent, texel(px, Wordmark.LEFT + 0.5f, Wordmark.TOP));

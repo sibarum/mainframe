@@ -5,6 +5,7 @@ import dev.vexelray.gui.core.Feed;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.LayeredIcon;
 import dev.vexelray.gui.core.Node;
+import dev.vexelray.gui.core.input.InteractionState;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Paint;
 import dev.vexelray.gui.core.style.Role;
@@ -31,8 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  *
  * <p>In the sheet's own units, a cell one wide, so the geometry below is its numbers. MAIN and FRAME are two greens,
- * light ones on a dark theme and dark ones on a light theme. Under the pointer the bar hands over the accent, and the
- * whole word lights in it, glowing, as the framework's text wordmark lights.
+ * light ones on a dark theme and dark ones on a light theme. Under the pointer they glow; pressed, the whole word
+ * lights in the accent, as the framework's text wordmark lights.
  */
 final class Wordmark {
 
@@ -167,7 +168,13 @@ final class Wordmark {
                 : new Look(LIGHT_MAIN, LIGHT_FRAME, 0f, 0f), Wordmark::chain);
     }
 
-    /** The word's raster lit in {@code c}, under the pointer: the whole word in it, with the sheet's bloom. */
+    /** The word's raster under the pointer: the sheet's greens with its bloom, as the sheet draws it, per ground. */
+    static byte[][] glowing(boolean dark) {
+        return CHAINS.computeIfAbsent(dark ? new Look(DARK_MAIN, DARK_FRAME, NEAR_GLOW, FAR_GLOW)
+                : new Look(LIGHT_MAIN, LIGHT_FRAME, 0.55f, 0.35f), Wordmark::chain);
+    }
+
+    /** The word's raster lit in {@code c}, pressed: the whole word in it, with the sheet's bloom. */
     static byte[][] pixels(Color c) {
         return CHAINS.computeIfAbsent(new Look(c, c, NEAR_GLOW, FAR_GLOW), Wordmark::chain);
     }
@@ -181,14 +188,19 @@ final class Wordmark {
 
     /**
      * The wordmark for a title bar's lockup. At rest (the bar hands over its ink) the word wears the sheet's greens for
-     * the theme's ground; in any other paint (the accent, under the pointer) the whole word is lit in that paint. A
-     * raster per colour, kept, as Rasterware's is (its FN-20: a raster cannot hold a paint, so the paint is resolved
-     * against the theme when the bar hands it over). The accent's is made here with the rest, not under the pointer.
+     * the theme's ground, bare; under the pointer (the accent's hover shade) the same greens glow; pressed (any other
+     * paint) the whole word is lit in that paint, glowing. The bar says nothing of its menu being open, so the accent
+     * lasts only as long as the press (docs/framework-notes.md, FN-28). A raster per look, kept, as Rasterware's is (its
+     * FN-20: a raster cannot hold a paint, so the paint is resolved against the theme when the bar hands it over). The
+     * glow and the accent are made here with the rest, not under the pointer.
      */
     static TitleBar.Wordmark bar(Gui gui) {
         Map<Color, Feed> lit = new ConcurrentHashMap<>();
+        Map<Color, Feed> glow = new ConcurrentHashMap<>();
+        Paint hover = Paint.of(Role.ACCENT, InteractionState.HOVER);
         Node node = node(gui, rest(gui, lit));
-        lit(lit, gui.theme().color(Role.ACCENT));
+        glow(gui, glow);
+        lit(lit, gui.theme().color(Role.ACCENT, InteractionState.PRESSED));
         return new TitleBar.Wordmark() {
             @Override
             public Node node() {
@@ -198,9 +210,16 @@ final class Wordmark {
             @Override
             public void ink(Paint ink) {
                 Color c = ink.in(gui.theme());
-                node.image(c.equals(gui.theme().color(Role.INK)) ? rest(gui, lit) : lit(lit, c));
+                node.image(c.equals(gui.theme().color(Role.INK)) ? rest(gui, lit)
+                        : ink.equals(hover) ? glow(gui, glow) : lit(lit, c));
             }
         };
+    }
+
+    /** The word's greens glowing, for the theme now drawing, kept under the theme's ink as {@link #rest} is. */
+    private static Feed glow(Gui gui, Map<Color, Feed> glow) {
+        boolean dark = LayeredIcon.dark(gui.theme());
+        return glow.computeIfAbsent(gui.theme().color(Role.INK), k -> Feed.still(W, H, true, glowing(dark)));
     }
 
     /** The whole word lit in {@code c}, glowing. */

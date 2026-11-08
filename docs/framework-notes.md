@@ -353,3 +353,15 @@ title is blank (`titleBar.title("")`); the OS's window title is still the app's.
 workspace's name there, in a shade that is plainly not a menu, which MainFrame cannot draw. What the framework could
 do: set the title apart from the menus by default (a fainter role, or a divider between them), or let an application
 style it.
+
+## FN-28 · A wordmark is told about the pointer, never that its menu is open 🔬
+
+The author wanted the wordmark to glow in its own greens under the pointer and to turn the accent only once the app
+menu is open, as a menu bar's open menu stays lit. `TitleBar.Wordmark.ink(Paint)` is handed `Role.INK` at rest and
+`Paint.of(Role.ACCENT, state)` while hovered or pressed (`paintLockup`), and nothing when the lockup's menu opens or
+closes: the bar knows (`appMenu` opens it through `Seams.openMenu`) but keeps it to itself, and once the pointer moves
+into the menu the lockup is back to `NORMAL`. Done: MainFrame tells the hover paint apart (`ink.equals(Paint.of(
+ACCENT, HOVER))`) and glows its greens there, keeping the accent for the press, so the accent shows only while the
+button is down. What the framework could do: keep the lockup lit while its menu is open (its plate too, as a menu
+bar's open menu is) and say so to the wordmark, an `open` state or a separate call beside `ink`, so a logo can choose
+its own look for hover, press and open.
