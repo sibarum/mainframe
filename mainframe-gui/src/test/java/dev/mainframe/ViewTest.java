@@ -312,10 +312,24 @@ class ViewTest {
     @Test
     void passthroughLetsGoOfEveryChordAndThePillTakesThemBack() throws Exception {
         tab(1);
-        intent(Intent.Command.PASSTHROUGH);
+        intent(Intent.Command.KEYS_TO_SHELL);
         eventually("the key map paused", () -> shell.keymap().paused());
         shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.ui().pill().address()));
         eventually("the key map resumed", () -> !shell.keymap().paused());
+    }
+
+    /** The menu's radio lines say where the keys go, so choosing the one already chosen flips nothing. */
+    @Test
+    void sendingKeysWhereTheyAlreadyGoChangesNothing() throws Exception {
+        tab(1);
+        intent(Intent.Command.KEYS_TO_SHELL);
+        eventually("the key map paused", () -> shell.keymap().paused());
+        intent(Intent.Command.KEYS_TO_SHELL);
+        intent(Intent.Command.KEYS_TO_MAINFRAME);
+        eventually("the key map resumed", () -> !shell.keymap().paused());
+        intent(Intent.Command.KEYS_TO_MAINFRAME);
+        intent(Intent.Command.KEYS_TO_SHELL);
+        eventually("paused again, not flipped back by the repeat", () -> shell.keymap().paused());
     }
 
     // ------------------------------------------------------------------ M3

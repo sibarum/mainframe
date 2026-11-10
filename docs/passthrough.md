@@ -135,3 +135,24 @@ the chords back. Where it departs from the proposal:
 - **The menu shows no chords.** A `Menu` line has a label and an icon and nothing for a shortcut (FN-12).
 - **The pill and the + float at the bar's right end**, in a box round the tabs, since `Tabs` has no place for an
   application's nodes beside its headers (FN-10). So the + does not follow the last header as 0.1's did.
+
+## Redrawn as a radio pair, 2026-11-10
+
+The author asked for the menu line to become a choice once menus could have one (vexelray-gui's `Menu.Builder.radio`,
+built the same day). The last group of the Terminal menu is now a heading and two lines, with a dot on the one chosen:
+
+```
+   │ SEND KEYS TO                         │
+   │ •  ▭  MainFrame                      │
+   │    ⬡  The shell                      │
+```
+
+- **The icons are the suite's `window` and `shell`** (the carapace, from the canvas's *Window and shell* board): the
+  program and the terminal, told apart at 16 px.
+- **Each line sets rather than flips** (`Intent.Command.KEYS_TO_MAINFRAME`, `KEYS_TO_SHELL`), so choosing the one
+  already chosen changes nothing. The pill is unchanged and is still the way off that is always on screen.
+- **Neither line has a chord**, for the reason in the proposal. The other lines now say theirs, read from the key map
+  (`Menu.Builder.command`), so a rebinding shows. While the shell has the keys they still say them, though none of
+  them works until MainFrame has the keys back.
+- **A script** chooses them as `menu.mainframe` and `menu.the-shell`. In `tree` the chosen line's mark has the role
+  `checked`.

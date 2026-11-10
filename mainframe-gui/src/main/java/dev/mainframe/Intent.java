@@ -106,10 +106,16 @@ record Intent(Command command) {
                 view.cycle(-1);
             }
         },
-        PASSTHROUGH {
+        KEYS_TO_MAINFRAME {
             @Override
             void on(View view) {
-                view.passthrough();
+                view.passthrough(false);
+            }
+        },
+        KEYS_TO_SHELL {
+            @Override
+            void on(View view) {
+                view.passthrough(true);
             }
         };
 

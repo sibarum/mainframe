@@ -176,6 +176,10 @@ person learns it there. `Menu.Builder.item` takes a label, an icon and a message
 menus, so this was not missed then. **For the framework:** an item that names the key-map action it stands for, its
 chord read from the key map as the person has it, so a rebinding shows in the menu.
 
+**Fixed upstream** (vexelray-gui `073cde9d`, adopted 2026-11-10): `Menu.Builder.command(id)` names the key-map action a
+line stands for, and the line says that action's first chord as the key map has it now. Every Terminal menu line that
+has a chord names its action.
+
 ## FN-13 · The framework's key-bindings window cannot be opened by a `WindowCommand` 🔬
 
 M3 meant to put *Key bindings…* in the Terminal menu beside *Settings…*, since an application's menu is where a

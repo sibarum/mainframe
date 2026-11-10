@@ -503,7 +503,7 @@ final class View {
         if (m.button().equals(ui.plus().address())) {
             newTab();
         } else if (m.button().equals(ui.pill().address()) && keys.paused()) {
-            passthrough();
+            passthrough(false);
         }
     }
 
@@ -670,9 +670,11 @@ final class View {
         }
     }
 
-    /** Every key to the shell, or back to MainFrame's commands (docs/passthrough.md). */
-    void passthrough() {
-        boolean on = !keys.paused();
+    /**
+     * Every key to the shell while {@code on}, or back to MainFrame's commands (docs/passthrough.md). Choosing where
+     * the keys already go changes nothing but the focus, which goes back to the terminal either way.
+     */
+    void passthrough(boolean on) {
         keys.paused(on);
         ui.passthrough(on);
         ui.menu(on, intents, windows, openAsked, editWorkspaces);

@@ -47,6 +47,9 @@ final class Ui {
     /** The application's menu after the lockup; a script reaches it as {@code TitleBar.menuLandmark(TERMINAL_MENU)}. */
     static final String TERMINAL_MENU = "terminal";
 
+    /** The Terminal menu's radio group that says where the keys go, MainFrame or the shell. */
+    static final String KEYS = "keys";
+
     private final TitleBar titleBar;
     private final Tabs tabs;
     private final IconButton plus;
@@ -137,30 +140,35 @@ final class Ui {
     }
 
     /**
-     * The Terminal menu, declared again: its lines send what the key map's chords send, and its last says which way
-     * the passthrough switch would flip.
+     * The Terminal menu, declared again. Each line names the key-map action it stands for, so it says that action's
+     * chord as the person has it now. Its last group says where the keys go: to MainFrame, whose chords then work, or
+     * to the shell, with the passthrough switch on (docs/passthrough.md). Neither of those has a chord, since none could
+     * reach MainFrame to turn it back.
      */
     void menu(boolean passthrough, Sender<Intent> intents, Sender<WindowCommand> windows,
               Sender<dev.mainframe.core.Messages.OpenAsked> open,
               Sender<dev.mainframe.core.Messages.EditWorkspaces> edit) {
         Menu menu = Menu.builder()
-                .item("New tab", intents, new Intent(Intent.Command.NEW_TAB))
-                .item(Icon.OPEN, "Open…", open, new dev.mainframe.core.Messages.OpenAsked())
-                .item("Close tab", intents, new Intent(Intent.Command.CLOSE_TAB))
-                .item("Rename tab…", intents, new Intent(Intent.Command.RENAME))
+                .item("New tab", intents, new Intent(Intent.Command.NEW_TAB)).command("tab.new")
+                .item(Icon.OPEN, "Open…", open, new dev.mainframe.core.Messages.OpenAsked()).command("app.open")
+                .item("Close tab", intents, new Intent(Intent.Command.CLOSE_TAB)).command("tab.close")
+                .item("Rename tab…", intents, new Intent(Intent.Command.RENAME)).command("tab.rename")
                 .item("Workspaces…", edit, new dev.mainframe.core.Messages.EditWorkspaces("", false))
                 .separator()
-                .item("Next tab", intents, new Intent(Intent.Command.NEXT_TAB))
-                .item("Previous tab", intents, new Intent(Intent.Command.PREVIOUS_TAB))
+                .item("Next tab", intents, new Intent(Intent.Command.NEXT_TAB)).command("tab.next")
+                .item("Previous tab", intents, new Intent(Intent.Command.PREVIOUS_TAB)).command("tab.previous")
                 .separator()
-                .item("Larger text", intents, new Intent(Intent.Command.LARGER))
-                .item("Smaller text", intents, new Intent(Intent.Command.SMALLER))
-                .item("Normal text size", intents, new Intent(Intent.Command.NORMAL))
+                .item("Larger text", intents, new Intent(Intent.Command.LARGER)).command("view.larger")
+                .item("Smaller text", intents, new Intent(Intent.Command.SMALLER)).command("view.smaller")
+                .item("Normal text size", intents, new Intent(Intent.Command.NORMAL)).command("view.normal")
                 .separator()
-                .item(Icon.SETTINGS, "Settings…", windows, WindowCommand.show(SettingsPage.KEY))
+                .item(Icon.SETTINGS, "Settings…", windows, WindowCommand.show(SettingsPage.KEY)).command("app.settings")
                 .separator()
-                .item(Icon.KEYBOARD, passthrough ? "Give MainFrame its keys back" : "Every key to the shell",
-                        intents, new Intent(Intent.Command.PASSTHROUGH))
+                .heading("Send keys to")
+                .item(Icon.WINDOW, "MainFrame", intents, new Intent(Intent.Command.KEYS_TO_MAINFRAME))
+                .radio(KEYS, !passthrough)
+                .item(Icon.SHELL, "The shell", intents, new Intent(Intent.Command.KEYS_TO_SHELL))
+                .radio(KEYS, passthrough)
                 .build();
         titleBar.menu(TERMINAL_MENU, "Terminal", menu);
     }
