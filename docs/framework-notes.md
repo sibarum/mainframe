@@ -387,3 +387,10 @@ nothing beyond the defaults; the dark look is Campbell as before. What the frame
 as a palette index (or the default) until it is drawn, and take the sixteen as a palette the screen is handed, ideally
 as roles, so an application gives its light look a light ANSI set (One Half Light's, say) and what is already on
 screen recolours with the rest. The selection's fixed `#A0264F78` would want the same.
+
+**Fixed upstream** (vex-suite-common, adopted 2026-11-13): a cell keeps the colour a program named (the default, a
+palette number, or a 24-bit colour marked as one), and `TerminalScreen.colors(TerminalColors)` takes the sixteen, the
+ground, the default text and the selection as paints, resolved each frame and faded with the tree.
+`TerminalColors.following(CAMPBELL, LIGHT)` answers per look; `Look.TERMINAL` is that with MainFrame's own ground and
+ink, handed once to each screen, and the `ThemeShifted` handler is gone. The light set is the stack's, each colour held
+to 4.5:1 on the light ground in `LookTest`; the dark look is Campbell, unchanged.

@@ -26,7 +26,6 @@ import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.api.Subscribe;
-import dev.vexelray.framework.core.ThemeShifted;
 import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
@@ -275,38 +274,16 @@ final class View {
         intent.command().on(this);
     }
 
-    // ------------------------------------------------------------------ the look
-
-    /**
-     * The person chose the other look (or this is the look at start): every terminal's default ground and text follow
-     * it. A {@link TerminalScreen} takes colours, not roles, so it is handed {@link Look#TERMINAL_PAGE} and
-     * {@link Look#TERMINAL_INK} again as they are in the look now in force. What a program asked for in colour of its
-     * own (the ANSI palette) is the terminal's, and stays as it was written (docs/framework-notes.md, FN-29).
-     */
-    @Subscribe
-    public void shifted(ThemeShifted look) {
-        for (TerminalScreen s : screens.values()) {
-            colors(s);
-        }
-    }
-
-    /** {@code screen}'s default ground and text, as the look now in force has them. */
-    private void colors(TerminalScreen screen) {
-        screen.colors(rgb(Look.TERMINAL_PAGE.in(gui.theme())), rgb(Look.TERMINAL_INK.in(gui.theme())));
-    }
-
-    /** {@code c} as {@code 0xRRGGBB}, what the terminal takes. */
-    private static int rgb(dev.vexelray.canvas.Color c) {
-        return (Math.round(c.r() * 255f) << 16) | (Math.round(c.g() * 255f) << 8) | Math.round(c.b() * 255f);
-    }
-
     // ------------------------------------------------------------------ what the frame says
 
+    /**
+     * A tab: its terminal is drawn in {@link Look#TERMINAL}, paints that answer in whichever look is in force, so a
+     * change of look recolours what is already on screen with nothing run here (docs/framework-notes.md, FN-29).
+     */
     @Subscribe
     public void addTab(AddTab m) {
         TerminalScreen screen = new TerminalScreen(gui, glyphs, Type.MONO, prefs.fontPx())
-                .name("terminal-" + m.id()).pseudoconsole();
-        colors(screen);
+                .name("terminal-" + m.id()).pseudoconsole().colors(Look.TERMINAL);
         screens.put(m.id(), screen);
         byAddress.put(screen.address(), m.id());
         headers.put(m.id(), m.header());

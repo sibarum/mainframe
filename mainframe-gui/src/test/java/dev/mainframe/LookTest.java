@@ -1,5 +1,6 @@
 package dev.mainframe;
 
+import dev.sibarum.suite.tty.TerminalColors;
 import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.LayeredIcon;
 import dev.vexelray.gui.core.style.Role;
@@ -66,6 +67,22 @@ class LookTest {
                 "the terminal's ground should sit on the far side of the page from the ink, as a sheet set in");
     }
 
+    /**
+     * The sixteen ANSI colours a program names, on the terminal's ground in the light look: each read as text, since
+     * programs write in every one (PSReadLine draws command names in yellow, numbers in bright white). Not held in the
+     * dark look, which is Campbell as it always was ({@link #theDarkTerminalIsCampbell}), dark blue on black and all.
+     */
+    @Test
+    void everyAnsiColourReadsInTheLightTerminal() {
+        Color ground = Look.TERMINAL.background().in(Look.LIGHT);
+        assertEquals(Look.LIGHT.color(Look.TERMINAL_PAGE), ground, "the terminal's ground is MainFrame's own");
+        for (int n = 0; n < 16; n++) {
+            double ratio = contrast(Look.TERMINAL.ansi(n).in(Look.LIGHT), ground);
+            assertTrue(ratio >= 4.5, "ANSI colour " + n + " is " + String.format("%.2f", ratio)
+                    + ":1 on the light terminal; it needs 4.5:1");
+        }
+    }
+
     /** The wordmark's two greens for this look's ground read against the bar it sits on. */
     @ParameterizedTest
     @MethodSource("looks")
@@ -130,6 +147,12 @@ class LookTest {
     void theDarkTerminalIsCampbell() {
         assertEquals(Color.rgb(0x0C0C0C), Look.DARK.color(Look.TERMINAL_PAGE));
         assertEquals(Color.rgb(0xCCCCCC), Look.DARK.color(Look.TERMINAL_INK));
+        assertEquals(Color.rgb(0x0C0C0C), Look.TERMINAL.background().in(Look.DARK));
+        assertEquals(Color.rgb(0xCCCCCC), Look.TERMINAL.foreground().in(Look.DARK));
+        for (int n = 0; n < 16; n++) {
+            assertEquals(TerminalColors.CAMPBELL.ansi(n).in(Look.DARK), Look.TERMINAL.ansi(n).in(Look.DARK),
+                    "ANSI colour " + n + " in the dark look");
+        }
     }
 
     private static void assertReads(Theme look, Role role, Role on, double least, String what) {

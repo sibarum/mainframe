@@ -1,5 +1,6 @@
 package dev.mainframe;
 
+import dev.sibarum.suite.tty.TerminalColors;
 import dev.vexelray.canvas.Color;
 import dev.vexelray.gui.core.style.Oklab;
 import dev.vexelray.gui.core.style.Palette;
@@ -37,8 +38,7 @@ import dev.vexelray.gui.core.style.Theme;
  * <p>The person can change the look while MainFrame runs. A node that holds a {@link Role} is repainted in the new
  * look, and fades to it; a node that was handed {@code gui.theme().color(role)} keeps the colour it was given,
  * forever. So everything here writes roles, and a colour the framework does not name is a role of its own below,
- * with an answer in each look. The terminal takes only colours, so the view hands it this file's terminal roles
- * again each time the look shifts ({@code View.shifted}).
+ * with an answer in each look. The terminal is handed {@link #TERMINAL} once, paints like the rest.
  */
 final class Look {
 
@@ -131,6 +131,15 @@ final class Look {
 
     /** Where a program asked for no colour of its own: the terminal's default text. */
     static final Role TERMINAL_INK = p -> p.equals(LIGHT_PALETTE) ? LIGHT_TERMINAL_INK : DARK_TERMINAL_INK;
+
+    /**
+     * Everything a terminal is drawn in: Campbell's sixteen ANSI colours in the dark look, as every console here has
+     * worn, and the stack's light set in the light one (each held to 4.5:1 on the ground, LookTest); the ground and
+     * default text are the two roles above. Paints, so a terminal handed this once follows the look, and what a program
+     * already wrote in colour recolours with the rest.
+     */
+    static final TerminalColors TERMINAL = TerminalColors.following(TerminalColors.CAMPBELL, TerminalColors.LIGHT)
+            .ground(TERMINAL_PAGE, TERMINAL_INK);
 
     private Look() {
     }
