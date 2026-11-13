@@ -26,6 +26,7 @@ import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.api.Subscribe;
+import dev.vexelray.framework.core.ThemeShifted;
 import dev.vexelray.framework.core.WindowCommand;
 import dev.vexelray.gui.core.Gui;
 import dev.vexelray.gui.core.Node;
@@ -274,12 +275,38 @@ final class View {
         intent.command().on(this);
     }
 
+    // ------------------------------------------------------------------ the look
+
+    /**
+     * The person chose the other look (or this is the look at start): every terminal's default ground and text follow
+     * it. A {@link TerminalScreen} takes colours, not roles, so it is handed {@link Look#TERMINAL_PAGE} and
+     * {@link Look#TERMINAL_INK} again as they are in the look now in force. What a program asked for in colour of its
+     * own (the ANSI palette) is the terminal's, and stays as it was written (docs/framework-notes.md, FN-29).
+     */
+    @Subscribe
+    public void shifted(ThemeShifted look) {
+        for (TerminalScreen s : screens.values()) {
+            colors(s);
+        }
+    }
+
+    /** {@code screen}'s default ground and text, as the look now in force has them. */
+    private void colors(TerminalScreen screen) {
+        screen.colors(rgb(Look.TERMINAL_PAGE.in(gui.theme())), rgb(Look.TERMINAL_INK.in(gui.theme())));
+    }
+
+    /** {@code c} as {@code 0xRRGGBB}, what the terminal takes. */
+    private static int rgb(dev.vexelray.canvas.Color c) {
+        return (Math.round(c.r() * 255f) << 16) | (Math.round(c.g() * 255f) << 8) | Math.round(c.b() * 255f);
+    }
+
     // ------------------------------------------------------------------ what the frame says
 
     @Subscribe
     public void addTab(AddTab m) {
         TerminalScreen screen = new TerminalScreen(gui, glyphs, Type.MONO, prefs.fontPx())
                 .name("terminal-" + m.id()).pseudoconsole();
+        colors(screen);
         screens.put(m.id(), screen);
         byAddress.put(screen.address(), m.id());
         headers.put(m.id(), m.header());
@@ -340,10 +367,10 @@ final class View {
 
     /** A tab's notice band: one line in the danger colour, and a × that puts it away. Hidden until it says something. */
     private Band band(long id) {
-        Node text = gui.text("").textColor(gui.theme().color(Role.DANGER)).width(Length.grow(1f));
+        Node text = gui.text("").textColor(Role.DANGER).width(Length.grow(1f));
         IconButton close = new IconButton(gui, Icon.CLOSE, "Dismiss").name("notice-close-" + id);
         Node row = gui.row().gap(Length.dp(8)).alignItems(AlignItems.CENTER).width(Length.FILL)
-                .padding(Length.dp(4), Length.dp(10)).background(gui.theme().color(Role.PANEL))
+                .padding(Length.dp(4), Length.dp(10)).background(Role.PANEL)
                 .visible(false).children(text, close.node());
         return new Band(row, text, close);
     }

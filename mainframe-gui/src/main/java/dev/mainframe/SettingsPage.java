@@ -94,7 +94,7 @@ final class SettingsPage {
         gui.landmark(START, start.node());
 
         // A path can be longer than the row: cut in the middle, keeping the drive and the folder, and whole in a tooltip.
-        dir = gui.text("").textColor(gui.theme().color(Role.INK)).wordWrap(false).width(Length.FILL)
+        dir = gui.text("").textColor(Role.INK).wordWrap(false).width(Length.FILL)
                 .ellipsis(Ellipsis.MIDDLE);
         dirTip = new Tooltip(gui);
         gui.landmark(DIR, dir);
@@ -104,7 +104,7 @@ final class SettingsPage {
         home.node().visible(false);
         gui.landmark(HOME, home.node());
 
-        problem = gui.text("").textColor(gui.theme().color(Role.DANGER)).width(Length.FILL).visible(false);
+        problem = gui.text("").textColor(Role.DANGER).width(Length.FILL).visible(false);
         gui.landmark(PROBLEM, problem);
 
         Node body = gui.column().gap(Length.rem(1.1f)).padding(Length.rem(1.5f)).width(Length.FILL)
@@ -118,18 +118,18 @@ final class SettingsPage {
                                 gui.row().gap(Length.dp(8)).children(choose.node(), home.node()))),
                         problem);
         gui.root().direction(Direction.COLUMN)
-                .background(gui.theme().color(Role.PAGE))
+                .background(Role.PAGE)
                 .children(window.titleBar().node(), body);
     }
 
     private Node row(String label, Node control) {
         return gui.row().gap(Length.rem(1f)).alignItems(AlignItems.START).width(Length.FILL).children(
-                gui.text(label).textColor(gui.theme().color(Role.DIM)).width(Length.rem(9f)),
+                gui.text(label).textColor(Role.DIM).width(Length.rem(9f)),
                 gui.column().width(Length.grow(1f)).alignItems(AlignItems.START).children(control));
     }
 
     private Node small(String text) {
-        return gui.text(text).textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM));
+        return gui.text(text).textSize(Length.rem(0.8125f)).textColor(Role.DIM);
     }
 
     /** Show what the frame says is set, and what could be. */

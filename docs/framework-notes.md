@@ -373,3 +373,17 @@ its own look for hover, press and open.
 **Fixed upstream the same day** (vexelray-gui `v0.2`): `ContextMenu` tells whoever opened it when it closes, the
 lockup and the bar's menus stay lit while theirs is open, and `Wordmark.state(pointer, open)` says both (its default
 inks as before, and the accent while open). MainFrame's wordmark now overrides `state`, so the workaround is gone.
+
+## FN-29 · A terminal's ANSI palette is fixed, and baked into what it has already drawn 🔬
+
+The light look wanted the terminal to follow it: its default ground and text, and the sixteen ANSI colours a program
+names. `TerminalScreen.colors(bg, fg)` takes the defaults, as colours rather than roles, so the view hands it
+`Look.TERMINAL_PAGE` and `Look.TERMINAL_INK` again on each `ThemeShifted`, and that much follows the look (conhost
+sends Gray-on-Black, the console's own default, as the terminal's default, so most shell output follows too). The
+ANSI palette does not: `Terminal.Palette` is a static Campbell table (vex-suite-common), and a cell keeps the RGB the
+palette gave it when it was written, not the index. On the light page Campbell's Yellow (`#F9F1A5`), White and Cyan
+nearly vanish, and PSReadLine writes every command name in Yellow, so the line being typed is hard to read. Done:
+nothing beyond the defaults; the dark look is Campbell as before. What the framework could do: keep a cell's colour
+as a palette index (or the default) until it is drawn, and take the sixteen as a palette the screen is handed, ideally
+as roles, so an application gives its light look a light ANSI set (One Half Light's, say) and what is already on
+screen recolours with the rest. The selection's fixed `#A0264F78` would want the same.

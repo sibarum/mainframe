@@ -128,22 +128,22 @@ final class WorkspacesPage {
         name = new TextField(gui).name(NAME).frame(Framing.FLUSH).history(new History());
         name.node().width(Length.FILL).textSize(Length.rem(1.25f));
         gui.landmark(NAME, name.node());
-        problem = gui.text("").textColor(gui.theme().color(Role.DANGER)).width(Length.FILL).visible(false);
+        problem = gui.text("").textColor(Role.DANGER).width(Length.FILL).visible(false);
         gui.landmark(PROBLEM, problem);
-        subtitle = gui.text("").textColor(gui.theme().color(Role.DIM)).textSize(Length.rem(0.8125f));
+        subtitle = gui.text("").textColor(Role.DIM).textSize(Length.rem(0.8125f));
 
         board = new Board<String>(gui, (nodes, key) -> card(key)).motion(new Motion(gui).arrival);
         deck = board.column().name(CARDS).reorderable();
         deck.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(CARDS, deck.node());
         noFolders = gui.text("No folders yet. Add folder… gives this workspace its first tab.")
-                .textColor(gui.theme().color(Role.DIM)).visible(false);
+                .textColor(Role.DIM).visible(false);
 
         // Renaming a card's tab: a field of its own under the cards, as the tab bar's is beside it (FN-10, FN-16).
         retitle = new TextField(gui).name(TAB_NAME).history(new History());
         retitle.node().width(Length.rem(16f));
         gui.landmark(TAB_NAME, retitle.node());
-        retitleLabel = gui.text("").textColor(gui.theme().color(Role.INK));
+        retitleLabel = gui.text("").textColor(Role.INK);
         retitling = gui.row().gap(Length.dp(8)).alignItems(AlignItems.CENTER).visible(false)
                 .children(retitleLabel, retitle.node());
 
@@ -157,9 +157,9 @@ final class WorkspacesPage {
         right = gui.column().gap(Length.rem(0.6f)).width(Length.grow(1f)).height(Length.FILL)
                 .children(name.node(), problem, subtitle, noFolders, deck.node(), retitling, buttons);
         empty = gui.text("No workspaces yet. New workspace makes one; Add folder… then gives it its tabs.")
-                .textColor(gui.theme().color(Role.DIM)).width(Length.grow(1f)).visible(false);
+                .textColor(Role.DIM).width(Length.grow(1f)).visible(false);
 
-        said = gui.text("").textColor(gui.theme().color(Role.DIM)).width(Length.FILL).wordWrap(false)
+        said = gui.text("").textColor(Role.DIM).width(Length.FILL).wordWrap(false)
                 .ellipsis(Ellipsis.END);
         gui.landmark(SAID, said);
 
@@ -168,18 +168,18 @@ final class WorkspacesPage {
         Node footer = gui.row().padding(Length.rem(0.5f), Length.rem(1.25f)).width(Length.FILL).children(said);
         root = gui.root();
         root.direction(Direction.COLUMN)
-                .background(gui.theme().color(Role.PAGE))
+                .background(Role.PAGE)
                 .children(window.titleBar().node(), body, footer);
     }
 
     /** A card: a grip, the tab's name over its folder, and the ⋯ that drops its menu. */
     private Node card(String key) {
-        Node title = gui.text("").textColor(gui.theme().color(Role.INK)).wordWrap(false);
-        Node path = gui.text("").textColor(gui.theme().color(Role.DIM)).wordWrap(false).width(Length.FILL)
+        Node title = gui.text("").textColor(Role.INK).wordWrap(false);
+        Node path = gui.text("").textColor(Role.DIM).wordWrap(false).width(Length.FILL)
                 .ellipsis(Ellipsis.MIDDLE);
         IconButton more = new IconButton(gui, Icon.MORE, "More");
         Node node = gui.row().gap(Length.dp(10)).alignItems(AlignItems.CENTER).width(Length.FILL)
-                .padding(Length.dp(8), Length.dp(10)).background(gui.theme().color(Role.WELL))
+                .padding(Length.dp(8), Length.dp(10)).background(Role.WELL)
                 .children(dev.vexelray.gui.icons.IconView.of(gui, Icon.GRIP).node(),
                         gui.row().gap(Length.dp(14)).alignItems(AlignItems.CENTER).width(Length.grow(1f))
                                 .children(title.width(Length.rem(9f)), path),
@@ -233,7 +233,7 @@ final class WorkspacesPage {
             if (c == null) {
                 continue;   // built when the board lays the deck out; filled by the next show
             }
-            c.title().text(e.title()).textColor(gui.theme().color(e.name().isBlank() ? Role.DIM : Role.INK));
+            c.title().text(e.title()).textColor(e.name().isBlank() ? Role.DIM : Role.INK);
             c.path().text(e.path());
             Menu menu = Menu.builder()
                     .item("Rename tab", asks, new CardAsk(keys.get(i), false))

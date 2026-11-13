@@ -101,7 +101,7 @@ final class Ui {
         titleBar.menu(TERMINAL_MENU, "Terminal", Menu.NONE);
 
         gui.root().direction(Direction.COLUMN)
-                .background(gui.theme().color(Role.PAGE))
+                .background(Role.PAGE)
                 .children(titleBar.node(), body);
     }
 

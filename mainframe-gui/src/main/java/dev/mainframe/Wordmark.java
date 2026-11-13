@@ -7,6 +7,7 @@ import dev.vexelray.gui.core.LayeredIcon;
 import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.input.InteractionState;
 import dev.vexelray.gui.core.layout.Length;
+import dev.vexelray.gui.core.spi.Seams;
 import dev.vexelray.gui.core.style.Paint;
 import dev.vexelray.gui.core.style.Role;
 import dev.vexelray.gui.widget.TitleBar;
@@ -193,35 +194,75 @@ final class Wordmark {
      * glowing, wherever the pointer has gone. A raster per look, kept, as Rasterware's is (its FN-20: a raster cannot
      * hold a paint, so the paint is resolved against the theme when the bar hands it over). The glow and the accent are
      * made here with the rest, not under the pointer.
+     *
+     * <p>A raster is worked out from the look, so when the person chooses the other look the bar makes the new look's
+     * rasters (on {@code Seams.onTheme}, in the frame the look lands in) and shows the word again as it was last told:
+     * the light look's greens are the sheet's dark ones, which read on a white bar.
      */
     static TitleBar.Wordmark bar(Gui gui) {
-        Map<Color, Feed> lit = new ConcurrentHashMap<>();
-        Map<Color, Feed> glow = new ConcurrentHashMap<>();
-        Node node = node(gui, rest(gui, lit));
-        glow(gui, glow);
-        lit(lit, gui.theme().color(Role.ACCENT, InteractionState.HOVER));
-        lit(lit, gui.theme().color(Role.ACCENT, InteractionState.PRESSED));
-        return new TitleBar.Wordmark() {
-            @Override
-            public Node node() {
-                return node;
-            }
+        Bar bar = new Bar(gui);
+        Seams.of(gui).onTheme(bar::shifted);
+        return bar;
+    }
 
-            @Override
-            public void state(InteractionState pointer, boolean open) {
-                node.image(open ? lit(lit, gui.theme().color(Role.ACCENT,
-                                pointer == InteractionState.PRESSED ? pointer : InteractionState.HOVER))
-                        : pointer == InteractionState.NORMAL ? rest(gui, lit)
-                        : glow(gui, glow));
-            }
+    /** The bar's wordmark: its rasters by look, and what it was last told, so a new look can show it again. */
+    private static final class Bar implements TitleBar.Wordmark {
 
-            /** Only for a bar that inks rather than saying its state: the theme's ink at rest, else lit in the paint. */
-            @Override
-            public void ink(Paint ink) {
-                Color c = ink.in(gui.theme());
-                node.image(c.equals(gui.theme().color(Role.INK)) ? rest(gui, lit) : lit(lit, c));
+        private final Gui gui;
+        private final Map<Color, Feed> lit = new ConcurrentHashMap<>();
+        private final Map<Color, Feed> glow = new ConcurrentHashMap<>();
+        private final Node node;
+        /** What the bar last said: the pointer and the menu, or the paint it inked in (null until it inks). */
+        private InteractionState pointer = InteractionState.NORMAL;
+        private boolean open;
+        private Paint inked;
+
+        Bar(Gui gui) {
+            this.gui = gui;
+            this.node = Wordmark.node(gui, rest(gui, lit));
+            prepare();
+        }
+
+        /** The glow and the accent for the look now drawing, made before the pointer asks for them. */
+        private void prepare() {
+            glow(gui, glow);
+            lit(lit, gui.theme().color(Role.ACCENT, InteractionState.HOVER));
+            lit(lit, gui.theme().color(Role.ACCENT, InteractionState.PRESSED));
+        }
+
+        /** The person chose the other look: make its rasters, and show the word as it was last told. */
+        void shifted() {
+            prepare();
+            if (inked != null) {
+                ink(inked);
+            } else {
+                state(pointer, open);
             }
-        };
+        }
+
+        @Override
+        public Node node() {
+            return node;
+        }
+
+        @Override
+        public void state(InteractionState pointer, boolean open) {
+            this.pointer = pointer;
+            this.open = open;
+            this.inked = null;
+            node.image(open ? lit(lit, gui.theme().color(Role.ACCENT,
+                            pointer == InteractionState.PRESSED ? pointer : InteractionState.HOVER))
+                    : pointer == InteractionState.NORMAL ? rest(gui, lit)
+                    : glow(gui, glow));
+        }
+
+        /** Only for a bar that inks rather than saying its state: the theme's ink at rest, else lit in the paint. */
+        @Override
+        public void ink(Paint ink) {
+            this.inked = ink;
+            Color c = ink.in(gui.theme());
+            node.image(c.equals(gui.theme().color(Role.INK)) ? rest(gui, lit) : lit(lit, c));
+        }
     }
 
     /** The word's greens glowing, for the theme now drawing, kept under the theme's ink as {@link #rest} is. */

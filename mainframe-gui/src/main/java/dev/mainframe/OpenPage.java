@@ -85,11 +85,11 @@ final class OpenPage {
         list.node().width(Length.FILL).height(Length.grow(1f));
         gui.landmark(LIST, list.node());
         Node hint = gui.text("Enter opens a workspace in a new window; Ctrl+Enter opens its tabs in this one.")
-                .textSize(Length.rem(0.8125f)).textColor(gui.theme().color(Role.DIM));
+                .textSize(Length.rem(0.8125f)).textColor(Role.DIM);
         Node body = gui.column().gap(Length.rem(0.75f)).padding(Length.rem(1f)).width(Length.FILL)
                 .height(Length.grow(1f)).children(list.node(), hint);
         gui.root().direction(Direction.COLUMN)
-                .background(gui.theme().color(Role.PAGE))
+                .background(Role.PAGE)
                 .children(window.titleBar().node(), body);
     }
 
