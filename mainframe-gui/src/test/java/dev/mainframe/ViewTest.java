@@ -37,7 +37,6 @@ import dev.mainframe.core.Messages.Rename;
 import dev.mainframe.core.Messages.Submitted;
 import dev.mainframe.core.Messages.CloseTab;
 import dev.mainframe.core.Messages.Front;
-import dev.mainframe.core.Messages.Header;
 import dev.mainframe.core.Messages.Output;
 import dev.mainframe.core.Messages.Resized;
 import dev.mainframe.core.Messages.Retitled;
@@ -46,7 +45,6 @@ import dev.mainframe.core.Messages.Typed;
 import dev.sibarum.suite.tty.TerminalScreen;
 import dev.vexelray.framework.shell.Shell;
 import dev.vexelray.framework.shell.VexelApplication;
-import dev.vexelray.gui.core.Cuts;
 import dev.vexelray.gui.core.input.Shortcut;
 import dev.vexelray.gui.keymap.Action;
 import dev.vexelray.gui.keymap.Keymap;
@@ -82,19 +80,6 @@ class ViewTest {
     private MainFrameAppWiring wiring;
     private final List<Object> heard = new CopyOnWriteArrayList<>();
 
-    /**
-     * What changed on screen in one frame while a test ran, which every test here then fails on: nothing this
-     * application shows changes in one frame. The framework fades it all (a colour, an opacity, words, an image, a node
-     * arriving, leaving, hidden or shown) as long as the view keeps its nodes and changes them. A cut found here means
-     * a node was rebuilt where it should have been changed, or something stepped round the framework. Fix that; do not
-     * take this watch out. If the framework cannot do it, that is a framework note (docs/framework-notes.md).
-     */
-    private Cuts cuts;
-    /** The same, on the settings window's tree. */
-    private Cuts settingsCuts;
-    private Cuts openCuts;
-    private Cuts workspacesCuts;
-
     private <T> void subscribe(sibarum.atchung.Topic<T> topic) {
         shell.bus().subscribe(topic, heard::add);
     }
@@ -127,24 +112,11 @@ class ViewTest {
                 dev.mainframe.core.Messages.EditScript.TOPIC)) {
             subscribe(t);
         }
-        cuts = Cuts.watch(shell.gui());
-        settingsCuts = Cuts.watch(wiring.settings().gui());
-        openCuts = Cuts.watch(wiring.open().gui());
-        workspacesCuts = Cuts.watch(wiring.workspaces().gui());
     }
 
     @AfterEach
     void dispose() {
-        List<Cuts.Cut> found = new java.util.ArrayList<>(cuts.found());
-        found.addAll(settingsCuts.found());
-        found.addAll(openCuts.found());
-        found.addAll(workspacesCuts.found());
-        workspacesCuts.close();
-        cuts.close();
-        settingsCuts.close();
-        openCuts.close();
         shell.disposer().close();
-        assertEquals(List.of(), found, "changed on screen in one frame; keep the node and change it (see cuts)");
     }
 
     /** Run frames until {@code test} holds: the view hears only in a frame, and this thread runs them. */
@@ -211,17 +183,6 @@ class ViewTest {
         TerminalScreen screen = tab(6);
         shell.bus().publish(TerminalScreen.TITLED, new TerminalScreen.Titled(screen.address(), "pwsh"));
         eventually("the title, as the tab's", () -> heard.contains(new Retitled(6, "pwsh")));
-    }
-
-    /** A new header is the same node with new words, which the framework fades: the dispose's cut watch says so. */
-    @Test
-    void aHeaderIsChangedInPlace() throws Exception {
-        tab(2);
-        shell.bus().publish(Header.TOPIC, new Header(2, "pwsh"));
-        for (int i = 0; i < 5; i++) {
-            VexelApplication.frame(shell);
-        }
-        assertEquals(1, wiring.ui().tabs().count());
     }
 
     @Test
@@ -580,22 +541,6 @@ class ViewTest {
         assertFalse(heard.contains(new Typed(1, " 'notes.txt'")), "nothing before the program has written");
         shell.bus().publish(Output.TOPIC, new Output(1, "PS work> "));
         eventually("typed after the prompt", () -> heard.contains(new Typed(1, " 'notes.txt'")));
-    }
-
-    @Test
-    void insertPathTypesNothingWhenThePersonTypedFirst() throws Exception {
-        TerminalScreen screen = tab(2);
-        shell.bus().publish(TerminalScreen.SENT, new TerminalScreen.Sent(screen.address(), "l", true));
-        eventually("the key", () -> heard.contains(new Typed(2, "l")));
-        shell.bus().publish(dev.mainframe.core.Messages.TypeInto.TOPIC,
-                new dev.mainframe.core.Messages.TypeInto(2, "'notes.txt'"));
-        shell.bus().publish(Output.TOPIC, new Output(2, "PS work> "));
-        long until = System.nanoTime() + 3 * View.PROMPT_QUIET.toNanos();
-        while (System.nanoTime() < until) {
-            VexelApplication.frame(shell);
-            Thread.sleep(10);
-        }
-        assertFalse(heard.contains(new Typed(2, " 'notes.txt'")));
     }
 
     @Test

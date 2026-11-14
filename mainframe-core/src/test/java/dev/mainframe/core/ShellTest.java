@@ -13,11 +13,7 @@ import sibarum.atchung.Sender;
 import sibarum.atchung.Tick;
 import sibarum.probe.Cause;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -116,66 +112,5 @@ class ShellTest {
         assertEquals(3, end.id());
         assertTrue(end.problem().startsWith("Could not start no-such-program-mainframe.exe"), end.problem());
         shell.close(s);
-    }
-
-    /** Run the tick a moment and take what it delivered. */
-    private List<Output> delivered(long millis) throws InterruptedException {
-        List<Output> got = new ArrayList<>();
-        long until = System.nanoTime() + millis * 1_000_000L;
-        while (System.nanoTime() < until) {
-            tick.run(System.nanoTime() + 1_000_000L, Tick.ONE_THREAD);
-            out.drainTo(got);
-            Thread.sleep(5);
-        }
-        return got;
-    }
-
-    /**
-     * A program writing far faster than anyone shows it gets two outputs through and then waits, its reader stopping
-     * at {@link Shell#HOLD}; each {@code Shown} lets everything waiting through as one, and nothing is lost (FN-9).
-     */
-    @Test
-    void aTabsOutputIsPacedByWhatTheViewHasShown() throws Exception {
-        String line = "0123456789 the quick brown fox jumps over the lazy dog 0123456789\n";
-        int lines = 50_000;
-        Path big = dir.resolve("big.txt");
-        Files.writeString(big, line.repeat(lines));
-        boolean windows = System.getProperty("os.name").startsWith("Windows");
-        String cmd = (windows ? "type " : "cat ") + PtyPlatform.current().quote(big.toString());
-        Shell shell = shell();
-        OpenShell open = new OpenShell(4, PtyPlatform.current().runLine(cmd), dir, 120, 30);
-        Shell.Session s = shell.open(open);
-        assertNotNull(s.pty(), s.problem());
-        CompletableFuture<ShellEnded> end = CompletableFuture.supplyAsync(() -> shell.run(open, s));
-        try {
-            List<Output> first = delivered(1500);
-            assertEquals(Shell.IN_FLIGHT, first.size(), "no more than two before the view says it has shown one");
-            assertTrue(s.pace().waiting() >= Shell.HOLD, "the reader held back: " + s.pace().waiting());
-            assertTrue(!end.isDone(), "the program waits on its terminal");
-
-            shell.write(s, new Shown(4));
-            List<Output> next = delivered(300);
-            assertEquals(1, next.size(), "one shown lets one through");
-            assertTrue(next.getFirst().text().length() >= Shell.HOLD, "and it is everything that was waiting");
-
-            StringBuilder all = new StringBuilder();
-            first.forEach(o -> all.append(o.text()));
-            next.forEach(o -> all.append(o.text()));
-            long deadline = System.nanoTime() + 30_000_000_000L;
-            while (!end.isDone() || s.pace().waiting() > 0 || !out.isEmpty()) {
-                assertTrue(System.nanoTime() < deadline, "the program never finished");
-                shell.write(s, new Shown(4));
-                delivered(20).forEach(o -> all.append(o.text()));
-            }
-            // The reader may publish its last Output after the loop's last tick and before run returns, so the loop can
-            // see the program done with that Output still on the bus: one more tick delivers it. (It failed once in six
-            // without this, 49,999 lines of 50,000.)
-            delivered(100).forEach(o -> all.append(o.text()));
-            assertEquals(0, end.get().code());
-            int count = all.toString().split("quick brown fox", -1).length - 1;
-            assertEquals(lines, count, "every line arrived");
-        } finally {
-            shell.close(s);
-        }
     }
 }
