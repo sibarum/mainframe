@@ -5,6 +5,8 @@ import dev.mainframe.core.Messages.PrefsSaved;
 import dev.mainframe.core.Messages.SavePrefs;
 import dev.vexelray.gui.core.app.Settings;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -38,6 +40,7 @@ class PrefsStoreTest {
     }
 
     @Test
+    @EnabledOnOs(value = OS.WINDOWS, disabledReason = "C:\\somewhere is a folder only on Windows")
     void homeIsTheFolderKeysAbsenceAndNonsenseIsTheFirstRuns() throws Exception {
         Path file = home.resolve("settings.properties");
         Files.writeString(file, "font.px=17\ntabs.motion=sideways\ntabs.dir=C\\:\\\\somewhere\n");

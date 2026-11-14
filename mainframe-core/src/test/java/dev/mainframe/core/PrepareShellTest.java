@@ -4,6 +4,8 @@ import dev.mainframe.core.Messages.Prepare;
 import dev.mainframe.core.Messages.Prepared;
 import dev.vexelray.gui.core.app.Settings;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -40,6 +42,7 @@ class PrepareShellTest {
     }
 
     @Test
+    @EnabledOnOs(value = OS.WINDOWS, disabledReason = "cmd.exe and a .ps1 script are Windows'")
     void aLineThatCannotSourceThemStartsWithoutThemAndSaysWhy() throws Exception {
         Path ws = Files.createDirectories(home.resolve("workspaces"));
         Files.writeString(ws.resolve("day.csv"), "name,path\n," + home + "\n");

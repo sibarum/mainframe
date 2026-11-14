@@ -87,7 +87,8 @@ class ViewTest {
     @BeforeEach
     void build() {
         // The tree runs the real frame and jobs, which save settings and start processes: never on the real home.
-        assertTrue(System.getProperty("user.home").replace('\\', '/').endsWith("target/test-home"),
+        // target-linux/ on Linux, where the build goes (the parent pom's native-linux note).
+        assertTrue(System.getProperty("user.home").replace('\\', '/').matches(".*/target(-linux)?/test-home"),
                 "tests run on a home of their own (the parent pom's surefire): " + System.getProperty("user.home"));
         assertEquals("off", System.getProperty("mainframe.launch"), "and start no process");
         wiring = new MainFrameAppWiring();
