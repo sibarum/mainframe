@@ -145,6 +145,11 @@ waiting. About 70 lines, a record and a test, which every fast reader on 0.2 wou
 topic kind whose publisher appends to what has not been taken yet, would make every fast reader (a terminal, a log
 tail, the Inspector's link) correct without a protocol of its own.
 
+**Answered 2026-11-15, half of it** (vexelray-framework components.md section 15): a source's send now waits while
+a hearer's mailbox is full, so a fast program can no longer halt MainFrame, with or without `Pace`. `Pace` and `Shown`
+stay, for the other half: they merge what arrives while the view draws, and the screen redraws once per feed, so
+without them `type` of 8 MB would be about 100,000 one-line feeds. They go when a widget can draw once per frame.
+
 ## FN-10 · `Tabs` has no place for an application's own nodes, beside the headers or over one 🔬
 
 M2 wanted a + after the last header, the passthrough pill at the bar's end (docs/passthrough.md), and a rename field
