@@ -305,7 +305,7 @@ class FrameTest {
         assertEquals(1, asked.size());
         assertEquals("Close api?", asked.getFirst().title());
         assertTrue(took(CloseTab.class).isEmpty(), "nothing closes before the answer");
-        tell(Answer.TOPIC, new Answer(asked.getFirst().id(), 0));
+        tell(Answer.TOPIC, asked.getFirst().answer(0));
         assertEquals(List.of(new CloseTab(1)), took(CloseTab.class));
         assertTrue(frame.state().closings().isEmpty());
     }
@@ -316,7 +316,7 @@ class FrameTest {
         tell(Submitted.TOPIC, new Submitted(1));
         tell(CloseAsked.TOPIC, new CloseAsked(1, true));
         Ask asked = took(Ask.class).getFirst();
-        tell(Answer.TOPIC, new Answer(asked.id(), 1));
+        tell(Answer.TOPIC, asked.answer(1));
         assertTrue(took(CloseTab.class).isEmpty());
         assertTrue(took(CloseShell.class).isEmpty());
         assertEquals(1, frame.state().tabs().size());
@@ -350,7 +350,7 @@ class FrameTest {
         assertEquals(List.of("Close all", "Cancel"), asked.buttons());
         assertTrue(asked.message().contains("api, web"), asked.message());
         assertTrue(took(CloseAnswer.class).isEmpty(), "unanswered while the person decides");
-        tell(Answer.TOPIC, new Answer(asked.id(), 1));
+        tell(Answer.TOPIC, asked.answer(1));
         assertEquals(List.of(new CloseAnswer(8, false)), took(CloseAnswer.class));
     }
 
@@ -360,7 +360,7 @@ class FrameTest {
         tell(Submitted.TOPIC, new Submitted(1));
         tell(CloseRequested.TOPIC, new CloseRequested(CloseRequested.MAIN, 9));
         Ask asked = took(Ask.class).getFirst();
-        tell(Answer.TOPIC, new Answer(asked.id(), 0));
+        tell(Answer.TOPIC, asked.answer(0));
         assertEquals(List.of(new CloseAnswer(9, true)), took(CloseAnswer.class));
     }
 

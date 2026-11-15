@@ -548,6 +548,11 @@ public final class Frame {
     /** The Ask id of a dialog that only tells: no closing has it, so its answer finds nothing to resume. */
     static final long TELL = -2;
 
+    /** A dialog that only tells, from this part. */
+    private static Ask tell(String title, String message) {
+        return Ask.info(TELL, title, message, Frame.class);
+    }
+
     /** Ctrl+O: ask what workspaces there are. */
     private static State openAsked(State s, OpenAsked m, Out out) {
         out.send(WorkspacesWanted.TOPIC, new WorkspacesWanted());
@@ -588,7 +593,7 @@ public final class Frame {
     /** A workspace to open here: its rows as tabs, each sourcing its scripts, in place of the spare tab. */
     private static State loaded(State s, Loaded l, Out out) {
         if (l.workspace().isEmpty()) {
-            out.send(Ask.TOPIC, Ask.info(TELL, "No workspace called " + l.name(),
+            out.send(Ask.TOPIC, tell("No workspace called " + l.name(),
                     "Its file is not in the workspaces folder any more."));
             return s;
         }
@@ -606,7 +611,7 @@ public final class Frame {
     /** Another MainFrame started, or did not: with it started, a window holding only its spare tab closes. */
     private static State launched(State s, Launched l, Out out) {
         if (!l.problem().isBlank()) {
-            out.send(Ask.TOPIC, Ask.info(TELL, "Could not open " + l.workspace(), l.problem()));
+            out.send(Ask.TOPIC, tell("Could not open " + l.workspace(), l.problem()));
             return s;
         }
         return dropSpare(s, out);
@@ -629,13 +634,13 @@ public final class Frame {
         }
         Tab t = tab.get();
         if (s.workspace().isBlank()) {
-            out.send(Ask.TOPIC, Ask.info(TELL, "No environment to edit",
+            out.send(Ask.TOPIC, tell("No environment to edit",
                     "This window is not a workspace's, so its tabs source no environment script. Open a workspace with "
                             + "Ctrl+O, or make one in the Workspaces window."));
             return s;
         }
         if (e.tab() && t.env().isBlank()) {
-            out.send(Ask.TOPIC, Ask.info(TELL, "This tab has no script of its own",
+            out.send(Ask.TOPIC, tell("This tab has no script of its own",
                     "A tab added with + sources " + s.workspace() + "'s script only. Edit workspace environment… opens that."));
             return s;
         }
@@ -648,7 +653,7 @@ public final class Frame {
     /** The script did not open: said, with where it is when it was made. */
     private static State scriptOpened(State s, ScriptOpened o, Out out) {
         if (!o.problem().isBlank()) {
-            out.send(Ask.TOPIC, Ask.info(TELL, o.title(), o.problem()));
+            out.send(Ask.TOPIC, tell(o.title(), o.problem()));
         }
         return s;
     }
@@ -714,14 +719,14 @@ public final class Frame {
             question = c.busy().size() == 1
                     ? new Ask(out.run(), "Close MainFrame?",
                             "Something may still be running in " + names + ". Its shell ends with the window.",
-                            List.of("Close", "Cancel"))
+                            List.of("Close", "Cancel"), Frame.class)
                     : new Ask(out.run(), "Close MainFrame?",
                             "Something may still be running in " + c.busy().size() + " tabs: " + names
                                     + ". Their shells end with the window.",
-                            List.of("Close all", "Cancel"));
+                            List.of("Close all", "Cancel"), Frame.class);
         } else {
             question = new Ask(out.run(), "Close " + names + "?",
-                    "Its shell ends, and anything still running in it.", List.of("Close", "Cancel"));
+                    "Its shell ends, and anything still running in it.", List.of("Close", "Cancel"), Frame.class);
         }
         out.send(Ask.TOPIC, question);
         return s.withClosing(out.run(), c.holding(out.holdForPerson()));
