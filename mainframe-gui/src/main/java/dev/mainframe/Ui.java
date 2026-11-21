@@ -57,6 +57,9 @@ final class Ui {
     private final TextField rename;
     private final Map<TabMotion, Consumer<Tabs>> motions = new EnumMap<>(TabMotion.class);
     private final Node renaming;
+    private final Node actionBar;
+    private final TextField text;
+    private final Button send;
 
     Ui(Gui gui, Motion motion, TitleBar titleBar) {
         this.titleBar = titleBar;
@@ -90,6 +93,22 @@ final class Ui {
                 .floatAt(Length.rem(10_000f), Length.ZERO);
         Node body = gui.box().width(Length.FILL).height(Length.grow(1f)).children(tabs.node(), end);
 
+        // The action bar (docs/action-bar.md): a row of the root's column under the tabs' box, so showing it takes its
+        // height from the terminal rather than covering it. Built once and only shown and hidden.
+        text = new TextField(gui).name(Landmarks.ACTION_TEXT).multiline(true).wordWrap(true)
+                // It keeps its slot: growing over its neighbours would cover the terminal, which is what the bar is not.
+                .overhang(false);
+        text.node().width(Length.grow(1f)).height(Length.rem(4.5f));
+        gui.landmark(Landmarks.ACTION_TEXT, text.node());
+        send = new Button(gui, "Send").kind(Button.Kind.PRIMARY).name(Landmarks.ACTION_SEND);
+        gui.landmark(Landmarks.ACTION_SEND, send.node());
+        new Tooltip(gui).attach(send.node(), "Type this into the tab in front and press Enter there (Ctrl+Enter). "
+                + "Enter in the field starts a new line.");
+        actionBar = gui.row().gap(Length.dp(8)).alignItems(AlignItems.END).width(Length.FILL)
+                .padding(Length.dp(6), Length.dp(8)).background(Role.PANEL).visible(false)
+                .children(text.node(), send.node());
+        gui.landmark(Landmarks.ACTION_BAR, actionBar);
+
         // The brand sheet's wordmark in the lockup, rather than the name in the bar's type (Wordmark).
         TitleBar.Wordmark wordmark = Wordmark.bar(gui);
         titleBar.wordmark(wordmark);
@@ -102,7 +121,20 @@ final class Ui {
 
         gui.root().direction(Direction.COLUMN)
                 .background(Role.PAGE)
-                .children(titleBar.node(), body);
+                .children(titleBar.node(), body, actionBar);
+    }
+
+    TextField actionText() {
+        return text;
+    }
+
+    Button send() {
+        return send;
+    }
+
+    /** Show the action bar, or not: the terminal above gives it its height, or takes it back. */
+    void actionBar(boolean shown) {
+        actionBar.visible(shown);
     }
 
     Tabs tabs() {
@@ -145,7 +177,7 @@ final class Ui {
      * to the shell, with the passthrough switch on (docs/passthrough.md). Neither of those has a chord, since none could
      * reach MainFrame to turn it back.
      */
-    void menu(boolean passthrough, Sender<Intent> intents, Sender<WindowCommand> windows,
+    void menu(boolean passthrough, boolean actionBar, Sender<Intent> intents, Sender<WindowCommand> windows,
               Sender<dev.mainframe.core.Messages.OpenAsked> open,
               Sender<dev.mainframe.core.Messages.EditWorkspaces> edit) {
         Menu menu = Menu.builder()
@@ -161,6 +193,8 @@ final class Ui {
                 .item("Larger text", intents, new Intent(Intent.Command.LARGER)).command("view.larger")
                 .item("Smaller text", intents, new Intent(Intent.Command.SMALLER)).command("view.smaller")
                 .item("Normal text size", intents, new Intent(Intent.Command.NORMAL)).command("view.normal")
+                .item("Action bar", intents, new Intent(Intent.Command.ACTION_BAR)).command("view.actionbar")
+                .toggle(actionBar)
                 .separator()
                 .item(Icon.SETTINGS, "Settings…", windows, WindowCommand.show(SettingsPage.KEY)).command("app.settings")
                 .separator()

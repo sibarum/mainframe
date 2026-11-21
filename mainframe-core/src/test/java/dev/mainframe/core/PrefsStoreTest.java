@@ -26,7 +26,7 @@ class PrefsStoreTest {
     @Test
     void whatIsSavedIsReadBack() {
         Path file = home.resolve("settings.properties");
-        Preferences p = new Preferences(24, TabMotion.FADE, "cmd", Optional.of(home), "day");
+        Preferences p = new Preferences(24, TabMotion.FADE, "cmd", Optional.of(home), "day", true);
         assertEquals(new PrefsSaved(3, ""), new SaveSettings(Settings.at(file)).run(new SavePrefs(3, p)));
         assertEquals(p, PrefsStore.read(Settings.at(file)));
     }
@@ -36,7 +36,8 @@ class PrefsStoreTest {
         Path file = home.resolve("settings.properties");
         Files.writeString(file, "font.px=16.0\ntabs.motion=NONE\nshell.id=cmd\ntabs.dir="
                 + home.toString().replace("\\", "\\\\") + "\nwindow.main.x=40\n");
-        assertEquals(new Preferences(16, TabMotion.NONE, "cmd", Optional.of(home), ""), PrefsStore.read(Settings.at(file)));
+        assertEquals(new Preferences(16, TabMotion.NONE, "cmd", Optional.of(home), "", false),
+                PrefsStore.read(Settings.at(file)), "and the action bar hidden, as a first run has it");
     }
 
     @Test
@@ -45,7 +46,7 @@ class PrefsStoreTest {
         Path file = home.resolve("settings.properties");
         Files.writeString(file, "font.px=17\ntabs.motion=sideways\ntabs.dir=C\\:\\\\somewhere\n");
         Settings s = Settings.at(file);
-        assertEquals(new Preferences(18, TabMotion.SLIDE, "", Optional.of(Path.of("C:\\somewhere")), ""),
+        assertEquals(new Preferences(18, TabMotion.SLIDE, "", Optional.of(Path.of("C:\\somewhere")), "", false),
                 PrefsStore.read(s));
         PrefsStore.write(s, Preferences.DEFAULT);
         assertFalse(Settings.at(file).has(PrefsStore.DIR), "no folder chosen is no key, as 0.1 kept it");

@@ -11,6 +11,8 @@ Keep an entry short enough that it does not need editing, and delete it when it 
 - [ ] Rebuild MainFrame on 0.2, milestone by milestone, as [rebuild.md](rebuild.md) proposes. M4 (workspaces) is
       built (slices 1 to 4), and M5 (shipping) but for the Linux run below. What 0.1's TODO kept for after the port
       is in rebuild.md's *After the port*.
+- [ ] The action bar's slices 2 to 4 ([action-bar.md](action-bar.md)): key macros, the Macro window, script
+      macros. Slice 1 (the bar and Send) is built.
 - [ ] Run MainFrame on Linux, on the VM sharing this folder: `mvn -Pnative-linux package -DskipTests`, then
       `checks/main-path.sh`. Neither has been run there for 0.2.
 - [ ] A Workspaces card whose tab has no name of its own is meant to show the folder's name dimmed; seen live

@@ -106,6 +106,18 @@ record Intent(Command command) {
                 view.cycle(-1);
             }
         },
+        ACTION_BAR {
+            @Override
+            void on(View view) {
+                view.toggleActionBar();
+            }
+        },
+        SEND {
+            @Override
+            void on(View view) {
+                view.send();
+            }
+        },
         KEYS_TO_MAINFRAME {
             @Override
             void on(View view) {

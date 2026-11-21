@@ -399,3 +399,20 @@ ground, the default text and the selection as paints, resolved each frame and fa
 `TerminalColors.following(CAMPBELL, LIGHT)` answers per look; `Look.TERMINAL` is that with MainFrame's own ground and
 ink, handed once to each screen, and the `ThemeShifted` handler is gone. The light set is the stack's, each colour held
 to 4.5:1 on the light ground in `LookTest`; the dark look is Campbell, unchanged.
+
+## FN-30 · A headless frame never ticks the clock, so nothing shown or hidden finishes arriving or leaving 🔬
+
+The action bar (docs/action-bar.md) is the root column's last row, hidden until shown, under a box sized `grow(1)`
+that holds the tabs. In the real window, showing it shrinks the box and the terminal in it re-fits, and hiding it gives
+the rows back (seen with `ottermate`, 2026-11-21). In the tree `VexelApplication.tree` builds for a test, the bar is
+laid out at the window's foot (its field at y≈650 of 720) but the terminal above keeps its whole height (68 to 720) and
+never says a new size, however many frames are run; and a hidden bar's field is still laid out frames later.
+
+The likely cause: `VexelApplication.frame` runs the logic and `Seams.frame`, but not the clock's tick that the real
+loop runs (`FrameStage.CLOCK`, `krono::tick`), so an arrival or a departure, which the framework fades for every node
+shown or hidden, never ends. Not proved beyond that reading and the two symptoms. So `ViewTest` checks only that the
+shown bar is laid out inside the window and that the view follows the setting; the re-fit is the `ottermate` check's.
+
+What the framework could do: tick the clock in a headless frame (by a fixed step, so a test is repeatable), or give
+`Frames` a way to run motion to its end. Every application with something shown and hidden next to a widget that
+measures itself will want to test it.

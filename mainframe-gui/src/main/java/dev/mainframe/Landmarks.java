@@ -29,6 +29,15 @@ final class Landmarks {
     /** The field a tab's new name is typed into, there only while one is. */
     static final String RENAME = "rename";
 
+    /** The action bar under the tabs (docs/action-bar.md), hidden until the person shows it. */
+    static final String ACTION_BAR = "action-bar";
+
+    /** The action bar's field: what Send types into the tab in front. */
+    static final String ACTION_TEXT = "action-text";
+
+    /** The action bar's Send. */
+    static final String ACTION_SEND = "action-send";
+
     /** The main window's wordmark, in the title bar's lockup. */
     static final String WORDMARK = "wordmark";
 

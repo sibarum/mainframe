@@ -20,6 +20,8 @@ final class PrefsStore {
     static final String SHELL = "shell.id";
     static final String DIR = "tabs.dir";
     static final String START = "start.workspace";
+    /** New with 0.2's action bar (docs/action-bar.md); absent, as in 0.1's file, is hidden. */
+    static final String ACTION_BAR = "actionbar.shown";
 
     private PrefsStore() {
     }
@@ -29,7 +31,7 @@ final class PrefsStore {
         int px = Math.round(s.getFloat(FONT, Preferences.DEFAULT.fontPx()));
         Preferences p = new Preferences(Preferences.SIZES.contains(px) ? px : Preferences.DEFAULT.fontPx(),
                 TabMotion.named(s.getString(MOTION, "")), s.getString(SHELL, ""), dir(s.getString(DIR, "")),
-                s.getString(START, "").strip());
+                s.getString(START, "").strip(), s.getBoolean(ACTION_BAR, false));
         return p;
     }
 
@@ -52,6 +54,7 @@ final class PrefsStore {
         } else {
             s.putString(START, p.startWorkspace());
         }
+        s.putBoolean(ACTION_BAR, p.actionBar());
         s.save();
     }
 

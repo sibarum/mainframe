@@ -169,6 +169,9 @@ final class View {
      */
     private Preferences prefs = Preferences.DEFAULT;
 
+    /** The person asked to show or hide the action bar, and the frame has not yet said so: the focus follows it. */
+    private boolean barAsked;
+
     /** The tab whose new name is being typed, or {@link dev.mainframe.core.Messages#NO_TAB}. */
     private long renamingTab = dev.mainframe.core.Messages.NO_TAB;
 
@@ -205,7 +208,7 @@ final class View {
         this.glyphs = fonts.layout(fonts.face("mono"));
         tabs.action(RENAME).action(ENV_TAB).action(ENV_WORKSPACE).action(CLOSE);
         commands(keys, open, openKeys, workspaces, workspacesKeys);
-        ui.menu(false, intents, windows, openAsked, editWorkspaces);
+        ui.menu(false, false, intents, windows, openAsked, editWorkspaces);
         // A double-click on a header renames its tab. The bar says nothing of one, so the tree's clicks are read,
         // in a mailbox of the widgets' tick like every other the view has (FN-11).
         gui.mailbox(gui.clicks(), this::clicked, 64);
@@ -235,6 +238,9 @@ final class View {
         keys.action("workspaces.rename", "Rename the workspace", Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT))
                 .sends(workspacesKeys, new WorkspacesPage.Key(false))
                 .within(workspaces.gui(), workspaces.root(), ClaimScope.VISIBLE);
+        // The action bar's Ctrl+Enter, in its field only: Enter there is a new line, as in any many-line field.
+        command(keys, "action.send", "Send the action bar's text", Command.SEND,
+                Shortcut.of(Key.ENTER, Modifier.CONTROL)).within(gui, ui.actionText().node(), ClaimScope.FOCUSED);
         terminal.add(command(keys, "terminal.copy", "Copy the selection, or interrupt", Command.COPY,
                 Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.C, Modifier.CONTROL)));
         terminal.add(command(keys, "terminal.paste", "Paste", Command.PASTE,
@@ -250,6 +256,8 @@ final class View {
                 Shortcut.of(Key.MINUS, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL));
         command(keys, "view.normal", "Normal text size", Command.NORMAL,
                 Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL));
+        command(keys, "view.actionbar", "Show or hide the action bar", Command.ACTION_BAR,
+                Shortcut.of(Key.B, Modifier.CONTROL, Modifier.SHIFT));
         command(keys, "tab.new", "New tab", Command.NEW_TAB,
                 Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.T, Modifier.CONTROL));
         command(keys, "tab.close", "Close the tab, after asking", Command.CLOSE_TAB, Shortcut.of(Key.W, Modifier.CONTROL));
@@ -340,7 +348,51 @@ final class View {
         if (next.motion() != prefs.motion()) {
             ui.motion(next.motion());
         }
+        boolean bar = next.actionBar() != prefs.actionBar();
         prefs = next;
+        if (bar) {
+            ui.actionBar(next.actionBar());
+            ui.menu(keys.paused(), next.actionBar(), intents, windows, openAsked, editWorkspaces);
+            // The keyboard follows a bar the person just showed or hid; one shown at launch leaves it on the terminal.
+            if (barAsked) {
+                barAsked = false;
+                TerminalScreen s = front();
+                if (next.actionBar()) {
+                    gui.focus(ui.actionText().node());
+                } else if (s != null) {
+                    gui.focus(s.node());
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ the action bar (docs/action-bar.md)
+
+    /** Show the action bar, or hide it: asked of the frame, which saves it, and shown when it says so. */
+    void toggleActionBar() {
+        barAsked = true;
+        changePrefs.send(new ChangePrefs(prefs.withActionBar(!prefs.actionBar())));
+    }
+
+    /**
+     * Send: the field's text typed into the tab in front and run there, as if the person had typed it and pressed
+     * Enter, so it is submitted (closing asks) and touched ({@code --insert-path} stands down). The field is emptied
+     * and keeps the keyboard, ready for the next.
+     */
+    void send() {
+        long id = frontId();
+        TerminalScreen screen = screens.get(id);
+        if (screen == null) {
+            return;
+        }
+        typed.send(new Typed(id, InsertText.sent(ui.actionText().text(), screen.terminal().bracketedPaste())));
+        submitted.send(new Submitted(id));
+        if (touchedTabs.add(id)) {
+            touched.send(new Touched(id));
+            inserts.remove(id);
+        }
+        ui.actionText().text("");
+        gui.focus(ui.actionText().node());   // a click on Send took the keyboard; the next line is typed in the field
     }
 
     /** A tab's notice band: one line in the danger colour, and a × that puts it away. Hidden until it says something. */
@@ -505,7 +557,9 @@ final class View {
             noticing.remove(dismissed);
             return;
         }
-        if (m.button().equals(ui.plus().address())) {
+        if (m.button().equals(ui.send().address())) {
+            send();
+        } else if (m.button().equals(ui.plus().address())) {
             newTab();
         } else if (m.button().equals(ui.pill().address()) && keys.paused()) {
             passthrough(false);
@@ -547,6 +601,11 @@ final class View {
     String noticeClose(long id) {
         Band band = bands.get(id);
         return band == null ? "" : band.close().address();
+    }
+
+    /** Whether the action bar is shown, as the frame last said: for a test. */
+    boolean actionBarShown() {
+        return prefs.actionBar();
     }
 
     /** The tab being renamed, or {@code NO_TAB}: for a test. */
@@ -682,7 +741,7 @@ final class View {
     void passthrough(boolean on) {
         keys.paused(on);
         ui.passthrough(on);
-        ui.menu(on, intents, windows, openAsked, editWorkspaces);
+        ui.menu(on, prefs.actionBar(), intents, windows, openAsked, editWorkspaces);
         TerminalScreen s = front();
         if (s != null) {
             gui.focus(s.node());

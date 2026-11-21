@@ -453,6 +453,73 @@ class ViewTest {
         assertEquals(List.of(Shortcut.of(Key.ESCAPE)), keys.chords(interrupt));
     }
 
+    // ------------------------------------------------------------------ the action bar (docs/action-bar.md)
+
+    /** The rows of the last size the view said for tab {@code id}, or 0. */
+    private int rows(long id) {
+        int rows = 0;
+        for (Object m : heard) {
+            if (m instanceof Resized r && r.id() == id) {
+                rows = r.rows();
+            }
+        }
+        return rows;
+    }
+
+    @Test
+    void theActionBarIsHiddenAndItsCommandAsksTheFrameToShowIt() throws Exception {
+        tab(1);
+        assertFalse(wiring.view().actionBarShown(), "hidden until asked for");
+        intent(Intent.Command.ACTION_BAR);
+        eventually("shown, asked of the frame", () -> changed(Preferences::actionBar));
+        assertEquals(List.of(Shortcut.of(Key.B, Modifier.CONTROL, Modifier.SHIFT)),
+                shell.keymap().chords(shell.keymap().action("view.actionbar").orElseThrow()));
+    }
+
+    /**
+     * Shown, the bar is laid out inside the window, at its foot, and hidden again as the frame says. That the terminal
+     * above gives it its rows, and takes them back, is seen with {@code ottermate}: a headless frame never ticks the
+     * clock, so the bar's arrival and departure never finish here (FN-30).
+     */
+    @Test
+    void theShownBarIsLaidOutAtTheWindowsFoot() throws Exception {
+        tab(2);
+        java.util.concurrent.atomic.AtomicReference<dev.vexelray.gui.core.layout.NodeLayout> field =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        dev.vexelray.gui.core.spi.Seams.of(shell.gui()).onResize(wiring.ui().actionText().node(), field::set);
+        said(Preferences.DEFAULT.withActionBar(true));
+        eventually("the field laid out", () -> field.get() != null && field.get().present());
+        float bottom = field.get().content().y() + field.get().content().h();
+        assertTrue(field.get().content().y() > shell.info().height() / 2f && bottom <= shell.info().height(),
+                "at the window's foot, inside it: " + field.get().content());
+        said(Preferences.DEFAULT);
+        eventually("hidden", () -> !wiring.view().actionBarShown());
+    }
+
+    @Test
+    void sendTypesTheFieldIntoTheTabInFrontAndRunsIt() throws Exception {
+        tab(4);
+        said(Preferences.DEFAULT.withActionBar(true));
+        for (int i = 0; i < 3; i++) {
+            VexelApplication.frame(shell);
+        }
+        wiring.ui().actionText().text("cd web\nnpm test");
+        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.ui().send().address()));
+        eventually("the lines, run", () -> heard.contains(new Typed(4, "cd web\rnpm test\r")));
+        eventually("submitted, so closing asks", () -> heard.contains(new Submitted(4)));
+        assertEquals("", wiring.ui().actionText().text(), "the field emptied for the next");
+    }
+
+    @Test
+    void ctrlEnterInTheFieldSends() throws Exception {
+        tab(5);
+        wiring.ui().actionText().text("dir");
+        Action send = shell.keymap().action("action.send").orElseThrow();
+        assertEquals(List.of(Shortcut.of(Key.ENTER, Modifier.CONTROL)), shell.keymap().chords(send));
+        send.run();
+        eventually("the line, run", () -> heard.contains(new Typed(5, "dir\r")));
+    }
+
     // ------------------------------------------------------------------ the Workspaces window
 
     private static final Workspace DAY = new Workspace("day", List.of(new Workspace.Entry("", "C:/work/api")));

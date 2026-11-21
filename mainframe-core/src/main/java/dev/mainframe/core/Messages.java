@@ -272,34 +272,39 @@ public final class Messages {
     /**
      * What Settings holds: the terminals' text size, how the tab bar changes tabs, the shell a new tab runs (a
      * {@link ShellChoice}'s id), the folder a new tab starts in (empty for the home folder), and the workspace a launch that
-     * names nothing opens (blank for none).
+     * names nothing opens (blank for none), and whether the action bar is shown under the tabs (docs/action-bar.md).
      */
-    public record Preferences(int fontPx, TabMotion motion, String shell, Optional<Path> dir, String startWorkspace) {
+    public record Preferences(int fontPx, TabMotion motion, String shell, Optional<Path> dir, String startWorkspace,
+                              boolean actionBar) {
 
         /** The text sizes on offer, in px: what the window's segment shows and Ctrl+= and Ctrl+- walk. */
         public static final List<Integer> SIZES = List.of(14, 16, 18, 20, 24);
 
         /** What a first run has. */
-        public static final Preferences DEFAULT = new Preferences(18, TabMotion.SLIDE, "", Optional.empty(), "");
+        public static final Preferences DEFAULT = new Preferences(18, TabMotion.SLIDE, "", Optional.empty(), "", false);
 
         public Preferences withFontPx(int px) {
-            return new Preferences(px, motion, shell, dir, startWorkspace);
+            return new Preferences(px, motion, shell, dir, startWorkspace, actionBar);
         }
 
         public Preferences withMotion(TabMotion m) {
-            return new Preferences(fontPx, m, shell, dir, startWorkspace);
+            return new Preferences(fontPx, m, shell, dir, startWorkspace, actionBar);
         }
 
         public Preferences withShell(String id) {
-            return new Preferences(fontPx, motion, id, dir, startWorkspace);
+            return new Preferences(fontPx, motion, id, dir, startWorkspace, actionBar);
         }
 
         public Preferences withDir(Optional<Path> d) {
-            return new Preferences(fontPx, motion, shell, d, startWorkspace);
+            return new Preferences(fontPx, motion, shell, d, startWorkspace, actionBar);
         }
 
         public Preferences withStartWorkspace(String name) {
-            return new Preferences(fontPx, motion, shell, dir, name);
+            return new Preferences(fontPx, motion, shell, dir, name, actionBar);
+        }
+
+        public Preferences withActionBar(boolean shown) {
+            return new Preferences(fontPx, motion, shell, dir, startWorkspace, shown);
         }
 
         /** The next size up ({@code 1}) or down ({@code -1}) of {@link #SIZES}, or the first run's ({@code 0}). */
