@@ -34,7 +34,6 @@
         <dependency>
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-shell</artifactId>
-            <version>${vexelray-framework.version}</version>
         </dependency>
         <!-- The automation sockets, remote control and diagnostics, as a framework component: in every build, the
              release one too, off until the launch or the title bar's plug switches one on, and the plug's lamps
@@ -42,54 +41,46 @@
         <dependency>
             <groupId>dev.vexelray.framework</groupId>
             <artifactId>vexelray-framework-automation</artifactId>
-            <version>${vexelray-framework.version}</version>
         </dependency>
         <!-- The widget shelf, and the framework core and draw modules behind it. Reached through -shell as
              well; named here because this project's own Ui builds against it directly. -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-widget</artifactId>
-            <version>${vexelray-gui.version}</version>
         </dependency>
         <!-- The clock. Motion enters at the application edge and nowhere else: -widget declares seams shaped
              out of JDK types and this module satisfies them, so a widget animates without naming Kronometer. -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-krono</artifactId>
-            <version>${vexelray-gui.version}</version>
         </dependency>
         <!-- The keymap the view declares its commands on. The framework makes it and owns the title-bar button
              that rebinds them; named here because View builds against it directly. -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-keymap</artifactId>
-            <version>${vexelray-gui.version}</version>
         </dependency>
         <!-- The terminal drawn as a node (TerminalScreen), shared with VexelRay IDE's build console. -->
         <dependency>
             <groupId>dev.sibarum</groupId>
             <artifactId>vex-suite-common-tty</artifactId>
-            <version>${vex-suite-common.version}</version>
         </dependency>
         <!-- Driving the running app the way a person does: real window, real Vulkan, real frame loop
              (vexelray-gui/docs/reference/automation.md). -->
         <dependency>
             <groupId>dev.vexelray.gui</groupId>
             <artifactId>vexelray-gui-automation</artifactId>
-            <version>${vexelray-gui.version}</version>
         </dependency>
         <!-- Input at the application edge: the tactroller->atchung bridge (brings tactroller-api and
              atchung-core transitively, which is where State and Committer come from). -->
         <dependency>
             <groupId>sibarum.tactroller</groupId>
             <artifactId>tactroller-atchung</artifactId>
-            <version>${tactroller.version}</version>
         </dependency>
         <!-- Standalone OS clipboard; no input-subsystem coupling. -->
         <dependency>
             <groupId>sibarum.tactroller</groupId>
             <artifactId>tactroller-clipboard</artifactId>
-            <version>${tactroller.version}</version>
         </dependency>
         <!-- The title bar's camera records video as well as taking screenshots: found through ServiceLoader, so this
              dependency is all it takes. AV1 into Matroska, through an FFmpeg that holds the AV1 encoders and no
@@ -97,7 +88,6 @@
         <dependency>
             <groupId>dev.vexelray.codec</groupId>
             <artifactId>vexelray-codec-record</artifactId>
-            <version>${vexelray-codec.version}</version>
         </dependency>
 
         <dependency>
@@ -137,9 +127,12 @@
                         <imageName>${native.imageName}</imageName>
                         <mainClass>${app.mainClass}</mainClass>
                         <buildArgs>
-                            <!-- The FFM flags, the shaders, the font atlas and the icon's registration come from
-                                 the libraries' and the processor's own META-INF/native-image metadata; only what
-                                 is this program's is set here. -->
+                            <!-- Only what is this program's is set here: its name, its entry point and how it
+                                 links. The FFM flags (-H:+ForeignAPISupport, shared arenas, native access), the
+                                 downcalls (the pseudoconsole's included), the shaders, the font atlas and the icon's
+                                 registration all come from the META-INF/native-image of the jars that need them, the
+                                 processor's included, so a library this program depends on brings what it needs and
+                                 nothing is copied here. -->
                             <buildArg>--no-fallback</buildArg>
                             <!-- WINDOWS needs /ENTRY:mainCRTStartup as well: the linker would otherwise look for
                                  WinMain, and the image's entry is the C main. CONSOLE is the linker's default,
@@ -258,8 +251,8 @@
     <profiles>
         <!--
           GraalVM native images; both need a GraalVM JDK (JAVA_HOME) and are profile-gated because native-image
-          takes minutes. This program's own reachability metadata is under src/main/resources/META-INF/native-image/;
-          the libraries and the processor bring the rest.
+          takes minutes. This program has no reachability metadata of its own: the libraries and the processor bring
+          all of it (README, "A native executable", says when to add some).
 
             native-build.cmd -Pnative-release package -DskipTests  ->  mainframe-gui/target/mainframe.exe        what ships
             native-build.cmd -Pnative package -DskipTests          ->  mainframe-gui/target/mainframe-debug.exe  for ottermate
@@ -431,19 +424,16 @@
                 <dependency>
                     <groupId>dev.vexelray</groupId>
                     <artifactId>vexelray-os-windows</artifactId>
-                    <version>${vexelray.version}</version>
                     <scope>runtime</scope>
                 </dependency>
                 <dependency>
                     <groupId>sibarum.tactroller</groupId>
                     <artifactId>tactroller-windows</artifactId>
-                    <version>${tactroller.version}</version>
                     <scope>runtime</scope>
                 </dependency>
                 <dependency>
                     <groupId>dev.sibarum</groupId>
                     <artifactId>vex-suite-common-pty-windows</artifactId>
-                    <version>${vex-suite-common.version}</version>
                     <scope>runtime</scope>
                 </dependency>
             </dependencies>
@@ -455,19 +445,16 @@
                 <dependency>
                     <groupId>dev.vexelray</groupId>
                     <artifactId>vexelray-os-linux</artifactId>
-                    <version>${vexelray.version}</version>
                     <scope>runtime</scope>
                 </dependency>
                 <dependency>
                     <groupId>sibarum.tactroller</groupId>
                     <artifactId>tactroller-linux</artifactId>
-                    <version>${tactroller.version}</version>
                     <scope>runtime</scope>
                 </dependency>
                 <dependency>
                     <groupId>dev.sibarum</groupId>
                     <artifactId>vex-suite-common-pty-linux</artifactId>
-                    <version>${vex-suite-common.version}</version>
                     <scope>runtime</scope>
                 </dependency>
             </dependencies>
@@ -479,13 +466,11 @@
                 <dependency>
                     <groupId>dev.vexelray</groupId>
                     <artifactId>vexelray-os-macos</artifactId>
-                    <version>${vexelray.version}</version>
                     <scope>runtime</scope>
                 </dependency>
                 <dependency>
                     <groupId>sibarum.tactroller</groupId>
                     <artifactId>tactroller-macos</artifactId>
-                    <version>${tactroller.version}</version>
                     <scope>runtime</scope>
                 </dependency>
             </dependencies>

@@ -35,12 +35,14 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <vexelray-framework.version>0.2.1-SNAPSHOT</vexelray-framework.version>
+        <!-- The stack this is built against, as one version: vexelray-bom's, imported below, which fixes the version
+             of every library in the stack, so no dependency in this build names one. Moving to a newer stack is this
+             line. -->
+        <vexelray-bom.version>0.2.1-SNAPSHOT</vexelray-bom.version>
+        <!-- A BOM manages dependencies and not plugins, so the stack's two build plugins keep a version of their own:
+             vexelray-gui's icons plugin (in -gui) and vexelray-build's (below). -->
         <vexelray-gui.version>0.2.1-SNAPSHOT</vexelray-gui.version>
-        <vexelray.version>0.2.1-SNAPSHOT</vexelray.version>
-        <tactroller.version>1.4-SNAPSHOT</tactroller.version>
-        <vexelray-codec.version>0.2.1-SNAPSHOT</vexelray-codec.version>
-        <vex-suite-common.version>0.2.1-SNAPSHOT</vex-suite-common.version>
+        <vexelray-build.version>0.2.1-SNAPSHOT</vexelray-build.version>
         <junit.version>5.11.4</junit.version>
 
         <app.mainClass>dev.mainframe.MainFrame</app.mainClass>
@@ -79,6 +81,16 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- The stack's versions (vexelray-framework's vexelray-bom). Each library also carries its own
+                 native-image metadata and flags, so a native build inherits what the libraries it depends on need,
+                 and this project writes none of it. -->
+            <dependency>
+                <groupId>dev.vexelray.framework</groupId>
+                <artifactId>vexelray-bom</artifactId>
+                <version>${vexelray-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>dev.mainframe</groupId>
                 <artifactId>mainframe-core</artifactId>
@@ -124,7 +136,7 @@
             <plugin>
                 <groupId>dev.vexelray.build</groupId>
                 <artifactId>vexelray-build-maven-plugin</artifactId>
-                <version>0.2.1-SNAPSHOT</version>
+                <version>${vexelray-build.version}</version>
                 <executions>
                     <execution>
                         <goals>
@@ -143,12 +155,12 @@
                     <!-- The framework's annotation processor, in both modules: what its vocabulary calls a compile error
                          is one in -core as well, where the editor's mailboxes and the jobs' messages are checked as a
                          library. In -gui it also writes the wiring. Named rather than found, because since JDK 23 javac
-                         runs no processor it merely finds on the class path. -->
+                         runs no processor it merely finds on the class path. No version: the plugin takes it from
+                         vexelray-bom, as the dependencies do. -->
                     <annotationProcessorPaths>
                         <path>
                             <groupId>dev.vexelray.framework</groupId>
                             <artifactId>vexelray-framework-processor</artifactId>
-                            <version>${vexelray-framework.version}</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
