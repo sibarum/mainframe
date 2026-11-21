@@ -30,11 +30,11 @@ import java.util.function.Consumer;
  *
  * <p>The tabs are the view's to add and remove, as the frame says; this only builds the regions once and keeps them,
  * and the view shows, hides and fills them. Nothing is rebuilt, so nothing on screen changes in one frame: a tab
- * arriving slides in ({@link Motion#change}), and the pill and the rename field fade in and out.
+ * arriving slides in ({@link Motion#change}), and the rename field fades in and out.
  *
  * <h2>The bar's end</h2>
  *
- * <p>The + (a new tab), the passthrough pill (docs/passthrough.md) and the rename field stand at the tab bar's right
+ * <p>The + (a new tab) and the rename field stand at the tab bar's right
  * end. {@code Tabs} has no place for an application's own nodes beside its headers, nor over one, so they float in a
  * box round the tabs, pushed to its right edge (a floated node is kept inside its parent), and the rename field is
  * there rather than over the header it renames (docs/framework-notes.md, FN-10).
@@ -47,13 +47,9 @@ final class Ui {
     /** The application's menu after the lockup; a script reaches it as {@code TitleBar.menuLandmark(TERMINAL_MENU)}. */
     static final String TERMINAL_MENU = "terminal";
 
-    /** The Terminal menu's radio group that says where the keys go, MainFrame or the shell. */
-    static final String KEYS = "keys";
-
     private final TitleBar titleBar;
     private final Tabs tabs;
     private final IconButton plus;
-    private final Button pill;
     private final TextField rename;
     private final Map<TabMotion, Consumer<Tabs>> motions = new EnumMap<>(TabMotion.class);
     private final Node renaming;
@@ -63,7 +59,7 @@ final class Ui {
 
     Ui(Gui gui, Motion motion, TitleBar titleBar) {
         this.titleBar = titleBar;
-        // Always shown, even with one tab: the + and the passthrough pill stand at its end (docs/shape.md, ruled).
+        // Always shown, even with one tab: the + stands at its end (docs/shape.md, ruled).
         tabs = new Tabs(gui).name("tabs").closable(false).slide(motion.change);
         tabs.node().width(Length.FILL).height(Length.grow(1f));
         motions.put(TabMotion.SLIDE, t -> t.slide(motion.change));
@@ -74,12 +70,6 @@ final class Ui {
         plus = new IconButton(gui, Icon.PLUS, "New tab").name(Landmarks.NEW_TAB);
         gui.landmark(Landmarks.NEW_TAB, plus.node());
 
-        pill = new Button(gui, "Every key to the shell   ×").kind(Button.Kind.PRIMARY).name(Landmarks.PASSTHROUGH);
-        pill.node().visible(false);
-        gui.landmark(Landmarks.PASSTHROUGH, pill.node());
-        new Tooltip(gui).attach(pill.node(), "MainFrame's shortcuts are off while this is on, so Ctrl+C, Esc and the "
-                + "rest reach the program. Click to turn them back on.");
-
         rename = new TextField(gui).name(Landmarks.RENAME);
         rename.node().width(Length.rem(12f));
         gui.landmark(Landmarks.RENAME, rename.node());
@@ -88,7 +78,7 @@ final class Ui {
 
         Node end = gui.row().gap(Length.dp(6)).alignItems(AlignItems.CENTER)
                 .padding(Length.dp(3), Length.dp(6))
-                .children(renaming, pill.node(), plus.node())
+                .children(renaming, plus.node())
                 // Far right: a floated node is clamped inside its parent, so this lands against the right edge.
                 .floatAt(Length.rem(10_000f), Length.ZERO);
         Node body = gui.box().width(Length.FILL).height(Length.grow(1f)).children(tabs.node(), end);
@@ -145,10 +135,6 @@ final class Ui {
         return plus;
     }
 
-    Button pill() {
-        return pill;
-    }
-
     TextField rename() {
         return rename;
     }
@@ -156,11 +142,6 @@ final class Ui {
     /** How the bar changes tabs from now on, as Settings says. */
     void motion(TabMotion m) {
         motions.get(m).accept(tabs);
-    }
-
-    /** Show the passthrough pill, or not. */
-    void passthrough(boolean on) {
-        pill.node().visible(on);
     }
 
     /** Show the rename field holding {@code text}, all of it selected so typing replaces it; or put it away. */
@@ -173,11 +154,10 @@ final class Ui {
 
     /**
      * The Terminal menu, declared again. Each line names the key-map action it stands for, so it says that action's
-     * chord as the person has it now. Its last group says where the keys go: to MainFrame, whose chords then work, or
-     * to the shell, with the passthrough switch on (docs/passthrough.md). Neither of those has a chord, since none could
-     * reach MainFrame to turn it back.
+     * chord as the person has it now; those chords work from the action bar's field, and Ctrl+Shift+B from anywhere.
+     * The menu is how to reach a command with the keyboard in the terminal and the bar hidden.
      */
-    void menu(boolean passthrough, boolean actionBar, Sender<Intent> intents, Sender<WindowCommand> windows,
+    void menu(boolean actionBar, Sender<Intent> intents, Sender<WindowCommand> windows,
               Sender<dev.mainframe.core.Messages.OpenAsked> open,
               Sender<dev.mainframe.core.Messages.EditWorkspaces> edit) {
         Menu menu = Menu.builder()
@@ -197,12 +177,6 @@ final class Ui {
                 .toggle(actionBar)
                 .separator()
                 .item(Icon.SETTINGS, "Settings…", windows, WindowCommand.show(SettingsPage.KEY)).command("app.settings")
-                .separator()
-                .heading("Send keys to")
-                .item(Icon.WINDOW, "MainFrame", intents, new Intent(Intent.Command.KEYS_TO_MAINFRAME))
-                .radio(KEYS, !passthrough)
-                .item(Icon.SHELL, "The shell", intents, new Intent(Intent.Command.KEYS_TO_SHELL))
-                .radio(KEYS, passthrough)
                 .build();
         titleBar.menu(TERMINAL_MENU, "Terminal", menu);
     }

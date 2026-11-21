@@ -19,19 +19,13 @@ record Intent(Command command) {
         COPY {
             @Override
             void on(View view) {
-                view.copyOrInterrupt();
+                view.copy();
             }
         },
         PASTE {
             @Override
             void on(View view) {
                 view.paste();
-            }
-        },
-        INTERRUPT {
-            @Override
-            void on(View view) {
-                view.interrupt();
             }
         },
         PAGE_BACK {
@@ -112,22 +106,16 @@ record Intent(Command command) {
                 view.toggleActionBar();
             }
         },
+        ACTION_BAR_KEY {
+            @Override
+            void on(View view) {
+                view.actionBarKey();
+            }
+        },
         SEND {
             @Override
             void on(View view) {
                 view.send();
-            }
-        },
-        KEYS_TO_MAINFRAME {
-            @Override
-            void on(View view) {
-                view.passthrough(false);
-            }
-        },
-        KEYS_TO_SHELL {
-            @Override
-            void on(View view) {
-                view.passthrough(true);
             }
         };
 

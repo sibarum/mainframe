@@ -72,12 +72,11 @@ import java.util.Map;
  * ({@code TITLED}) addressed by the window, not by itself, so a part keyed per tab cannot hear them as they are. The
  * view knows which screen is which tab, and sends each on keyed by the tab's id (docs/framework-notes.md, FN-2).
  *
- * <h2>The terminal's chords are the front screen's</h2>
+ * <h2>The terminal has the keys; the action bar's field has MainFrame's</h2>
  *
- * <p>Copy, paste, interrupt and paging apply while the screen in front has the keyboard, and move to each screen as it
- * comes to the front, as 0.1's did; so in the rename field Ctrl+V and Esc are the field's. The tab and window
- * commands apply everywhere. While the passthrough switch is on (docs/passthrough.md) the key map lets go of all of
- * them, and the pill at the bar's end, or the Terminal menu, is the way back.
+ * <p>Copy, paste and paging apply while the screen in front has the keyboard, and move to each screen as it comes to
+ * the front. Every other key the terminal has goes to its program. The tab and window commands apply while the action
+ * bar's field has the keyboard, and Ctrl+Shift+B, everywhere, takes it there ({@link #commands}).
  *
  * <h2>What it sends is in its constructor</h2>
  *
@@ -172,6 +171,9 @@ final class View {
     /** The person asked to show or hide the action bar, and the frame has not yet said so: the focus follows it. */
     private boolean barAsked;
 
+    /** Whether the action bar's field has the keyboard, as the focus events last said. */
+    private boolean inField;
+
     /** The tab whose new name is being typed, or {@link dev.mainframe.core.Messages#NO_TAB}. */
     private long renamingTab = dev.mainframe.core.Messages.NO_TAB;
 
@@ -208,22 +210,29 @@ final class View {
         this.glyphs = fonts.layout(fonts.face("mono"));
         tabs.action(RENAME).action(ENV_TAB).action(ENV_WORKSPACE).action(CLOSE);
         commands(keys, open, openKeys, workspaces, workspacesKeys);
-        ui.menu(false, false, intents, windows, openAsked, editWorkspaces);
+        ui.menu(false, intents, windows, openAsked, editWorkspaces);
         // A double-click on a header renames its tab. The bar says nothing of one, so the tree's clicks are read,
         // in a mailbox of the widgets' tick like every other the view has (FN-11).
         gui.mailbox(gui.clicks(), this::clicked, 64);
+        // Where the keyboard is, for Ctrl+Shift+B: to the action bar's field from anywhere else, away from it there.
+        gui.mailbox(gui.focusEvents(), this::focused, 64);
     }
 
     /**
      * Every command the keyboard reaches, as a declaration: a stable id, what the person calls it, the chords it starts
      * with, and the {@link Intent} it sends. The chords are the person's to change from the app menu's
-     * <i>Key bindings…</i>. A chord held here outranks the terminal's typing, which is why Ctrl+C copies and Esc
-     * interrupts (0.1's README, <i>Keys</i>): unbind one and the program has it again.
+     * <i>Key bindings…</i>.
+     *
+     * <p><b>The terminal has every key but four.</b> A chord held here outranks the terminal's typing, so MainFrame's
+     * own (tabs, text size, Open, Settings) are held only while the action bar's field has the keyboard, and the
+     * terminal keeps Ctrl+Shift+C and Ctrl+Shift+V (copy, paste) and Shift+PageUp and Shift+PageDown (its scrollback),
+     * as most terminals do. Ctrl+C, Ctrl+V and Esc reach the program as themselves. Ctrl+Shift+B is held everywhere: it
+     * is the way from the terminal to the field (docs/action-bar.md, which also says why the passthrough switch went).
      */
     private void commands(Keymap keys, OpenPage open, Sender<OpenPage.Key> openKeys, WorkspacesPage workspaces,
                           Sender<WorkspacesPage.Key> workspacesKeys) {
         // Esc in the rename field puts it away. First, and moved to the field at once: two actions may not both
-        // default to Esc in one place, and every action starts application-wide, where the interrupt's Esc is.
+        // default to Esc in one place, and every action starts application-wide.
         command(keys, "tab.rename-cancel", "Cancel renaming the tab", Command.RENAME_CANCEL, Shortcut.of(Key.ESCAPE))
                 .within(gui, ui.rename().node(), ClaimScope.FOCUSED);
         // The Open dialog's Esc, here for the same reason: an action can only be declared application-wide and moved
@@ -231,7 +240,7 @@ final class View {
         keys.action("open.close", "Close the Open dialog", Shortcut.of(Key.ESCAPE))
                 .sends(openKeys, new OpenPage.Key(false)).within(open.gui(), open.listNode(), ClaimScope.FOCUSED);
         // The Workspaces window's Esc (a field back as it was) and Ctrl+Shift+R (to the name), for the same reason:
-        // the terminal's Esc and the tab bar's Ctrl+Shift+R are declared below, application-wide.
+        // the tab bar's Ctrl+Shift+R is declared below, application-wide, before it is moved to the action bar's field.
         keys.action("workspaces.cancel", "Put back the name being typed", Shortcut.of(Key.ESCAPE))
                 .sends(workspacesKeys, new WorkspacesPage.Key(true))
                 .within(workspaces.gui(), workspaces.root(), ClaimScope.VISIBLE);
@@ -241,37 +250,42 @@ final class View {
         // The action bar's Ctrl+Enter, in its field only: Enter there is a new line, as in any many-line field.
         command(keys, "action.send", "Send the action bar's text", Command.SEND,
                 Shortcut.of(Key.ENTER, Modifier.CONTROL)).within(gui, ui.actionText().node(), ClaimScope.FOCUSED);
-        terminal.add(command(keys, "terminal.copy", "Copy the selection, or interrupt", Command.COPY,
-                Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.C, Modifier.CONTROL)));
+        terminal.add(command(keys, "terminal.copy", "Copy the selection", Command.COPY,
+                Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT)));
         terminal.add(command(keys, "terminal.paste", "Paste", Command.PASTE,
-                Shortcut.of(Key.V, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.V, Modifier.CONTROL)));
-        terminal.add(command(keys, "terminal.interrupt", "Interrupt", Command.INTERRUPT, Shortcut.of(Key.ESCAPE)));
+                Shortcut.of(Key.V, Modifier.CONTROL, Modifier.SHIFT)));
         terminal.add(command(keys, "terminal.page-back", "Scroll back a page", Command.PAGE_BACK,
                 Shortcut.of(Key.PAGE_UP, Modifier.SHIFT)));
         terminal.add(command(keys, "terminal.page-on", "Scroll on a page", Command.PAGE_ON,
                 Shortcut.of(Key.PAGE_DOWN, Modifier.SHIFT)));
-        command(keys, "view.larger", "Larger text", Command.LARGER,
-                Shortcut.of(Key.EQUAL, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL));
-        command(keys, "view.smaller", "Smaller text", Command.SMALLER,
-                Shortcut.of(Key.MINUS, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL));
-        command(keys, "view.normal", "Normal text size", Command.NORMAL,
-                Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL));
-        command(keys, "view.actionbar", "Show or hide the action bar", Command.ACTION_BAR,
+        // Everywhere, the terminal included: the way to the field, where the rest are.
+        command(keys, "view.actionbar", "Show or hide the action bar, or go to it", Command.ACTION_BAR_KEY,
                 Shortcut.of(Key.B, Modifier.CONTROL, Modifier.SHIFT));
-        command(keys, "tab.new", "New tab", Command.NEW_TAB,
-                Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.T, Modifier.CONTROL));
-        command(keys, "tab.close", "Close the tab, after asking", Command.CLOSE_TAB, Shortcut.of(Key.W, Modifier.CONTROL));
-        command(keys, "tab.close-now", "Close the tab without asking", Command.CLOSE_NOW,
-                Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT));
-        command(keys, "tab.rename", "Rename the tab", Command.RENAME,
-                Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT));
-        command(keys, "tab.next", "Next tab", Command.NEXT_TAB, Shortcut.of(Key.TAB, Modifier.CONTROL));
-        command(keys, "tab.previous", "Previous tab", Command.PREVIOUS_TAB,
-                Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT));
-        keys.action("app.open", "Open a workspace or a folder", Shortcut.of(Key.O, Modifier.CONTROL))
-                .sends(openAsked, new OpenAsked());
-        keys.action("app.settings", "Settings", Shortcut.of(Key.COMMA, Modifier.CONTROL))
-                .sends(windows, WindowCommand.show(SettingsPage.KEY));
+        List<Action> field = List.of(
+                command(keys, "view.larger", "Larger text", Command.LARGER,
+                        Shortcut.of(Key.EQUAL, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_ADD, Modifier.CONTROL)),
+                command(keys, "view.smaller", "Smaller text", Command.SMALLER,
+                        Shortcut.of(Key.MINUS, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_SUBTRACT, Modifier.CONTROL)),
+                command(keys, "view.normal", "Normal text size", Command.NORMAL,
+                        Shortcut.of(Key.DIGIT_0, Modifier.CONTROL), Shortcut.of(Key.NUMPAD_0, Modifier.CONTROL)),
+                command(keys, "tab.new", "New tab", Command.NEW_TAB,
+                        Shortcut.of(Key.T, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.T, Modifier.CONTROL)),
+                command(keys, "tab.close", "Close the tab, after asking", Command.CLOSE_TAB,
+                        Shortcut.of(Key.W, Modifier.CONTROL)),
+                command(keys, "tab.close-now", "Close the tab without asking", Command.CLOSE_NOW,
+                        Shortcut.of(Key.W, Modifier.CONTROL, Modifier.SHIFT)),
+                command(keys, "tab.rename", "Rename the tab", Command.RENAME,
+                        Shortcut.of(Key.R, Modifier.CONTROL, Modifier.SHIFT)),
+                command(keys, "tab.next", "Next tab", Command.NEXT_TAB, Shortcut.of(Key.TAB, Modifier.CONTROL)),
+                command(keys, "tab.previous", "Previous tab", Command.PREVIOUS_TAB,
+                        Shortcut.of(Key.TAB, Modifier.CONTROL, Modifier.SHIFT)),
+                keys.action("app.open", "Open a workspace or a folder", Shortcut.of(Key.O, Modifier.CONTROL))
+                        .sends(openAsked, new OpenAsked()),
+                keys.action("app.settings", "Settings", Shortcut.of(Key.COMMA, Modifier.CONTROL))
+                        .sends(windows, WindowCommand.show(SettingsPage.KEY)));
+        for (Action a : field) {
+            a.within(gui, ui.actionText().node(), ClaimScope.FOCUSED);
+        }
     }
 
     private Action command(Keymap keys, String id, String label, Command command, Shortcut... chords) {
@@ -352,7 +366,7 @@ final class View {
         prefs = next;
         if (bar) {
             ui.actionBar(next.actionBar());
-            ui.menu(keys.paused(), next.actionBar(), intents, windows, openAsked, editWorkspaces);
+            ui.menu(next.actionBar(), intents, windows, openAsked, editWorkspaces);
             // The keyboard follows a bar the person just showed or hid; one shown at launch leaves it on the terminal.
             if (barAsked) {
                 barAsked = false;
@@ -367,6 +381,25 @@ final class View {
     }
 
     // ------------------------------------------------------------------ the action bar (docs/action-bar.md)
+
+    /**
+     * Ctrl+Shift+B: from anywhere but the action bar's field, to it, shown first if it is hidden; from the field, the
+     * bar hidden and the keyboard back on the terminal. So it is both the way to MainFrame's chords and the way back.
+     */
+    void actionBarKey() {
+        if (prefs.actionBar() && !inField) {
+            gui.focus(ui.actionText().node());
+        } else {
+            toggleActionBar();
+        }
+    }
+
+    /** The keyboard moved: whether it is now in the action bar's field. */
+    private void focused(dev.vexelray.gui.core.input.FocusEvent e) {
+        if (e.nodeId() == ui.actionText().node().id()) {
+            inField = e.gained();
+        }
+    }
 
     /** Show the action bar, or hide it: asked of the frame, which saves it, and shown when it says so. */
     void toggleActionBar() {
@@ -548,7 +581,7 @@ final class View {
         }
     }
 
-    /** The + or the pill. */
+    /** The +, Send, or a notice's ×. */
     @Subscribe
     public void pressed(Button.Pressed m) {
         Long dismissed = byClose.get(m.button());
@@ -561,8 +594,6 @@ final class View {
             send();
         } else if (m.button().equals(ui.plus().address())) {
             newTab();
-        } else if (m.button().equals(ui.pill().address()) && keys.paused()) {
-            passthrough(false);
         }
     }
 
@@ -641,10 +672,10 @@ final class View {
         }
     }
 
-    void copyOrInterrupt() {
+    void copy() {
         TerminalScreen s = front();
         if (s != null) {
-            s.copyOrInterrupt();
+            s.copySelection();
         }
     }
 
@@ -652,14 +683,6 @@ final class View {
         TerminalScreen s = front();
         if (s != null) {
             s.paste();
-        }
-    }
-
-    /** What Ctrl+C sends a shell, 0x03, for when Ctrl+C is copying. */
-    void interrupt() {
-        long id = frontId();
-        if (id != dev.mainframe.core.Messages.NO_TAB) {
-            typed.send(new Typed(id, "\u0003"));
         }
     }
 
@@ -728,20 +751,6 @@ final class View {
             rename.send(new Rename(id, ui.rename().text()));
         }
         ui.renaming(false, "");
-        TerminalScreen s = front();
-        if (s != null) {
-            gui.focus(s.node());
-        }
-    }
-
-    /**
-     * Every key to the shell while {@code on}, or back to MainFrame's commands (docs/passthrough.md). Choosing where
-     * the keys already go changes nothing but the focus, which goes back to the terminal either way.
-     */
-    void passthrough(boolean on) {
-        keys.paused(on);
-        ui.passthrough(on);
-        ui.menu(on, prefs.actionBar(), intents, windows, openAsked, editWorkspaces);
         TerminalScreen s = front();
         if (s != null) {
             gui.focus(s.node());

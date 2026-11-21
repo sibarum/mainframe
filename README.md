@@ -5,9 +5,10 @@ runs unmodified inside a Windows pseudoconsole (ConPTY), and MainFrame draws wha
 
 This is MainFrame 0.2: everything 0.1 did, rebuilt on VexelRay 0.2 ([docs/rebuild.md](docs/rebuild.md) has how, milestone by
 milestone). Tabs of shells, their settings, and workspaces: saved sets of folders with environment scripts, opened at
-launch or with Ctrl+O, and edited in a window of their own with undo for every change. Two things were redesigned
-rather than ported: the Workspaces window ([docs/workspaces-page.md](docs/workspaces-page.md)) and the switch that hands
-every key to the shell ([docs/passthrough.md](docs/passthrough.md)).
+launch or with Ctrl+O, and edited in a window of their own with undo for every change. The Workspaces window was
+redesigned rather than ported ([docs/workspaces-page.md](docs/workspaces-page.md)). New since 0.1, an action bar under
+the tabs ([docs/action-bar.md](docs/action-bar.md)): a field whose text Send runs in the tab in front, and where
+MainFrame's own chords work, so the terminal has every other key.
 
 ## Run it
 
@@ -50,28 +51,34 @@ yet (docs/framework-notes.md, FN-5).
 ## Keys
 
 Every command is an action on the framework's key map, with a name and chords that are yours to change from the
-title bar. A chord the key map holds outranks typing; every other key goes to the shell.
+title bar. **While a terminal has the keyboard, every key is the shell's but these:**
 
 | Action | Keys it starts with |
 | --- | --- |
-| Copy the selection, or interrupt when nothing is selected | Ctrl+Shift+C, Ctrl+C |
-| Paste | Ctrl+Shift+V, Ctrl+V |
-| Interrupt (0x03, what Ctrl+C sends a shell) | Esc |
+| Copy the selection | Ctrl+Shift+C |
+| Paste | Ctrl+Shift+V |
 | Scroll back / on a page | Shift+PageUp / Shift+PageDown |
+| Show the action bar and go to its field; from the field, hide it | Ctrl+Shift+B |
+
+So Ctrl+C, Ctrl+V, Ctrl+W and Esc reach the program as themselves (vim, emacs, tmux, PSReadLine). **MainFrame's own
+chords work in the action bar's field**, Ctrl+Shift+B away:
+
+| Action | Keys it starts with |
+| --- | --- |
+| Send the field's text to the tab in front, and run it | Ctrl+Enter |
 | Larger, smaller, normal text | Ctrl+= / Ctrl+- / Ctrl+0, and the numpad's |
 | New tab | Ctrl+Shift+T, Ctrl+T |
 | Close the tab, after asking | Ctrl+W |
 | Close the tab without asking | Ctrl+Shift+W |
 | Rename the tab | Ctrl+Shift+R |
 | Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| Open a workspace or a folder | Ctrl+O |
+| Settings | Ctrl+, |
 
-The first four apply while a terminal has the keyboard, so in the rename field Ctrl+V and Esc are the field's. The
-text size is the terminal's own (14 to 24 px), not the window's zoom, since a terminal is a grid of cells. The
+The text size is the terminal's own (14 to 24 px), not the window's zoom, since a terminal is a grid of cells. The
 **Terminal** menu, after the window's name in the title bar, has the tab and text commands too.
 
-**Every key to the shell**, the Terminal menu's last line, lets go of all of these until you take them back, so
-Ctrl+C, Esc and the rest reach a program that wants them (vim, emacs, tmux). While it is on, a pill at the tab bar's
-end says so, and a click on it gives MainFrame its keys back. It is not saved.
+The switch that handed every key to the shell is gone (docs/passthrough.md has its history): the terminal has them, and the field has MainFrame's.
 
 A right-click copies the selection, or pastes when nothing is selected.
 

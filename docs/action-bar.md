@@ -182,3 +182,25 @@ shown (`actionbar.shown=true`). Where it departs from the sketch:
   the re-fit.
 - **Not driven live:** the Terminal menu's *Action bar* line (its toggle is declared beside the chord's command), and
   a shell that asked for bracketed paste (Windows PowerShell's PSReadLine did not; `InsertTextTest` holds the paste).
+
+## The keys: the field has MainFrame's, the terminal has the rest
+
+Ruled by the author 2026-11-21, after slice 1: the passthrough switch goes. "If you want the keyboard shortcuts, use
+the input field. If you want keystrokes sent to the terminal, focus the terminal." With the two questions that raised,
+answered as recommended: Ctrl+Shift+B stays the way out of the terminal, and the terminal keeps Ctrl+Shift+C and
+Ctrl+Shift+V.
+
+- **While a terminal has the keyboard**, the key map holds only Ctrl+Shift+C (copy the selection; nothing with none),
+  Ctrl+Shift+V (paste), Shift+PageUp and Shift+PageDown (scrollback), each the front screen's, and Ctrl+Shift+B. So
+  Ctrl+C, Ctrl+V, Ctrl+W, Ctrl+T and Esc reach the program. The interrupt action (Esc) is gone, and Ctrl+C and Ctrl+V
+  are no longer copy's and paste's.
+- **MainFrame's chords are the field's** (`within` the field, `FOCUSED`): the tab commands, the text size, Open,
+  Settings, and Ctrl+Enter's Send. The Terminal menu still has them all, for the mouse.
+- **Ctrl+Shift+B, everywhere:** with the bar hidden, it shows it and puts the keyboard in the field; with the bar shown
+  and the keyboard elsewhere, it goes to the field; from the field, it hides the bar and the keyboard goes back to the
+  terminal. The menu's *Action bar* line only shows and hides.
+- **Gone:** the pill, the Terminal menu's *Send keys to* group, `Keymap.paused`, and the `passthrough` landmark.
+
+Seen live 2026-11-21: Ctrl+T and Ctrl+W typed in the terminal went to PowerShell and opened and closed nothing, Esc
+cleared PowerShell's line, and from the field Ctrl+T opened a tab. A chord that opens or switches a tab leaves the
+keyboard on that tab's terminal (the frame's `Front` focuses it), so the next chord is Ctrl+Shift+B away again.

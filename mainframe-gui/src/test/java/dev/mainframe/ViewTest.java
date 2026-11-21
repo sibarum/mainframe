@@ -173,13 +173,6 @@ class ViewTest {
     }
 
     @Test
-    void escInterruptsTheTabInFront() throws Exception {
-        tab(5);
-        shell.bus().publish(Intent.INTENTS, new Intent(Intent.Command.INTERRUPT));
-        eventually("0x03, as the tab's", () -> heard.contains(new Typed(5, "\u0003")));
-    }
-
-    @Test
     void theProgramsTitleGoesToTheFrameAsTheTabs() throws Exception {
         TerminalScreen screen = tab(6);
         shell.bus().publish(TerminalScreen.TITLED, new TerminalScreen.Titled(screen.address(), "pwsh"));
@@ -271,27 +264,22 @@ class ViewTest {
         eventually("closing tab 1, asking", () -> heard.contains(new CloseAsked(1, true)));
     }
 
+    /**
+     * Ctrl+Shift+B with the bar shown and the keyboard in the terminal goes to the field, and hides nothing; from the
+     * field it hides the bar.
+     */
     @Test
-    void passthroughLetsGoOfEveryChordAndThePillTakesThemBack() throws Exception {
+    void ctrlShiftBGoesToTheFieldAndFromItHidesTheBar() throws Exception {
         tab(1);
-        intent(Intent.Command.KEYS_TO_SHELL);
-        eventually("the key map paused", () -> shell.keymap().paused());
-        shell.bus().publish(Button.PRESSED, new Button.Pressed(wiring.ui().pill().address()));
-        eventually("the key map resumed", () -> !shell.keymap().paused());
-    }
-
-    /** The menu's radio lines say where the keys go, so choosing the one already chosen flips nothing. */
-    @Test
-    void sendingKeysWhereTheyAlreadyGoChangesNothing() throws Exception {
-        tab(1);
-        intent(Intent.Command.KEYS_TO_SHELL);
-        eventually("the key map paused", () -> shell.keymap().paused());
-        intent(Intent.Command.KEYS_TO_SHELL);
-        intent(Intent.Command.KEYS_TO_MAINFRAME);
-        eventually("the key map resumed", () -> !shell.keymap().paused());
-        intent(Intent.Command.KEYS_TO_MAINFRAME);
-        intent(Intent.Command.KEYS_TO_SHELL);
-        eventually("paused again, not flipped back by the repeat", () -> shell.keymap().paused());
+        said(Preferences.DEFAULT.withActionBar(true));
+        eventually("the bar shown", () -> wiring.view().actionBarShown());
+        intent(Intent.Command.ACTION_BAR_KEY);
+        for (int i = 0; i < 5; i++) {
+            VexelApplication.frame(shell);
+        }
+        assertFalse(changed(p -> !p.actionBar()), "the first press only goes to the field");
+        intent(Intent.Command.ACTION_BAR_KEY);
+        eventually("the second hides the bar", () -> changed(p -> !p.actionBar()));
     }
 
     // ------------------------------------------------------------------ M3
@@ -446,11 +434,12 @@ class ViewTest {
     @Test
     void theCommandsAreOnTheKeymapWithTheirDefaults() {
         Keymap keys = shell.keymap();
+        // The terminal holds Ctrl+Shift+C and Ctrl+Shift+V only: Ctrl+C, Ctrl+V and Esc are the program's.
         Action copy = keys.action("terminal.copy").orElseThrow();
-        assertEquals(List.of(Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT), Shortcut.of(Key.C, Modifier.CONTROL)),
-                keys.chords(copy));
-        Action interrupt = keys.action("terminal.interrupt").orElseThrow();
-        assertEquals(List.of(Shortcut.of(Key.ESCAPE)), keys.chords(interrupt));
+        assertEquals(List.of(Shortcut.of(Key.C, Modifier.CONTROL, Modifier.SHIFT)), keys.chords(copy));
+        Action paste = keys.action("terminal.paste").orElseThrow();
+        assertEquals(List.of(Shortcut.of(Key.V, Modifier.CONTROL, Modifier.SHIFT)), keys.chords(paste));
+        assertTrue(keys.action("terminal.interrupt").isEmpty(), "Esc is the program's");
     }
 
     // ------------------------------------------------------------------ the action bar (docs/action-bar.md)

@@ -1,5 +1,10 @@
 # The passthrough switch, redrawn
 
+> **Removed 2026-11-21** (the author: "If you want the keyboard shortcuts, use the input field. If you want
+> keystrokes sent to the terminal, focus the terminal."). The terminal now has every key but copy, paste, paging and
+> Ctrl+Shift+B, and MainFrame's chords are the action bar's field's ([action-bar.md](action-bar.md), *The keys*). Kept
+> as the record of what M2 built.
+
 The look of the passthrough switch, proposed before M2 builds it, as [rebuild.md](rebuild.md) rules (2026-11-05,
 ruling 2): what it does stays, and how it is shown is drawn anew. Names and words are proposals.
 

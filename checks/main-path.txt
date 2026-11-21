@@ -10,22 +10,35 @@ await tabs
 settle
 shot @SHOTS@/1-launch.png
 
+# MainFrame's chords are the action bar's field's, and the terminal has every other key (docs/action-bar.md, The
+# keys): Ctrl+Shift+B shows the bar and goes to the field, and a click takes the keyboard back there before each chord.
+key CTRL+SHIFT+B
+await action-bar
+settle
+
 # A second tab, renamed.
 key CTRL+T
 settle
+click action-text
+settle
 key CTRL+SHIFT+R
 await rename
+settle
 type logs
 key ENTER
 settle
 shot @SHOTS@/2-renamed.png
 
 # Settings: new tabs start in the home folder, and a chord changes the text size.
+click action-text
+settle
 key CTRL+COMMA
 settle
 window settings
 await settings.dir Your home folder
 window main
+click action-text
+settle
 key CTRL+EQUAL
 settle
 window settings
@@ -34,6 +47,8 @@ shot @SHOTS@/3-settings.png
 
 # Ctrl+O: day's two tabs in this window.
 window main
+click action-text
+settle
 key CTRL+O
 stream gpu for 1500
 window open
@@ -44,10 +59,14 @@ key DOWN
 key DOWN
 key CTRL+ENTER
 window main
+# The workspace is read by a job, which settle cannot see: a moment for its tabs to arrive before the shot.
+stream gpu for 1500
 settle
 shot @SHOTS@/5-day-here.png
 
 # The Workspaces window: a workspace made from Ctrl+O's last row, named, then undone and done again.
+click action-text
+settle
 key CTRL+O
 stream gpu for 1500
 window open
