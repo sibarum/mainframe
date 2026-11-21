@@ -32,6 +32,7 @@ import dev.vexelray.gui.core.Node;
 import dev.vexelray.gui.core.layout.LayoutEnums.AlignItems;
 import dev.vexelray.gui.core.layout.Length;
 import dev.vexelray.gui.core.style.Role;
+import dev.vexelray.gui.core.text.TextFaces;
 import dev.vexelray.gui.icons.Icon;
 import dev.vexelray.gui.widget.IconButton;
 import dev.vexelray.gui.core.input.ClaimScope;
@@ -43,9 +44,8 @@ import dev.vexelray.gui.widget.Button;
 import dev.vexelray.gui.widget.MenuAction;
 import dev.vexelray.gui.widget.Tabs;
 import dev.vexelray.gui.widget.TextField;
-import dev.vexelray.text.AtlasData;
+import dev.vexelray.text.FontSet;
 import dev.vexelray.text.GlyphLayout;
-import dev.vexelray.text.TextLayout;
 import sibarum.atchung.Sender;
 import sibarum.tactroller.api.Key;
 import sibarum.tactroller.api.Modifier;
@@ -200,8 +200,9 @@ final class View {
         this.openAsked = openAsked;
         this.touched = touched;
         this.intents = intents;
-        this.glyphs = new TextLayout(AtlasData.loadFromResource("/dev/vexelray/text/atlas/primary.json")
-                .face(Type.MONO)).glyphLayout();
+        // The cell grid measures in the mono face the GUI draws it in: the standard set, mono first, then sans.
+        FontSet fonts = TextFaces.standard().set();
+        this.glyphs = fonts.layout(fonts.face("mono"));
         tabs.action(RENAME).action(ENV_TAB).action(ENV_WORKSPACE).action(CLOSE);
         commands(keys, open, openKeys, workspaces, workspacesKeys);
         ui.menu(false, intents, windows, openAsked, editWorkspaces);
